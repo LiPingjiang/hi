@@ -1,0 +1,170 @@
+name: Release
+
+# Triggered when a version tag is pushed, e.g. v0.1.0
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+env:
+  CARGO_TERM_COLOR: always
+  BINARY_NAME: hi
+
+jobs:
+  # ── Build matrix: one job per target ──────────────────────────────────────
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS — Apple Silicon (native)
+          - target: aarch64-apple-darwin
+            os: macos-14
+            archive_suffix: aarch64-apple-darwin
+
+          # macOS — Intel (native)
+          - target: x86_64-apple-darwin
+            os: macos-13
+            archive_suffix: x86_64-apple-darwin
+
+          # Linux — x86_64 glibc (most distros: Ubuntu, Debian, Fedora, …)
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+            archive_suffix: x86_64-linux-gnu
+
+          # Linux — x86_64 musl (fully static, works on Alpine and any distro)
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-22.04
+            archive_suffix: x86_64-linux-musl
+            extra_packages: musl-tools
+
+          # Linux — ARM64 (Raspberry Pi 4/5, AWS Graviton, Apple M1 via Rosetta)
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04
+            archive_suffix: aarch64-linux-gnu
+            extra_packages: gcc-aarch64-linux-gnu
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # Cache ~/.cargo/registry and the build directory for faster rebuilds
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      # Install cross-compilation system packages when needed
+      - name: Install extra packages (Linux)
+        if: matrix.extra_packages != ''
+        run: sudo apt-get update && sudo apt-get install -y ${{ matrix.extra_packages }}
+
+      # Set the cross-linker for aarch64-linux via environment variable
+      - name: Configure cross-linker (aarch64-linux)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      # ── Package into a .tar.gz archive ──────────────────────────────────
+      - name: Package archive
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          ARCHIVE="${BINARY_NAME}-${TAG}-${{ matrix.archive_suffix }}.tar.gz"
+
+          # Gather files to include
+          cp target/${{ matrix.target }}/release/${BINARY_NAME} .
+          tar -czf "${ARCHIVE}" "${BINARY_NAME}" README.md LICENSE
+
+          # Compute SHA256 (used by Homebrew Formula and install.sh)
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            shasum -a 256 "${ARCHIVE}" > "${ARCHIVE}.sha256"
+          else
+            sha256sum "${ARCHIVE}" > "${ARCHIVE}.sha256"
+          fi
+
+          echo "ARCHIVE=${ARCHIVE}" >> $GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive_suffix }}
+          path: |
+            ${{ env.ARCHIVE }}
+            ${{ env.ARCHIVE }}.sha256
+
+  # ── Create GitHub Release and attach all archives ─────────────────────────
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to create releases and upload assets
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -lh artifacts/
+
+      # Generate a changelog from commits since the previous tag
+      - name: Generate release notes
+        id: notes
+        run: |
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${GITHUB_REF_NAME}$" | head -1)
+          if [ -n "$PREV_TAG" ]; then
+            NOTES=$(git log --pretty=format:"- %s (%h)" "${PREV_TAG}..HEAD")
+          else
+            NOTES=$(git log --pretty=format:"- %s (%h)")
+          fi
+          # Write to file to avoid quoting issues
+          echo "$NOTES" > release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}  # e.g. v0.2.0-beta is pre-release
+          files: artifacts/**
+
+  # ── Publish to crates.io ──────────────────────────────────────────────────
+  publish-crate:
+    name: Publish to crates.io
+    needs: build
+    runs-on: ubuntu-latest
+    # Only publish on non-pre-release tags (no hyphen in version)
+    if: "!contains(github.ref_name, '-')"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --no-verify

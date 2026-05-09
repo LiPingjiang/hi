@@ -1,0 +1,47 @@
+[package]
+name = "hi"
+version = "0.1.0"
+edition = "2021"
+description = "A modal text editor with native AI assistance"
+license = "Apache-2.0"
+repository = "https://github.com/LiPingjiang/hi"
+homepage = "https://github.com/LiPingjiang/hi"
+documentation = "https://github.com/LiPingjiang/hi#readme"
+keywords = ["editor", "terminal", "vim", "tui", "ai"]
+categories = ["command-line-utilities", "text-editors"]
+readme = "README.md"
+exclude = [
+    ".github/",
+    "docs/",
+    "install.sh",
+    "CLA.md",
+]
+
+[lib]
+name = "hi"
+path = "src/lib.rs"
+
+[[bin]]
+name = "hi"
+path = "src/main.rs"
+
+[dependencies]
+crossterm = "0.28"
+ropey = "1.6"
+toml = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "blocking"], default-features = false }
+regex = "1"
+clap = { version = "4", features = ["derive", "env"] }
+anyhow = "1"
+dirs = "5"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true

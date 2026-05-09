@@ -113,6 +113,51 @@ colorscheme = "default"
 
 ---
 
+## Install
+
+### One-line installer (Linux & macOS)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/LiPingjiang/hi/main/install.sh | sh
+```
+
+Detects your OS and architecture, downloads the matching pre-built binary from
+GitHub Releases, verifies the SHA256 checksum, and installs to `/usr/local/bin`
+(or `~/.local/bin` if you don't have write access).
+
+**Options:**
+
+```bash
+# Install a specific version
+HI_VERSION=v0.1.0 curl -fsSL .../install.sh | sh
+
+# Install to a custom directory
+HI_INSTALL=~/.bin curl -fsSL .../install.sh | sh
+```
+
+### cargo install (requires Rust toolchain)
+
+```bash
+cargo install hi
+```
+
+### Download manually
+
+Pre-built binaries for every release are available on the
+[Releases page](https://github.com/LiPingjiang/hi/releases):
+
+| Platform | Archive |
+|---|---|
+| macOS Apple Silicon | `hi-<version>-aarch64-apple-darwin.tar.gz` |
+| macOS Intel | `hi-<version>-x86_64-apple-darwin.tar.gz` |
+| Linux x86\_64 (static) | `hi-<version>-x86_64-linux-musl.tar.gz` |
+| Linux x86\_64 (glibc) | `hi-<version>-x86_64-linux-gnu.tar.gz` |
+| Linux ARM64 | `hi-<version>-aarch64-linux-gnu.tar.gz` |
+
+Each archive includes a `.sha256` checksum file.
+
+---
+
 ## Status
 
 🚧 **Pre-alpha. Docs and architecture in progress.**
@@ -127,3 +172,26 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the technical design.
 Vim taught us that modal editing is the right model for keyboard-driven text manipulation. We keep that. Everything else is rebuilt.
 
 The goal is not to be a better Vim. The goal is to be the editor you reach for when you open a terminal and need to get something done — without stopping to remember which key does what.
+
+---
+
+## Contributing
+
+Contributions are welcome. Before submitting a pull request, please read the
+[Contributor License Agreement](CLA.md). By opening a PR you agree to its terms.
+
+This allows the project to remain open-source while preserving the flexibility
+to pursue commercial opportunities in the future.
+
+---
+
+## License
+
+Copyright 2026 lipingjiang
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the full text.
+
+In short: you can use, modify, and distribute this software freely, including
+for commercial purposes, as long as you include the license notice and attribute
+the original work. The Apache 2.0 license also includes an explicit patent grant,
+protecting both users and contributors.

@@ -168,3 +168,63 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: cargo publish --no-verify
+
+  # ── Update Homebrew tap with real SHA256 values ────────────────────────────
+  update-homebrew-tap:
+    name: Update Homebrew tap
+    needs: release
+    runs-on: ubuntu-latest
+    # Only run when HOMEBREW_TAP_TOKEN secret is configured
+    if: "!contains(github.ref_name, '-') && vars.HOMEBREW_TAP_ENABLED == 'true'"
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          merge-multiple: true
+
+      - name: Extract SHA256 values
+        id: sha
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          get_sha() { cat "artifacts/hi-${TAG}-${1}.tar.gz.sha256" | awk '{print $1}'; }
+          echo "sha_aarch64_apple=$(get_sha aarch64-apple-darwin)"   >> $GITHUB_OUTPUT
+          echo "sha_x86_64_apple=$(get_sha x86_64-apple-darwin)"     >> $GITHUB_OUTPUT
+          echo "sha_aarch64_linux=$(get_sha aarch64-linux-gnu)"      >> $GITHUB_OUTPUT
+          echo "sha_x86_64_linux=$(get_sha x86_64-linux-musl)"       >> $GITHUB_OUTPUT
+
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v4
+        with:
+          repository: LiPingjiang/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update Formula
+        env:
+          TAG: ${{ github.ref_name }}
+          VER: ${{ github.ref_name }}
+          SHA_AARCH64_APPLE: ${{ steps.sha.outputs.sha_aarch64_apple }}
+          SHA_X86_64_APPLE:  ${{ steps.sha.outputs.sha_x86_64_apple }}
+          SHA_AARCH64_LINUX: ${{ steps.sha.outputs.sha_aarch64_linux }}
+          SHA_X86_64_LINUX:  ${{ steps.sha.outputs.sha_x86_64_linux }}
+        run: |
+          VERSION="${VER#v}"
+          FORMULA="homebrew-tap/Formula/hi.rb"
+          mkdir -p homebrew-tap/Formula
+          sed -e "s/PLACEHOLDER_AARCH64_APPLE/${SHA_AARCH64_APPLE}/" \
+              -e "s/PLACEHOLDER_X86_64_APPLE/${SHA_X86_64_APPLE}/"   \
+              -e "s/PLACEHOLDER_AARCH64_LINUX/${SHA_AARCH64_LINUX}/" \
+              -e "s/PLACEHOLDER_X86_64_LINUX/${SHA_X86_64_LINUX}/"   \
+              -e "s/version \"[^\"]*\"/version \"${VERSION}\"/"      \
+              .github/homebrew/hi.rb > "${FORMULA}"
+
+      - name: Commit and push Formula
+        run: |
+          cd homebrew-tap
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/hi.rb
+          git diff --cached --quiet || git commit -m "hi ${GITHUB_REF_NAME}"
+          git push

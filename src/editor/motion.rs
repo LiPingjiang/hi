@@ -476,4 +476,80 @@ impl Editor {
         self.cursor_col = start_col + new_str.len().saturating_sub(1);
         self.clamp_cursor();
     }
+
+    // ── gd — go to definition (file-local) ────────────────
+    //
+    // Strategy: extract the identifier under the cursor, then scan upward
+    // from the current line for the first line that looks like a definition:
+    //   - function/fn/def/class/let/const/var/type declaration containing the word
+    //   - or simply the first occurrence of the word above the cursor
+    // Falls back to the first occurrence in the file if nothing is found above.
+    pub fn goto_definition(&mut self) {
+        let line = self.buffer.line_str(self.cursor_line);
+        let chars: Vec<char> = line.chars().collect();
+        let col = self.cursor_col.min(chars.len().saturating_sub(1));
+
+        // Extract identifier under cursor
+        let is_ident = |c: char| c.is_alphanumeric() || c == '_';
+        let mut s = col;
+        let mut e = col;
+        if col < chars.len() && is_ident(chars[col]) {
+            while s > 0 && is_ident(chars[s - 1]) { s -= 1; }
+            while e + 1 < chars.len() && is_ident(chars[e + 1]) { e += 1; }
+            e += 1;
+        }
+        if s == e { return; }
+        let word: String = chars[s..e].iter().collect();
+
+        // Definition-like keywords (language-agnostic heuristic)
+        let def_keywords = ["fn ", "def ", "function ", "class ", "let ", "const ",
+                            "var ", "type ", "struct ", "enum ", "interface ",
+                            "func ", "sub ", "proc "];
+
+        let lc = self.buffer.line_count();
+
+        // First pass: scan upward for a definition line
+        let mut found: Option<(usize, usize)> = None;
+        'outer: for ln in (0..self.cursor_line).rev() {
+            let ls = self.buffer.line_str(ln);
+            if !ls.contains(&*word) { continue; }
+            let lchars: Vec<char> = ls.chars().collect();
+            // Check if this line looks like a definition
+            let is_def = def_keywords.iter().any(|kw| ls.contains(kw));
+            if is_def {
+                // Find the column of the word
+                let lstr = ls.as_str();
+                if let Some(byte_pos) = lstr.find(&*word) {
+                    let col_pos = lstr[..byte_pos].chars().count();
+                    found = Some((ln, col_pos));
+                    break 'outer;
+                }
+            }
+            let _ = lchars;
+        }
+
+        // Second pass: if no definition found above, take first occurrence in file
+        if found.is_none() {
+            'outer2: for ln in 0..lc {
+                if ln == self.cursor_line { continue; }
+                let ls = self.buffer.line_str(ln);
+                if let Some(byte_pos) = ls.find(&*word) {
+                    let col_pos = ls[..byte_pos].chars().count();
+                    found = Some((ln, col_pos));
+                    break 'outer2;
+                }
+            }
+        }
+
+        if let Some((target_line, target_col)) = found {
+            self.push_jump();
+            self.cursor_line = target_line;
+            self.cursor_col  = target_col;
+            self.clamp_cursor();
+            self.scroll_to_cursor();
+            self.set_msg(format!("gd → 第 {} 行", target_line + 1));
+        } else {
+            self.set_msg(format!("未找到 '{}' 的定义", word));
+        }
+    }
 }

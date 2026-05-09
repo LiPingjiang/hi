@@ -75,7 +75,11 @@ impl Default for GeneralConfig {
 impl Default for AiConfig {
     fn default() -> Self {
         Self {
+            // Default to OpenAI; override in ~/.hirc for local endpoints:
+            //   api_base_url = "http://localhost:11434/v1"  # Ollama
+            //   api_base_url = "http://localhost:1234/v1"   # LM Studio
             api_base_url: "https://api.openai.com/v1".to_string(),
+            // Leave empty for local endpoints that don't require authentication.
             api_key: String::new(),
             model: "gpt-4o".to_string(),
             timeout_secs: 30,
@@ -84,6 +88,7 @@ impl Default for AiConfig {
         }
     }
 }
+
 
 impl Default for ThemeConfig {
     fn default() -> Self {

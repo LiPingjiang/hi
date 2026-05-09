@@ -1,8 +1,11 @@
 //! HTTP client for the OpenAI-compatible chat completions API.
 //! Uses `reqwest` in blocking mode so we can call from the synchronous
 //! event loop (wrapped in `tokio::task::spawn_blocking` from `app.rs`).
+//!
+//! Local endpoints (Ollama, LM Studio, etc.) typically don't require an API
+//! key — leave `api_key` empty and the Authorization header is omitted.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -57,11 +60,10 @@ impl AiClient {
 
     /// Send a chat-completions request and return the assistant content.
     /// This is a blocking call — wrap with `spawn_blocking` on async contexts.
+    ///
+    /// An empty `api_key` is allowed: local endpoints (Ollama, LM Studio, etc.)
+    /// don't require authentication, so we simply omit the Authorization header.
     pub fn chat(&self, messages: Vec<Message>) -> Result<String> {
-        if self.api_key.is_empty() {
-            bail!("No API key configured. Set api_key in ~/.hirc or HI_API_KEY env var.");
-        }
-
         let chat_messages: Vec<ChatMessage> = messages
             .into_iter()
             .map(|m| ChatMessage { role: m.role, content: m.content })
@@ -82,17 +84,20 @@ impl AiClient {
             .build()
             .context("Failed to build HTTP client")?;
 
-        let resp = client
-            .post(&url)
-            .bearer_auth(&self.api_key)
-            .json(&body)
-            .send()
-            .context("HTTP request failed")?;
+        // Only attach Authorization header when a key is provided.
+        let req = client.post(&url).json(&body);
+        let req = if self.api_key.is_empty() {
+            req
+        } else {
+            req.bearer_auth(&self.api_key)
+        };
+
+        let resp = req.send().context("HTTP request failed")?;
 
         if !resp.status().is_success() {
             let status = resp.status();
             let text = resp.text().unwrap_or_default();
-            bail!("API error {}: {}", status, text);
+            anyhow::bail!("API error {}: {}", status, text);
         }
 
         let parsed: ChatResponse = resp.json().context("Failed to parse API response")?;

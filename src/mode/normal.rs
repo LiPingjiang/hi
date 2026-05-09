@@ -284,6 +284,8 @@ impl Editor {
         match (first, key.code) {
             // gg → go to top
             ('g', KeyCode::Char('g')) => { self.move_file_top(); NormalAction::None }
+            // gd → go to definition (file-local)
+            ('g', KeyCode::Char('d')) => { self.goto_definition(); NormalAction::None }
             // gf → open file under cursor
             ('g', KeyCode::Char('f')) => NormalAction::OpenFileAtCursor,
             // gU → uppercase operator (wait for motion)

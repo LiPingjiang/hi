@@ -24,9 +24,9 @@ jobs:
             os: macos-14
             archive_suffix: aarch64-apple-darwin
 
-          # macOS — Intel (native)
+          # macOS — Intel (cross-compiled on macos-latest / arm64 runner)
           - target: x86_64-apple-darwin
-            os: macos-13
+            os: macos-latest
             archive_suffix: x86_64-apple-darwin
 
           # Linux — x86_64 glibc (most distros: Ubuntu, Debian, Fedora, …)

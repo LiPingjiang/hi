@@ -167,7 +167,12 @@ jobs:
       - name: Publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --no-verify
+        run: |
+          if [ -z "$CARGO_REGISTRY_TOKEN" ]; then
+            echo "⚠️  CARGO_REGISTRY_TOKEN not set, skipping crates.io publish."
+            exit 0
+          fi
+          cargo publish --no-verify
 
   # ── Update Homebrew tap with real SHA256 values ────────────────────────────
   update-homebrew-tap:

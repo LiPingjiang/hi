@@ -12,7 +12,9 @@
 #   1. Detects OS and CPU architecture
 #   2. Downloads the matching pre-built binary from GitHub Releases
 #   3. Verifies the SHA256 checksum
-#   4. Installs the binary to HI_INSTALL
+#   4. Removes stale copies of `hi` from other locations (e.g. ~/.cargo/bin)
+#   5. Installs the binary to HI_INSTALL
+#   6. Verifies `which hi` resolves to the newly installed binary
 
 set -eu
 
@@ -131,6 +133,92 @@ verify_checksum() {
     say "Checksum OK"
 }
 
+# ── Remove stale hi binaries that would shadow the new install ─────────────────
+# Common locations: ~/.cargo/bin (cargo install), ~/go/bin, ~/.local/bin, etc.
+# We only remove copies that are NOT in the target install directory.
+
+cleanup_old_versions() {
+    TARGET_DIR="$1"
+    TARGET_PATH="${TARGET_DIR}/${BINARY}"
+
+    # Well-known directories where package managers drop binaries
+    KNOWN_DIRS="${HOME}/.cargo/bin ${HOME}/.local/bin /usr/local/bin /usr/bin ${HOME}/go/bin ${HOME}/.bin ${HOME}/bin"
+
+    for DIR in $KNOWN_DIRS; do
+        CANDIDATE="${DIR}/${BINARY}"
+
+        # Skip the directory we're installing into
+        [ "$DIR" = "$TARGET_DIR" ] && continue
+
+        # Skip if no hi binary exists there
+        [ -f "$CANDIDATE" ] || continue
+
+        # Skip if it's a symlink (likely managed by a package manager like brew)
+        [ -L "$CANDIDATE" ] && continue
+
+        # Found a stale copy — remove it
+        if [ -w "$CANDIDATE" ]; then
+            say "Removing old hi at ${CANDIDATE}"
+            rm -f "$CANDIDATE"
+        elif [ -w "$DIR" ]; then
+            say "Removing old hi at ${CANDIDATE}"
+            rm -f "$CANDIDATE"
+        else
+            warn "Found old hi at ${CANDIDATE} but cannot remove (no write permission)."
+            warn "Please remove it manually: rm ${CANDIDATE}"
+        fi
+    done
+
+    # Also handle cargo specifically: if cargo is available and hi is installed
+    # via cargo, uninstall it cleanly so cargo's metadata stays consistent.
+    if command -v cargo > /dev/null 2>&1; then
+        if cargo install --list 2>/dev/null | grep -q "^hi v"; then
+            say "Uninstalling old hi from cargo..."
+            cargo uninstall hi 2>/dev/null || true
+        fi
+    fi
+}
+
+# ── Post-install verification ──────────────────────────────────────────────────
+# Make sure `which hi` points to the binary we just installed.
+
+verify_install() {
+    TARGET_DIR="$1"
+    TARGET_PATH="${TARGET_DIR}/${BINARY}"
+    EXPECTED_VERSION="$2"
+
+    # Check which hi the shell would find
+    RESOLVED=$(command -v "$BINARY" 2>/dev/null || true)
+
+    if [ -z "$RESOLVED" ]; then
+        warn "hi is not in your PATH. See instructions below."
+        return
+    fi
+
+    # Normalize paths for comparison (resolve symlinks)
+    RESOLVED_REAL=$(cd "$(dirname "$RESOLVED")" && pwd -P)/$(basename "$RESOLVED")
+    TARGET_REAL=$(cd "$(dirname "$TARGET_PATH")" && pwd -P)/$(basename "$TARGET_PATH")
+
+    if [ "$RESOLVED_REAL" != "$TARGET_REAL" ]; then
+        warn "Another hi binary shadows the new install:"
+        warn "  which hi  → ${RESOLVED}"
+        warn "  installed → ${TARGET_PATH}"
+        warn "Remove the old one: rm ${RESOLVED}"
+        warn "Or move ${TARGET_DIR} earlier in your PATH."
+        return
+    fi
+
+    # Verify version matches
+    ACTUAL_VERSION=$("$TARGET_PATH" --version 2>/dev/null | awk '{print $NF}' || true)
+    CLEAN_EXPECTED=$(echo "$EXPECTED_VERSION" | sed 's/^v//')
+
+    if [ "$ACTUAL_VERSION" = "$CLEAN_EXPECTED" ]; then
+        say "Verified: hi ${ACTUAL_VERSION} ✓"
+    else
+        warn "Version mismatch: expected ${CLEAN_EXPECTED}, got ${ACTUAL_VERSION}"
+    fi
+}
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 main() {
@@ -149,28 +237,31 @@ main() {
     CHECKSUM_URL="${ARCHIVE_URL}.sha256"
 
     say "Installing hi ${VERSION} for ${OS}/${ARCH}"
+
+    # ── Step 1: Clean up old versions before installing ──
+    cleanup_old_versions "$INSTALL_DIR"
+
+    # ── Step 2: Download ──
     say "Downloading ${ARCHIVE_NAME} ..."
 
     TMP_DIR=$(mktemp -d)
     trap 'rm -rf "$TMP_DIR"' EXIT
 
-    # Download archive and checksum
     curl -fsSL --progress-bar "$ARCHIVE_URL"  -o "${TMP_DIR}/${ARCHIVE_NAME}"
     curl -fsSL "$CHECKSUM_URL" -o "${TMP_DIR}/${ARCHIVE_NAME}.sha256"
 
-    # Verify
+    # ── Step 3: Verify checksum ──
     verify_checksum "${TMP_DIR}/${ARCHIVE_NAME}" "${TMP_DIR}/${ARCHIVE_NAME}.sha256"
 
-    # Extract
+    # ── Step 4: Extract and install ──
     tar -xzf "${TMP_DIR}/${ARCHIVE_NAME}" -C "$TMP_DIR"
 
-    # Install
     mkdir -p "$INSTALL_DIR"
     install -m 755 "${TMP_DIR}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
 
     say "Installed to ${INSTALL_DIR}/${BINARY}"
 
-    # Warn if install dir is not in PATH
+    # ── Step 5: Warn if install dir is not in PATH ──
     case ":${PATH}:" in
         *":${INSTALL_DIR}:"*) ;;
         *)
@@ -179,6 +270,9 @@ main() {
             warn "  export PATH=\"${INSTALL_DIR}:\$PATH\""
             ;;
     esac
+
+    # ── Step 6: Verify the install is clean ──
+    verify_install "$INSTALL_DIR" "$VERSION"
 
     say "Done! Run: hi --version"
 }

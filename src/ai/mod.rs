@@ -1,5 +1,6 @@
 pub mod context;
 pub mod client;
+pub mod log;
 pub mod prompt;
 pub mod parser;
 pub mod hint;

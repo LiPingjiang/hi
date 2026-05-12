@@ -83,7 +83,7 @@ impl Editor {
                 }
 
                 // Default Normal
-                "[i]插入  [v]选择  [dd]删行  [yy]复制行  [p]粘贴  [.]重复  [u]撤销  [q{r}]录宏  [@{r}]播宏  [?]AI".to_string()
+                "[i]插入  [v]选择  [dd]删行  [yy]复制行  [p]粘贴  [.]重复  [u]撤销  [?]AI  [Ctrl+l]对话面板".to_string()
             }
         }
     }

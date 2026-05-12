@@ -9,6 +9,7 @@ pub struct Config {
     pub ai: AiConfig,
     pub theme: ThemeConfig,
     pub filetree: FileTreeConfig,
+    pub chat: ChatConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -32,12 +33,21 @@ pub struct AiConfig {
     pub timeout_secs: u64,
     pub yolo_mode: bool,
     pub context_lines: usize,
+    pub debug: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
 pub struct ThemeConfig {
+    /// Legacy colorscheme name (kept for backward compat).
     pub colorscheme: String,
+    /// Syntect theme name for the editor text area.
+    /// Built-in options: "base16-ocean.dark", "Solarized (dark)",
+    /// "base16-eighties.dark", "base16-mocha.dark", "InspiredGitHub".
+    pub editor_theme: String,
+    /// Chat panel Markdown theme name.
+    /// Built-in options: "dark", "dracula", "tokyo-night".
+    pub chat_theme: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -47,6 +57,17 @@ pub struct FileTreeConfig {
     pub show_hidden: bool,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct ChatConfig {
+    /// Width of the chat panel in columns.
+    pub width: u16,
+    /// Maximum number of messages to keep in history.
+    pub max_messages: usize,
+    /// Number of recent conversation pairs to include in AI prompt context.
+    pub context_pairs: usize,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -54,6 +75,7 @@ impl Default for Config {
             ai: AiConfig::default(),
             theme: ThemeConfig::default(),
             filetree: FileTreeConfig::default(),
+            chat: ChatConfig::default(),
         }
     }
 }
@@ -85,6 +107,7 @@ impl Default for AiConfig {
             timeout_secs: 30,
             yolo_mode: false,
             context_lines: 10,
+            debug: false,
         }
     }
 }
@@ -94,6 +117,8 @@ impl Default for ThemeConfig {
     fn default() -> Self {
         Self {
             colorscheme: "default".to_string(),
+            editor_theme: "base16-ocean.dark".to_string(),
+            chat_theme: "dark".to_string(),
         }
     }
 }
@@ -103,6 +128,16 @@ impl Default for FileTreeConfig {
         Self {
             width: 30,
             show_hidden: false,
+        }
+    }
+}
+
+impl Default for ChatConfig {
+    fn default() -> Self {
+        Self {
+            width: 42,
+            max_messages: 200,
+            context_pairs: 5,
         }
     }
 }

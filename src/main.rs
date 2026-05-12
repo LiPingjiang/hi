@@ -27,6 +27,10 @@ struct Cli {
     /// Override API base URL
     #[arg(long, env = "HI_API_BASE")]
     api_base: Option<String>,
+
+    /// Enable debug logging (writes to ~/.hi/ai.log)
+    #[arg(long, env = "HI_DEBUG")]
+    debug: bool,
 }
 
 fn main() -> Result<()> {
@@ -41,6 +45,9 @@ fn main() -> Result<()> {
     }
     if let Some(base) = cli.api_base {
         config.ai.api_base_url = base;
+    }
+    if cli.debug {
+        config.ai.debug = true;
     }
 
     let (width, height) = crossterm::terminal::size().unwrap_or((80, 24));

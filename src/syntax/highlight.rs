@@ -1,6 +1,16 @@
-//! Rule-based syntax highlighting (no tree-sitter in Phase 1).
+//! Syntax highlighting — two tiers:
+//!
+//! * **`Highlighter`** — legacy rule-based engine kept for search-match /
+//!   visual-block overlays and as a fallback for plain text.
+//! * **`SyntectHighlighter`** — syntect-backed engine that reuses the
+//!   `SyntaxSet` / `Theme` already loaded by `MdRenderer`, giving the editor
+//!   the same 200+ language, Sublime-Text-quality highlighting as the Chat
+//!   panel code blocks.
 use std::path::Path;
 use crossterm::style::Color;
+use syntect::easy::HighlightLines;
+use syntect::highlighting::{ThemeSet, Style as SynStyle};
+use syntect::parsing::SyntaxSet;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
@@ -18,6 +28,18 @@ pub enum TokenKind {
     Key,      // YAML/TOML key
     Section,  // TOML section header
     Operator,
+    Heading,       // Markdown headings
+    Link,          // Markdown links / URLs
+    CodeInline,    // Markdown inline code `...`
+    CodeBlock,     // Markdown fenced code block markers
+    Emphasis,      // Markdown *italic* / _italic_
+    Strong,        // Markdown **bold** / __bold__
+    ListMarker,    // Markdown list markers (-, *, +, 1.)
+    Blockquote,    // Markdown > blockquote
+    HorizontalRule,// Markdown --- / *** / ___
+    Type,          // Rust/Java type names
+    Macro,         // Rust macros
+    Lifetime,      // Rust lifetimes
     SearchMatch,
     SearchMatchCurrent,
 }
@@ -39,6 +61,18 @@ impl TokenKind {
             TokenKind::Key              => Some(Color::Magenta),
             TokenKind::Section          => Some(Color::Cyan),
             TokenKind::Operator         => Some(Color::White),
+            TokenKind::Heading           => Some(Color::Magenta),
+            TokenKind::Link              => Some(Color::Blue),
+            TokenKind::CodeInline        => Some(Color::Yellow),
+            TokenKind::CodeBlock         => Some(Color::Yellow),
+            TokenKind::Emphasis          => Some(Color::Cyan),
+            TokenKind::Strong            => Some(Color::Cyan),
+            TokenKind::ListMarker        => Some(Color::Blue),
+            TokenKind::Blockquote        => Some(Color::DarkGrey),
+            TokenKind::HorizontalRule    => Some(Color::DarkGrey),
+            TokenKind::Type              => Some(Color::Cyan),
+            TokenKind::Macro             => Some(Color::Yellow),
+            TokenKind::Lifetime          => Some(Color::Magenta),
             TokenKind::SearchMatch        => None,
             TokenKind::SearchMatchCurrent => None,
         }
@@ -53,11 +87,11 @@ impl TokenKind {
     }
 
     pub fn bold(&self) -> bool {
-        matches!(self, TokenKind::Keyword | TokenKind::Tag | TokenKind::Section)
+        matches!(self, TokenKind::Keyword | TokenKind::Tag | TokenKind::Section | TokenKind::Heading | TokenKind::Strong)
     }
 
     pub fn italic(&self) -> bool {
-        matches!(self, TokenKind::Comment)
+        matches!(self, TokenKind::Comment | TokenKind::Emphasis)
     }
 }
 
@@ -86,6 +120,8 @@ pub enum FileType {
     Log,
     Java,
     Python,
+    Markdown,
+    Rust,
 }
 
 impl FileType {
@@ -102,6 +138,8 @@ impl FileType {
             "log"           => FileType::Log,
             "java"          => FileType::Java,
             "py"            => FileType::Python,
+            "md" | "markdown" | "mkd" => FileType::Markdown,
+            "rs"            => FileType::Rust,
             _               => FileType::Plain,
         }
     }
@@ -120,6 +158,8 @@ impl FileType {
             "log"           => FileType::Log,
             "java"          => FileType::Java,
             "py"            => FileType::Python,
+            "md" | "markdown" | "mkd" => FileType::Markdown,
+            "rs"            => FileType::Rust,
             _ => match name.as_str() {
                 "makefile" | "dockerfile" | "vagrantfile" => FileType::Shell,
                 _ => FileType::Plain,
@@ -151,6 +191,8 @@ impl FileType {
             FileType::Log        => "LOG",
             FileType::Java       => "JAVA",
             FileType::Python     => "PYTHON",
+            FileType::Markdown   => "MARKDOWN",
+            FileType::Rust       => "RUST",
         }
     }
 }
@@ -179,6 +221,8 @@ impl Highlighter {
             FileType::Log        => highlight_log(line),
             FileType::Java       => highlight_java(line),
             FileType::Python     => highlight_python(line),
+            FileType::Markdown   => highlight_markdown(line),
+            FileType::Rust       => highlight_rust(line),
             FileType::Plain      => vec![],
         }
     }
@@ -515,6 +559,438 @@ fn add_string_spans(spans: &mut Vec<Span>, line: &str) {
             spans.push(span(start, i, TokenKind::String));
         } else {
             i += 1;
+        }
+    }
+}
+
+// ── Markdown highlighter ──────────────────────────────────────────────────────
+
+fn highlight_markdown(line: &str) -> Vec<Span> {
+    let mut spans = vec![];
+    let trimmed = line.trim_start();
+
+    // Heading: # ## ### etc.
+    if trimmed.starts_with('#') {
+        let hashes = trimmed.chars().take_while(|c| *c == '#').count();
+        if hashes <= 6 && trimmed.chars().nth(hashes).map_or(true, |c| c == ' ') {
+            spans.push(span(0, line.len(), TokenKind::Heading));
+            return spans;
+        }
+    }
+
+    // Horizontal rule: --- / *** / ___ (3+ of same char, optionally with spaces)
+    {
+        let hr_trimmed = trimmed.replace(' ', "");
+        if hr_trimmed.len() >= 3
+            && (hr_trimmed.chars().all(|c| c == '-')
+                || hr_trimmed.chars().all(|c| c == '*')
+                || hr_trimmed.chars().all(|c| c == '_'))
+        {
+            spans.push(span(0, line.len(), TokenKind::HorizontalRule));
+            return spans;
+        }
+    }
+
+    // Fenced code block markers: ``` or ~~~
+    if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+        spans.push(span(0, line.len(), TokenKind::CodeBlock));
+        return spans;
+    }
+
+    // Blockquote: > text
+    if trimmed.starts_with('>') {
+        spans.push(span(0, line.len(), TokenKind::Blockquote));
+        return spans;
+    }
+
+    // List markers: - item, * item, + item, 1. item
+    let prefix_len = line.len() - trimmed.len();
+    if trimmed.starts_with("- ") || trimmed.starts_with("* ") || trimmed.starts_with("+ ")
+    {
+        spans.push(span(prefix_len, prefix_len + 2, TokenKind::ListMarker));
+        // Continue to highlight inline elements in the rest
+        highlight_markdown_inline(&mut spans, line, prefix_len + 2);
+        return spans;
+    }
+    // Numbered list: 1. 2. etc.
+    {
+        let digits: usize = trimmed.chars().take_while(|c| c.is_ascii_digit()).count();
+        if digits > 0 && trimmed[digits..].starts_with(". ") {
+            let marker_end = prefix_len + digits + 2;
+            spans.push(span(prefix_len, marker_end, TokenKind::ListMarker));
+            highlight_markdown_inline(&mut spans, line, marker_end);
+            return spans;
+        }
+    }
+
+    // Default: highlight inline elements
+    highlight_markdown_inline(&mut spans, line, 0);
+    spans
+}
+
+/// Highlight inline Markdown elements: **bold**, *italic*, `code`, [links](url), ![images](url)
+fn highlight_markdown_inline(spans: &mut Vec<Span>, line: &str, start_from: usize) {
+    let bytes = line.as_bytes();
+    let len = bytes.len();
+    let mut i = start_from;
+
+    while i < len {
+        // Inline code: `...`
+        if bytes[i] == b'`' && !(i + 1 < len && bytes[i + 1] == b'`') {
+            let start = i;
+            i += 1;
+            while i < len && bytes[i] != b'`' { i += 1; }
+            if i < len { i += 1; } // consume closing `
+            spans.push(span(start, i, TokenKind::CodeInline));
+            continue;
+        }
+
+        // Bold: **...**
+        if i + 1 < len && bytes[i] == b'*' && bytes[i + 1] == b'*' {
+            let start = i;
+            i += 2;
+            while i + 1 < len && !(bytes[i] == b'*' && bytes[i + 1] == b'*') { i += 1; }
+            if i + 1 < len { i += 2; } // consume closing **
+            spans.push(span(start, i, TokenKind::Strong));
+            continue;
+        }
+
+        // Bold: __...__
+        if i + 1 < len && bytes[i] == b'_' && bytes[i + 1] == b'_' {
+            let start = i;
+            i += 2;
+            while i + 1 < len && !(bytes[i] == b'_' && bytes[i + 1] == b'_') { i += 1; }
+            if i + 1 < len { i += 2; }
+            spans.push(span(start, i, TokenKind::Strong));
+            continue;
+        }
+
+        // Italic: *...*
+        if bytes[i] == b'*' {
+            let start = i;
+            i += 1;
+            while i < len && bytes[i] != b'*' { i += 1; }
+            if i < len { i += 1; }
+            spans.push(span(start, i, TokenKind::Emphasis));
+            continue;
+        }
+
+        // Italic: _..._
+        if bytes[i] == b'_' {
+            let start = i;
+            i += 1;
+            while i < len && bytes[i] != b'_' { i += 1; }
+            if i < len { i += 1; }
+            spans.push(span(start, i, TokenKind::Emphasis));
+            continue;
+        }
+
+        // Link: [text](url) or image: ![alt](url)
+        if bytes[i] == b'[' || (bytes[i] == b'!' && i + 1 < len && bytes[i + 1] == b'[') {
+            let start = i;
+            if bytes[i] == b'!' { i += 1; }
+            i += 1; // skip [
+            while i < len && bytes[i] != b']' { i += 1; }
+            if i < len { i += 1; } // skip ]
+            if i < len && bytes[i] == b'(' {
+                i += 1;
+                while i < len && bytes[i] != b')' { i += 1; }
+                if i < len { i += 1; } // skip )
+            }
+            spans.push(span(start, i, TokenKind::Link));
+            continue;
+        }
+
+        i += 1;
+    }
+}
+
+// ── Rust highlighter ──────────────────────────────────────────────────────────
+
+fn highlight_rust(line: &str) -> Vec<Span> {
+    let mut spans = vec![];
+    let trimmed = line.trim_start();
+
+    // Line comments
+    if trimmed.starts_with("//") {
+        spans.push(span(0, line.len(), TokenKind::Comment));
+        return spans;
+    }
+
+    // Attributes: #[...] or #![...]
+    if trimmed.starts_with("#[") || trimmed.starts_with("#![") {
+        spans.push(span(0, line.len(), TokenKind::Attribute));
+        return spans;
+    }
+
+    const KEYWORDS: &[&str] = &[
+        "as", "async", "await", "break", "const", "continue", "crate", "dyn",
+        "else", "enum", "extern", "false", "fn", "for", "if", "impl", "in",
+        "let", "loop", "match", "mod", "move", "mut", "pub", "ref", "return",
+        "self", "Self", "static", "struct", "super", "trait", "true", "type",
+        "unsafe", "use", "where", "while", "yield",
+    ];
+    add_keyword_spans(&mut spans, line, KEYWORDS, TokenKind::Keyword);
+
+    // Macros: word! or word!(
+    let mut i = 0usize;
+    let bytes = line.as_bytes();
+    while i < bytes.len() {
+        if bytes[i].is_ascii_alphabetic() || bytes[i] == b'_' {
+            let start = i;
+            while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') { i += 1; }
+            if i < bytes.len() && bytes[i] == b'!' {
+                spans.push(span(start, i + 1, TokenKind::Macro));
+                i += 1;
+            }
+            continue;
+        }
+        // Lifetime: 'a, 'static, etc.
+        if bytes[i] == b'\'' && i + 1 < bytes.len() && bytes[i + 1].is_ascii_alphabetic() {
+            let start = i;
+            i += 1;
+            while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') { i += 1; }
+            spans.push(span(start, i, TokenKind::Lifetime));
+            continue;
+        }
+        i += 1;
+    }
+
+    add_string_spans(&mut spans, line);
+    // Number literals
+    add_number_spans(&mut spans, line);
+    spans
+}
+
+fn add_number_spans(spans: &mut Vec<Span>, line: &str) {
+    let bytes = line.as_bytes();
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if bytes[i].is_ascii_digit() {
+            // Check that previous char is not alphanumeric (word boundary)
+            if i > 0 && (bytes[i - 1].is_ascii_alphanumeric() || bytes[i - 1] == b'_') {
+                i += 1;
+                continue;
+            }
+            let start = i;
+            // Hex: 0x...
+            if bytes[i] == b'0' && i + 1 < bytes.len() && (bytes[i + 1] == b'x' || bytes[i + 1] == b'b' || bytes[i + 1] == b'o') {
+                i += 2;
+                while i < bytes.len() && (bytes[i].is_ascii_hexdigit() || bytes[i] == b'_') { i += 1; }
+            } else {
+                while i < bytes.len() && (bytes[i].is_ascii_digit() || bytes[i] == b'.' || bytes[i] == b'_' || bytes[i] == b'e' || bytes[i] == b'E') { i += 1; }
+            }
+            // Type suffix: u8, i32, f64, usize, etc.
+            if i < bytes.len() && (bytes[i] == b'u' || bytes[i] == b'i' || bytes[i] == b'f') {
+                while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') { i += 1; }
+            }
+            spans.push(span(start, i, TokenKind::Number));
+            continue;
+        }
+        i += 1;
+    }
+}
+
+// ── Syntect-backed highlighter ────────────────────────────────────────────────
+
+/// A single syntect-highlighted span: byte range + RGB colours + font style.
+///
+/// Unlike the legacy `Span` / `TokenKind`, colours here are exact RGB values
+/// taken directly from the Sublime Text theme, so they match the Chat panel
+/// code-block colours perfectly.
+#[derive(Debug, Clone)]
+pub struct SyntectSpan {
+    /// Byte start offset in the source line.
+    pub start: usize,
+    /// Byte end offset (exclusive).
+    pub end: usize,
+    /// Foreground colour from the theme.
+    pub fg: Color,
+    /// `true` when the theme marks this token bold.
+    pub bold: bool,
+    /// `true` when the theme marks this token italic.
+    pub italic: bool,
+    /// Special overlay kind (search match, visual block).  `None` for normal
+    /// syntect tokens.
+    pub overlay: Option<OverlayKind>,
+}
+
+/// Overlay kinds that are painted on top of syntect colours.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum OverlayKind {
+    SearchMatch,
+    SearchMatchCurrent,
+    VisualBlock,
+}
+
+impl OverlayKind {
+    pub fn bg_color(self) -> Color {
+        match self {
+            OverlayKind::SearchMatch        => Color::DarkGrey,
+            OverlayKind::SearchMatchCurrent => Color::Yellow,
+            OverlayKind::VisualBlock        => Color::DarkGrey,
+        }
+    }
+    pub fn fg_color(self) -> Option<Color> {
+        match self {
+            OverlayKind::SearchMatchCurrent => Some(Color::Black),
+            _ => None,
+        }
+    }
+}
+
+/// Syntect-backed, stateful per-file highlighter.
+///
+/// Holds a `HighlightLines` state machine so that multi-line constructs
+/// (block comments, heredocs, …) are tracked correctly across successive
+/// `highlight_line` calls.  Call `reset()` whenever the file or filetype
+/// changes.
+pub struct SyntectHighlighter {
+    filetype: FileType,
+    syntax_set: SyntaxSet,
+    theme_set: ThemeSet,
+    /// Active theme name (matches `MdTheme::syntect_theme`).
+    theme_name: String,
+    /// Per-line state machine — `None` when filetype is `Plain`.
+    state: Option<HighlightLines<'static>>,
+}
+
+// SAFETY: `HighlightLines` holds a `&'static SyntaxDefinition` reference
+// obtained from a `SyntaxSet` that we own.  We never expose the raw reference
+// and always reset the state when the syntax set changes.
+unsafe impl Send for SyntectHighlighter {}
+
+impl SyntectHighlighter {
+    /// Create a new highlighter for the given filetype.
+    ///
+    /// `theme_name` should be one of the syntect built-in names, e.g.
+    /// `"base16-ocean.dark"`, `"Solarized (dark)"`, etc.  Falls back to the
+    /// first available theme if the name is not found.
+    pub fn new(filetype: FileType, theme_name: impl Into<String>) -> Self {
+        let syntax_set = SyntaxSet::load_defaults_newlines();
+        let theme_set  = ThemeSet::load_defaults();
+        let theme_name = theme_name.into();
+        let mut h = Self {
+            filetype,
+            syntax_set,
+            theme_set,
+            theme_name,
+            state: None,
+        };
+        h.reset_state();
+        h
+    }
+
+    /// Convenience constructor that mirrors `MdRenderer::with_default_theme`.
+    pub fn with_default_theme(filetype: FileType) -> Self {
+        Self::new(filetype, "base16-ocean.dark")
+    }
+
+    /// Change the active filetype and reset the parse state.
+    pub fn set_filetype(&mut self, ft: FileType) {
+        self.filetype = ft;
+        self.reset_state();
+    }
+
+    /// Switch the syntect colour theme at runtime and reset the parse state.
+    pub fn set_theme(&mut self, theme_name: impl Into<String>) {
+        self.theme_name = theme_name.into();
+        self.reset_state();
+    }
+
+    /// Return the current theme name.
+    pub fn theme_name(&self) -> &str { &self.theme_name }
+
+    pub fn filetype(&self) -> FileType { self.filetype }
+
+    /// Reset the per-line parse state (call after seeking / reloading the file).
+    pub fn reset_state(&mut self) {
+        if self.filetype == FileType::Plain {
+            self.state = None;
+            return;
+        }
+        let syntax = self.find_syntax();
+        let theme  = self.active_theme();
+        // SAFETY: we extend the lifetime to 'static because both `syntax_set`
+        // and `theme_set` are owned by `self` and outlive `state`.
+        let hl: HighlightLines<'_> = HighlightLines::new(syntax, theme);
+        let hl: HighlightLines<'static> = unsafe {
+            std::mem::transmute(hl)
+        };
+        self.state = Some(hl);
+    }
+
+    /// Highlight one line and return `SyntectSpan`s.
+    ///
+    /// The internal `HighlightLines` state is advanced so the next call picks
+    /// up where this one left off (important for multi-line strings / comments).
+    pub fn highlight_line(&mut self, line: &str) -> Vec<SyntectSpan> {
+        let Some(ref mut hl) = self.state else {
+            return vec![];
+        };
+        match hl.highlight_line(line, &self.syntax_set) {
+            Ok(ranges) => {
+                let mut spans = Vec::with_capacity(ranges.len());
+                let mut byte_pos = 0usize;
+                for (style, text) in &ranges {
+                    if text.is_empty() { continue; }
+                    let end = byte_pos + text.len();
+                    spans.push(SyntectSpan {
+                        start: byte_pos,
+                        end,
+                        fg: syn_color_to_crossterm(style),
+                        bold:   style.font_style.contains(syntect::highlighting::FontStyle::BOLD),
+                        italic: style.font_style.contains(syntect::highlighting::FontStyle::ITALIC),
+                        overlay: None,
+                    });
+                    byte_pos = end;
+                }
+                spans
+            }
+            Err(_) => vec![],
+        }
+    }
+
+    // ── private helpers ───────────────────────────────────────────────────────
+
+    fn find_syntax(&self) -> &syntect::parsing::SyntaxReference {
+        let token = self.filetype.syntect_token();
+        self.syntax_set
+            .find_syntax_by_token(token)
+            .or_else(|| self.syntax_set.find_syntax_by_extension(token))
+            .unwrap_or_else(|| self.syntax_set.find_syntax_plain_text())
+    }
+
+    fn active_theme(&self) -> &syntect::highlighting::Theme {
+        self.theme_set.themes.get(&self.theme_name)
+            .unwrap_or_else(|| self.theme_set.themes.values().next().unwrap())
+    }
+}
+
+/// Convert a syntect `Style` foreground to a crossterm `Color`.
+fn syn_color_to_crossterm(style: &SynStyle) -> Color {
+    let fg = style.foreground;
+    Color::Rgb { r: fg.r, g: fg.g, b: fg.b }
+}
+
+impl FileType {
+    /// Return the token/extension string that syntect uses to look up the
+    /// `SyntaxDefinition` for this filetype.
+    pub fn syntect_token(self) -> &'static str {
+        match self {
+            FileType::Plain      => "txt",
+            FileType::Yaml       => "yaml",
+            FileType::Json       => "json",
+            FileType::Toml       => "toml",
+            FileType::Properties => "properties",
+            FileType::Xml        => "xml",
+            FileType::Html       => "html",
+            FileType::Shell      => "sh",
+            FileType::Log        => "log",
+            FileType::Java       => "java",
+            FileType::Python     => "py",
+            FileType::Markdown   => "md",
+            FileType::Rust       => "rs",
         }
     }
 }

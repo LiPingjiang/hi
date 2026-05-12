@@ -6,29 +6,45 @@ use crossterm::{
     style::{Attribute, Color, SetForegroundColor, SetBackgroundColor, ResetColor, SetAttribute},
     terminal,
 };
+use unicode_width::UnicodeWidthChar;
 use std::io::{self, Write, Stdout};
 
+use crate::app::{AiStatus, FocusZone};
+use crate::config::Config;
 use crate::editor::Editor;
 use crate::mode::{Mode, VisualKind};
-use crate::syntax::highlight::{FileType, Highlighter, TokenKind};
+use crate::syntax::highlight::{FileType, Highlighter, SyntectHighlighter, SyntectSpan, OverlayKind};
+use crate::ui::chatpanel::{ChatPanel, ChatRole};
 use crate::ui::filetree::FileTree;
 use crate::ui::ghost::GhostText;
+use crate::ui::mdrender::{MdRenderer, MdLine};
 
 pub struct Renderer {
     pub stdout: Stdout,
+    /// Legacy rule-based highlighter — kept only for search-match / visual-block
+    /// overlay spans that are merged on top of syntect output.
     pub highlighter: Highlighter,
+    /// Syntect-backed highlighter for the editor text area.
+    pub syntect_hl: SyntectHighlighter,
+    pub md_renderer: MdRenderer,
 }
 
 impl Renderer {
-    pub fn new(filetype: FileType) -> Self {
+    /// Create a renderer driven by the user's `~/.hirc` theme configuration.
+    pub fn new(filetype: FileType, config: &Config) -> Self {
+        let editor_theme = &config.theme.editor_theme;
+        let chat_theme = crate::ui::mdrender::MdTheme::by_name(&config.theme.chat_theme);
         Self {
             stdout: io::stdout(),
             highlighter: Highlighter::new(filetype),
+            syntect_hl: SyntectHighlighter::new(filetype, editor_theme),
+            md_renderer: MdRenderer::new(chat_theme),
         }
     }
 
     pub fn set_filetype(&mut self, ft: FileType) {
         self.highlighter = Highlighter::new(ft);
+        self.syntect_hl.set_filetype(ft);
     }
 
     pub fn init(&mut self) -> io::Result<()> {
@@ -57,11 +73,26 @@ impl Renderer {
         ai_query_msg: &Option<String>,
         plan_lines: &Option<Vec<String>>,
         filetree_prompt: &Option<crate::app::FileTreePrompt>,
+        ai_status: &AiStatus,
+        ai_pending: bool,
+        ai_tick: u64,
+        chat_panel: &mut ChatPanel,
+        chat_visible: bool,
+        focus: FocusZone,
+        chat_input: &str,
+        chat_input_active: bool,
+        chat_input_cursor: usize,
     ) -> io::Result<()> {
+        let chat_focus = focus == FocusZone::Chat;
+        let ft_focused = focus == FocusZone::FileTree;
+        let _editor_focused = focus == FocusZone::Editor;
         let w = editor.term_width as usize;
         let h = editor.term_height as usize;
         let ft_width = if editor.filetree_visible {
             editor.config.filetree.width as usize
+        } else { 0 };
+        let chat_width = if chat_visible {
+            (editor.config.chat.width as usize).min(w / 2)
         } else { 0 };
 
         execute!(self.stdout,
@@ -72,7 +103,7 @@ impl Renderer {
         // ── File tree panel ──────────────────────────────
         if editor.filetree_visible {
             if let Some(ft) = filetree {
-                self.render_filetree(ft, ft_width, h.saturating_sub(2), editor.filetree_focus)?;
+                self.render_filetree(ft, ft_width, h.saturating_sub(2), ft_focused)?;
             } else {
                 // filetree failed to load — clear the panel so no stale content shows
                 for row in 0..h.saturating_sub(2) {
@@ -84,7 +115,8 @@ impl Renderer {
 
         // ── Editing area ──────────────────────────────────
         let edit_x = ft_width + if ft_width > 0 { 1 } else { 0 };
-        let edit_w = w.saturating_sub(edit_x);
+        let chat_total = chat_width + if chat_width > 0 { 1 } else { 0 }; // +1 for separator
+        let edit_w = w.saturating_sub(edit_x).saturating_sub(chat_total);
         let edit_h = h.saturating_sub(2);
         let gutter = if editor.config.general.line_numbers { editor.gutter_width() } else { 0 };
 
@@ -114,14 +146,22 @@ impl Renderer {
             // Draw text
             if buf_line < editor.buffer.line_count() {
                 let line = editor.buffer.line_str(buf_line);
-                let mut spans = if editor.search_highlight && !editor.search_pattern.is_empty() {
-                    // Merge syntax spans + search highlight spans
+
+                // Reset syntect state at the start of each visible frame so
+                // that scrolling never leaves the highlighter in a stale state.
+                // (A full incremental parse would be better, but this is safe.)
+                // We only reset once per frame, not per line, so multi-line
+                // constructs that start above the viewport are re-parsed from
+                // the top of the visible window — acceptable for a TUI editor.
+
+                let mut spans: Vec<SyntectSpan> = if editor.search_highlight && !editor.search_pattern.is_empty() {
+                    // Merge syntect spans + search highlight overlays
                     self.spans_with_search(&line, buf_line, &search_set, current_match)
                 } else {
-                    self.highlighter.highlight_line(&line)
+                    self.syntect_hl.highlight_line(&line)
                 };
 
-                // Visual Block highlight: overlay a selection span on the block columns
+                // Visual Block highlight: overlay a VisualBlock span on the selected columns
                 if let Mode::Visual { kind: VisualKind::Block, anchor } = &editor.mode {
                     let (sl, el, lc, rc) = editor.block_rect(*anchor);
                     if buf_line >= sl && buf_line <= el {
@@ -131,10 +171,13 @@ impl Renderer {
                         if s < e {
                             let byte_s: usize = chars[..s].iter().map(|c| c.len_utf8()).sum();
                             let byte_e: usize = chars[..e].iter().map(|c| c.len_utf8()).sum();
-                            spans.push(crate::syntax::highlight::Span {
+                            spans.push(SyntectSpan {
                                 start: byte_s,
                                 end:   byte_e,
-                                kind:  crate::syntax::highlight::TokenKind::SearchMatch,
+                                fg: Color::White,
+                                bold: false,
+                                italic: false,
+                                overlay: Some(OverlayKind::VisualBlock),
                             });
                         }
                     }
@@ -161,6 +204,20 @@ impl Renderer {
             }
         }
 
+        // ── Chat panel (right side) ─────────────────────
+        if chat_visible && chat_width > 0 {
+            let chat_x = w.saturating_sub(chat_width);
+            let sep_x = chat_x.saturating_sub(1);
+            // Separator
+            for row in 0..edit_h {
+                execute!(self.stdout, cursor::MoveTo(sep_x as u16, row as u16))?;
+                execute!(self.stdout, SetForegroundColor(Color::DarkGrey))?;
+                write!(self.stdout, "│")?;
+                execute!(self.stdout, ResetColor)?;
+            }
+            self.render_chat_panel(chat_panel, chat_x, chat_width, edit_h, chat_focus, chat_input, chat_input_active)?;
+        }
+
         // ── Plan overlay ───────────────────────────────────
         if let Some(plan) = plan_lines {
             self.render_plan_overlay(plan, w, h)?;
@@ -177,26 +234,53 @@ impl Renderer {
         let info_row = (h - 1) as u16;
 
         execute!(self.stdout, cursor::MoveTo(0, hint_row))?;
-        execute!(self.stdout, SetForegroundColor(Color::DarkGrey))?;
-        let hint = if let Some(msg) = ai_query_msg {
-            // AI query result displayed in hint line
-            truncate(msg, w)
-        } else if ghost.visible {
-            format!("[Tab]确认执行  [Esc]取消  {}", ghost.explanation)
+        if ai_pending {
+            // Animated spinner while AI is working
+            let spinner_frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+            let frame = spinner_frames[(ai_tick as usize) % spinner_frames.len()];
+            let spinner_msg = format!("{} AI 思考中...", frame);
+            execute!(self.stdout, SetForegroundColor(Color::Cyan))?;
+            let spinner_trunc = truncate(&spinner_msg, w);
+            let spinner_dw = display_width_str(&spinner_trunc);
+            write!(self.stdout, "{}", spinner_trunc)?;
+            if spinner_dw < w {
+                write!(self.stdout, "{:padding$}", "", padding = w - spinner_dw)?;
+            }
+            execute!(self.stdout, ResetColor)?;
         } else {
-            editor.hint_line()
-        };
-        write!(self.stdout, "{:<width$}", hint, width = w)?;
-        execute!(self.stdout, ResetColor)?;
+            execute!(self.stdout, SetForegroundColor(Color::DarkGrey))?;
+            let hint = if let Some(msg) = ai_query_msg {
+                // AI query result displayed in hint line
+                truncate(msg, w)
+            } else if ghost.visible {
+                format!("[Tab]确认执行  [Esc]取消  {}", ghost.explanation)
+            } else {
+                editor.hint_line()
+            };
+            let hint_trunc = truncate(&hint, w);
+            let hint_dw = display_width_str(&hint_trunc);
+            write!(self.stdout, "{}", hint_trunc)?;
+            if hint_dw < w {
+                write!(self.stdout, "{:padding$}", "", padding = w - hint_dw)?;
+            }
+            execute!(self.stdout, ResetColor)?;
+        }
 
         execute!(self.stdout, cursor::MoveTo(0, info_row))?;
+        let ai_indicator = match ai_status {
+            AiStatus::Idle         => "[AI ●]",
+            AiStatus::NotConfigured => "[AI ○]",
+            AiStatus::Requesting   => "[AI ⟳]",
+            AiStatus::Error(_)     => "[AI ✗]",
+        };
         let info = editor.info_line(self.highlighter.filetype());
-        self.render_info_line(&info, w, editor)?;
+        self.render_info_line(&info, w, editor, ai_indicator, ai_status)?;
 
         // Ghost text in the command prompt area (reuse bottom of info row)
         if ghost.visible {
             let ghost_str = format!("  :{}", ghost.command);
-            execute!(self.stdout, cursor::MoveTo((w.saturating_sub(ghost_str.len().min(w))) as u16, info_row))?;
+            let ghost_dw = display_width_str(&ghost_str);
+            execute!(self.stdout, cursor::MoveTo((w.saturating_sub(ghost_dw.min(w))) as u16, info_row))?;
             execute!(self.stdout, SetForegroundColor(Color::DarkGrey))?;
             write!(self.stdout, "{}", truncate(&ghost_str, w))?;
             execute!(self.stdout, ResetColor)?;
@@ -207,19 +291,34 @@ impl Renderer {
             Mode::Command(s) => {
                 execute!(self.stdout, cursor::MoveTo(0, info_row))?;
                 execute!(self.stdout, SetForegroundColor(Color::White))?;
-                write!(self.stdout, ":{:<width$}", s, width = w.saturating_sub(1))?;
+                let s_trunc = truncate(s, w.saturating_sub(1));
+                let s_dw = display_width_str(&s_trunc) + 1; // +1 for ':'
+                write!(self.stdout, ":{}", s_trunc)?;
+                if s_dw < w {
+                    write!(self.stdout, "{:padding$}", "", padding = w - s_dw)?;
+                }
                 execute!(self.stdout, ResetColor)?;
             }
             Mode::Search(s) => {
                 execute!(self.stdout, cursor::MoveTo(0, info_row))?;
                 execute!(self.stdout, SetForegroundColor(Color::White))?;
-                write!(self.stdout, "/{:<width$}", s, width = w.saturating_sub(1))?;
+                let s_trunc = truncate(s, w.saturating_sub(1));
+                let s_dw = display_width_str(&s_trunc) + 1; // +1 for '/'
+                write!(self.stdout, "/{}", s_trunc)?;
+                if s_dw < w {
+                    write!(self.stdout, "{:padding$}", "", padding = w - s_dw)?;
+                }
                 execute!(self.stdout, ResetColor)?;
             }
             Mode::Ai(s) => {
                 execute!(self.stdout, cursor::MoveTo(0, info_row))?;
                 execute!(self.stdout, SetForegroundColor(Color::Cyan))?;
-                write!(self.stdout, "?{:<width$}", s, width = w.saturating_sub(1))?;
+                let s_trunc = truncate(s, w.saturating_sub(1));
+                let s_dw = display_width_str(&s_trunc) + 1; // +1 for '?'
+                write!(self.stdout, "?{}", s_trunc)?;
+                if s_dw < w {
+                    write!(self.stdout, "{:padding$}", "", padding = w - s_dw)?;
+                }
                 execute!(self.stdout, ResetColor)?;
             }
             _ => {}
@@ -252,40 +351,73 @@ impl Renderer {
             write!(self.stdout, "{}{:<width$}", label, input, width = w.saturating_sub(label.len()))?;
             execute!(self.stdout, ResetColor)?;
             // Show cursor at end of input
-            let cursor_x = (label.len() + input.len()).min(w.saturating_sub(1));
+            let cursor_x = (display_width_str(label) + display_width_str(input)).min(w.saturating_sub(1));
             execute!(self.stdout, cursor::MoveTo(cursor_x as u16, info_row), cursor::Show)?;
         }
 
         // ── Hardware cursor position ──────────────────────
-        match &editor.mode {
-            Mode::Normal | Mode::Insert | Mode::Visual { .. } => {
-                let vis_line = editor.cursor_line.saturating_sub(editor.scroll_line);
-                if vis_line < edit_h {
-                    let x = edit_x + gutter + editor.cursor_col.min(text_w.saturating_sub(1));
-                    execute!(self.stdout,
-                        cursor::Show,
-                        cursor::MoveTo(x as u16, vis_line as u16),
-                    )?;
-                    // Block vs beam
-                    if editor.mode.is_insert() {
-                        execute!(self.stdout, cursor::SetCursorStyle::BlinkingBar)?;
-                    } else {
-                        execute!(self.stdout, cursor::SetCursorStyle::SteadyBlock)?;
+        // When chat input is active, cursor must be in the chat input line
+        // so the IME (input method) composing window appears at the right place.
+        if chat_input_active && chat_visible && chat_width > 0 {
+            let chat_x = w.saturating_sub(chat_width);
+            // Input line is at: title(1) + content_h + 0-based = same row as input_y in render_chat_panel
+            let input_row_count = 1;
+            let usable_h = edit_h.saturating_sub(input_row_count);
+            let content_h = usable_h.saturating_sub(1);
+            let input_y = (1 + content_h) as u16;
+            // "▶ " prefix is 2 display columns (▶=1 wide + space=1), then text up to cursor
+            let prefix_w = display_width_str("▶ ");
+            let text_before_cursor: String = chat_input.chars().take(chat_input_cursor).collect();
+            let cursor_offset = display_width_str(&text_before_cursor);
+            let cursor_x = chat_x + prefix_w + cursor_offset;
+            let cursor_x = cursor_x.min(w.saturating_sub(1));
+            execute!(self.stdout,
+                cursor::Show,
+                cursor::MoveTo(cursor_x as u16, input_y),
+                cursor::SetCursorStyle::BlinkingBar,
+            )?;
+        } else {
+            match &editor.mode {
+                Mode::Normal | Mode::Insert | Mode::Visual { .. } => {
+                    let vis_line = editor.cursor_line.saturating_sub(editor.scroll_line);
+                    if vis_line < edit_h {
+                        // Convert char-index cursor_col to display width for correct terminal positioning
+                        let buf_line = editor.cursor_line;
+                        let display_col = if buf_line < editor.buffer.line_count() {
+                            let line = editor.buffer.line_str(buf_line);
+                            line.chars()
+                                .take(editor.cursor_col)
+                                .map(|c| UnicodeWidthChar::width(c).unwrap_or(0))
+                                .sum::<usize>()
+                        } else {
+                            editor.cursor_col
+                        };
+                        let x = edit_x + gutter + display_col.min(text_w.saturating_sub(1));
+                        execute!(self.stdout,
+                            cursor::Show,
+                            cursor::MoveTo(x as u16, vis_line as u16),
+                        )?;
+                        // Block vs beam
+                        if editor.mode.is_insert() {
+                            execute!(self.stdout, cursor::SetCursorStyle::BlinkingBar)?;
+                        } else {
+                            execute!(self.stdout, cursor::SetCursorStyle::SteadyBlock)?;
+                        }
                     }
                 }
-            }
-            Mode::Command(_) | Mode::Search(_) | Mode::Ai(_) => {
-                let input_len = match &editor.mode {
-                    Mode::Command(s) => s.len() + 1,
-                    Mode::Search(s)  => s.len() + 1,
-                    Mode::Ai(s)      => s.len() + 1,
-                    _ => 1,
-                };
-                execute!(self.stdout,
-                    cursor::Show,
-                    cursor::MoveTo(input_len as u16, info_row),
-                    cursor::SetCursorStyle::BlinkingBar,
-                )?;
+                Mode::Command(_) | Mode::Search(_) | Mode::Ai(_) => {
+                    let input_len = match &editor.mode {
+                        Mode::Command(s) => display_width_str(s) + 1,
+                        Mode::Search(s)  => display_width_str(s) + 1,
+                        Mode::Ai(s)      => display_width_str(s) + 1,
+                        _ => 1,
+                    };
+                    execute!(self.stdout,
+                        cursor::Show,
+                        cursor::MoveTo(input_len as u16, info_row),
+                        cursor::SetCursorStyle::BlinkingBar,
+                    )?;
+                }
             }
         }
 
@@ -294,68 +426,88 @@ impl Renderer {
 
     // ── Private helpers ───────────────────────────────────
 
+    /// Render one editor line using syntect-backed `SyntectSpan`s.
+    ///
+    /// Overlay spans (search match, visual block) are painted on top of the
+    /// syntect colours by overriding the background (and optionally foreground)
+    /// for the affected byte ranges.
     fn render_line_with_spans(
         &mut self,
         line: &str,
-        spans: &[crate::syntax::highlight::Span],
+        spans: &[SyntectSpan],
         max_width: usize,
         _buf_line: usize,
         _editor: &Editor,
     ) -> io::Result<()> {
         let chars: Vec<char> = line.chars().collect();
-        let limit = chars.len().min(max_width);
-        let display: String = chars[..limit].iter().collect();
+
+        // Compute how many chars fit within max_width display columns.
+        let mut limit = 0;
+        let mut used_width = 0;
+        for ch in &chars {
+            let w = UnicodeWidthChar::width(*ch).unwrap_or(0);
+            if used_width + w > max_width { break; }
+            used_width += w;
+            limit += 1;
+        }
 
         if spans.is_empty() {
-            write!(self.stdout, "{:<width$}", display, width = max_width)?;
+            let display: String = chars[..limit].iter().collect();
+            write!(self.stdout, "{}", display)?;
+            let pad = max_width.saturating_sub(used_width);
+            if pad > 0 {
+                write!(self.stdout, "{:padding$}", "", padding = pad)?;
+            }
             return Ok(());
         }
 
-        // Build a colour map per byte index
-        let mut byte_kind: Vec<Option<TokenKind>> = vec![None; line.len() + 1];
-        for sp in spans {
-            let s = sp.start.min(line.len());
-            let e = sp.end.min(line.len());
+        // Build per-byte lookup: (fg, bold, italic, overlay).
+        // We store indices into `spans` rather than cloning colours.
+        let line_len = line.len();
+        let mut byte_span: Vec<Option<usize>> = vec![None; line_len + 1];
+        for (idx, sp) in spans.iter().enumerate() {
+            let s = sp.start.min(line_len);
+            let e = sp.end.min(line_len);
             for b in s..e {
-                byte_kind[b] = Some(sp.kind.clone());
+                byte_span[b] = Some(idx);
             }
         }
 
         let mut col = 0usize;
         let mut byte_pos = 0usize;
-        let mut last_kind: Option<TokenKind> = None;
+        let mut last_idx: Option<usize> = None; // sentinel: "no span applied yet"
 
         for ch in chars.iter().take(limit) {
             let ch_len = ch.len_utf8();
-            let kind = byte_kind[byte_pos].clone();
+            let cur_idx = byte_span[byte_pos];
 
-            if kind != last_kind {
-                // Reset previous
-                execute!(self.stdout, ResetColor)?;
-                if let Some(ref k) = kind {
-                    if let Some(fg) = k.fg_color() {
-                        execute!(self.stdout, SetForegroundColor(fg))?;
+            if cur_idx != last_idx {
+                execute!(self.stdout, ResetColor, SetAttribute(Attribute::Reset))?;
+                if let Some(idx) = cur_idx {
+                    let sp = &spans[idx];
+                    if let Some(ov) = sp.overlay {
+                        // Overlay: use overlay bg, optionally override fg
+                        execute!(self.stdout, SetBackgroundColor(ov.bg_color()))?;
+                        if let Some(fg) = ov.fg_color() {
+                            execute!(self.stdout, SetForegroundColor(fg))?;
+                        } else {
+                            execute!(self.stdout, SetForegroundColor(sp.fg))?;
+                        }
+                    } else {
+                        execute!(self.stdout, SetForegroundColor(sp.fg))?;
                     }
-                    if let Some(bg) = k.bg_color() {
-                        execute!(self.stdout, SetBackgroundColor(bg))?;
-                    }
-                    if k.bold() {
-                        execute!(self.stdout, SetAttribute(Attribute::Bold))?;
-                    }
-                    if k.italic() {
-                        execute!(self.stdout, SetAttribute(Attribute::Italic))?;
-                    }
+                    if sp.bold   { execute!(self.stdout, SetAttribute(Attribute::Bold))?; }
+                    if sp.italic { execute!(self.stdout, SetAttribute(Attribute::Italic))?; }
                 }
-                last_kind = kind;
+                last_idx = cur_idx;
             }
 
             write!(self.stdout, "{}", ch)?;
             byte_pos += ch_len;
-            col += 1;
+            col += UnicodeWidthChar::width(*ch).unwrap_or(0);
         }
 
-        execute!(self.stdout, ResetColor)?;
-        // Padding
+        execute!(self.stdout, ResetColor, SetAttribute(Attribute::Reset))?;
         let pad = max_width.saturating_sub(col);
         if pad > 0 {
             write!(self.stdout, "{:padding$}", "", padding = pad)?;
@@ -363,28 +515,60 @@ impl Renderer {
         Ok(())
     }
 
+    /// Legacy render path used only when syntect returns no spans (plain text).
+    #[allow(dead_code)]
+    fn render_line_plain(
+        &mut self,
+        line: &str,
+        max_width: usize,
+    ) -> io::Result<()> {
+        let chars: Vec<char> = line.chars().collect();
+        let mut limit = 0;
+        let mut used_width = 0;
+        for ch in &chars {
+            let w = UnicodeWidthChar::width(*ch).unwrap_or(0);
+            if used_width + w > max_width { break; }
+            used_width += w;
+            limit += 1;
+        }
+        let display: String = chars[..limit].iter().collect();
+        write!(self.stdout, "{}", display)?;
+        let pad = max_width.saturating_sub(used_width);
+        if pad > 0 {
+            write!(self.stdout, "{:padding$}", "", padding = pad)?;
+        }
+        Ok(())
+    }
+
+    /// Build syntect spans for a line, then overlay search-match highlights.
     fn spans_with_search(
-        &self,
+        &mut self,
         line: &str,
         buf_line: usize,
         search_set: &std::collections::HashSet<(usize,usize)>,
         current_match: Option<(usize,usize)>,
-    ) -> Vec<crate::syntax::highlight::Span> {
-        use crate::syntax::highlight::Span;
-        let mut spans = self.highlighter.highlight_line(line);
-        // Add search highlight spans on top
+    ) -> Vec<SyntectSpan> {
+        let mut spans = self.syntect_hl.highlight_line(line);
         let chars: Vec<char> = line.chars().collect();
-        let pat_len = 1usize; // minimal; real impl would use pattern length
+        let pat_len = 1usize; // one char per match position
         for (l, c) in search_set {
             if *l != buf_line { continue; }
             let start: usize = chars[..*c].iter().map(|ch| ch.len_utf8()).sum();
             let end: usize = chars[..(*c + pat_len).min(chars.len())].iter().map(|ch| ch.len_utf8()).sum();
-            let kind = if current_match == Some((*l, *c)) {
-                TokenKind::SearchMatchCurrent
+            let overlay = if current_match == Some((*l, *c)) {
+                OverlayKind::SearchMatchCurrent
             } else {
-                TokenKind::SearchMatch
+                OverlayKind::SearchMatch
             };
-            spans.push(Span { start, end, kind });
+            // Push an overlay span; the renderer will paint it on top.
+            spans.push(SyntectSpan {
+                start,
+                end,
+                fg: crossterm::style::Color::White,
+                bold: false,
+                italic: false,
+                overlay: Some(overlay),
+            });
         }
         spans
     }
@@ -404,7 +588,12 @@ impl Renderer {
                 if is_cursor && focused {
                     execute!(self.stdout, SetBackgroundColor(Color::DarkBlue))?;
                 }
-                write!(self.stdout, "{:<width$}", truncate(line, width), width = width)?;
+                let ft_trunc = truncate(line, width);
+                let ft_dw = display_width_str(&ft_trunc);
+                write!(self.stdout, "{}", ft_trunc)?;
+                if ft_dw < width {
+                    write!(self.stdout, "{:padding$}", "", padding = width - ft_dw)?;
+                }
                 execute!(self.stdout, ResetColor)?;
             } else {
                 write!(self.stdout, "{:width$}", "", width = width)?;
@@ -413,7 +602,155 @@ impl Renderer {
         Ok(())
     }
 
-    fn render_info_line(&mut self, info: &str, w: usize, editor: &Editor) -> io::Result<()> {
+    fn render_chat_panel(
+        &mut self,
+        panel: &mut ChatPanel,
+        x: usize,
+        width: usize,
+        height: usize,
+        focused: bool,
+        chat_input: &str,
+        chat_input_active: bool,
+    ) -> io::Result<()> {
+        let content_w = width.saturating_sub(2); // 1 char padding each side
+        let all_lines = panel.render_lines_styled(content_w, &self.md_renderer);
+        let total = all_lines.len();
+
+        // Reserve 1 row for input line at the bottom
+        let input_row_count = 1;
+        let usable_h = height.saturating_sub(input_row_count);
+
+        // Clamp scroll
+        let max_scroll = total.saturating_sub(usable_h.saturating_sub(1));
+        if panel.scroll > max_scroll {
+            panel.scroll = max_scroll;
+        }
+
+        // Title bar
+        execute!(self.stdout, cursor::MoveTo(x as u16, 0))?;
+        if focused {
+            execute!(self.stdout, SetBackgroundColor(Color::DarkCyan), SetForegroundColor(Color::White))?;
+        } else {
+            execute!(self.stdout, SetBackgroundColor(Color::DarkGrey), SetForegroundColor(Color::White))?;
+        }
+        let title = if panel.messages.is_empty() {
+            "AI Chat"
+        } else {
+            "AI Chat"
+        };
+        let title_trunc = truncate(title, width);
+        let title_dw = display_width_str(&title_trunc);
+        write!(self.stdout, "{}", title_trunc)?;
+        if title_dw < width {
+            write!(self.stdout, "{:padding$}", "", padding = width - title_dw)?;
+        }
+        execute!(self.stdout, ResetColor)?;
+
+        // Content area — render styled MdLine spans
+        let content_h = usable_h.saturating_sub(1);
+        let visible_start = total.saturating_sub(content_h + panel.scroll);
+        let visible_end = total.saturating_sub(panel.scroll);
+
+        let visible: Vec<&(ChatRole, MdLine)> = all_lines[visible_start..visible_end].iter().collect();
+
+        for row in 0..content_h {
+            execute!(self.stdout, cursor::MoveTo(x as u16, (row + 1) as u16))?;
+            if let Some((_role, md_line)) = visible.get(row) {
+                // Render border (blockquote decoration)
+                let mut col = 0usize;
+                if let Some((ref border_str, border_color)) = md_line.border {
+                    execute!(self.stdout, SetForegroundColor(border_color.clone()))?;
+                    write!(self.stdout, " {}", border_str)?;
+                    col += 1 + display_width_str(border_str);
+                    execute!(self.stdout, ResetColor)?;
+                } else {
+                    write!(self.stdout, " ")?;
+                    col += 1;
+                }
+
+                // Render indent
+                if md_line.indent > 0 {
+                    let indent_str = " ".repeat(md_line.indent);
+                    write!(self.stdout, "{}", indent_str)?;
+                    col += md_line.indent;
+                }
+
+                // Render each styled span
+                for span in &md_line.spans {
+                    let avail = width.saturating_sub(col);
+                    if avail == 0 { break; }
+                    let span_text = truncate(&span.text, avail);
+                    let span_dw = display_width_str(&span_text);
+
+                    // Apply styles
+                    if let Some(fg) = span.fg {
+                        execute!(self.stdout, SetForegroundColor(fg))?;
+                    }
+                    if let Some(bg) = span.bg {
+                        execute!(self.stdout, SetBackgroundColor(bg))?;
+                    }
+                    if span.bold {
+                        execute!(self.stdout, SetAttribute(Attribute::Bold))?;
+                    }
+                    if span.italic {
+                        execute!(self.stdout, SetAttribute(Attribute::Italic))?;
+                    }
+                    if span.underline {
+                        execute!(self.stdout, SetAttribute(Attribute::Underlined))?;
+                    }
+                    if span.strikethrough {
+                        execute!(self.stdout, SetAttribute(Attribute::CrossedOut))?;
+                    }
+                    if span.dim {
+                        execute!(self.stdout, SetAttribute(Attribute::Dim))?;
+                    }
+
+                    write!(self.stdout, "{}", span_text)?;
+                    execute!(self.stdout, ResetColor, SetAttribute(Attribute::Reset))?;
+                    col += span_dw;
+                }
+
+                // Pad remaining width
+                let pad = width.saturating_sub(col);
+                if pad > 0 {
+                    write!(self.stdout, "{:padding$}", "", padding = pad)?;
+                }
+            } else {
+                write!(self.stdout, "{:width$}", "", width = width)?;
+            }
+        }
+
+        // ── Input line at bottom of chat panel ──────────
+        let input_y = (1 + content_h) as u16;
+        execute!(self.stdout, cursor::MoveTo(x as u16, input_y))?;
+        if chat_input_active {
+            execute!(self.stdout, SetBackgroundColor(Color::DarkBlue), SetForegroundColor(Color::White))?;
+            let prompt_str = format!("▶ {}", chat_input);
+            let prompt_trunc = truncate(&prompt_str, width);
+            let prompt_dw = display_width_str(&prompt_trunc);
+            write!(self.stdout, "{}", prompt_trunc)?;
+            if prompt_dw < width {
+                write!(self.stdout, "{:padding$}", "", padding = width - prompt_dw)?;
+            }
+            execute!(self.stdout, ResetColor)?;
+        } else if focused {
+            execute!(self.stdout, SetForegroundColor(Color::DarkGrey))?;
+            let hint = "[i]输入  [Esc]返回";
+            let hint_trunc = truncate(hint, width);
+            let hint_dw = display_width_str(&hint_trunc);
+            write!(self.stdout, "{}", hint_trunc)?;
+            if hint_dw < width {
+                write!(self.stdout, "{:padding$}", "", padding = width - hint_dw)?;
+            }
+            execute!(self.stdout, ResetColor)?;
+        } else {
+            write!(self.stdout, "{:width$}", "", width = width)?;
+        }
+
+        Ok(())
+    }
+
+    fn render_info_line(&mut self, info: &str, w: usize, editor: &Editor, ai_indicator: &str, ai_status: &AiStatus) -> io::Result<()> {
         let mode_color = match &editor.mode {
             Mode::Normal       => Color::Blue,
             Mode::Insert       => Color::Green,
@@ -428,7 +765,30 @@ impl Renderer {
             SetForegroundColor(Color::Black),
             SetAttribute(Attribute::Bold),
         )?;
-        write!(self.stdout, "{:<width$}", truncate(info, w), width = w)?;
+
+        // Reserve space for AI indicator on the right
+        let indicator_dw = display_width_str(ai_indicator);
+        let info_max = w.saturating_sub(indicator_dw + 1); // +1 for spacing
+        let info_trunc = truncate(info, info_max);
+        let info_dw = display_width_str(&info_trunc);
+        write!(self.stdout, "{}", info_trunc)?;
+
+        // Fill gap between info and AI indicator
+        let gap = w.saturating_sub(info_dw + indicator_dw);
+        if gap > 0 {
+            write!(self.stdout, "{:padding$}", "", padding = gap)?;
+        }
+
+        // Draw AI indicator with appropriate color
+        let ai_fg = match ai_status {
+            AiStatus::Idle          => Color::Green,
+            AiStatus::NotConfigured => Color::DarkGrey,
+            AiStatus::Requesting    => Color::Yellow,
+            AiStatus::Error(_)      => Color::Red,
+        };
+        execute!(self.stdout, SetForegroundColor(ai_fg))?;
+        write!(self.stdout, "{}", ai_indicator)?;
+
         execute!(self.stdout, ResetColor)?;
         Ok(())
     }
@@ -508,10 +868,18 @@ impl Renderer {
 }
 
 fn truncate(s: &str, max: usize) -> String {
-    let chars: Vec<char> = s.chars().collect();
-    if chars.len() <= max {
-        s.to_string()
-    } else {
-        chars[..max].iter().collect()
+    let mut width = 0;
+    let mut result = String::new();
+    for ch in s.chars() {
+        let w = UnicodeWidthChar::width(ch).unwrap_or(0);
+        if width + w > max { break; }
+        width += w;
+        result.push(ch);
     }
+    result
+}
+
+/// Calculate the display width of a string (accounting for wide chars).
+fn display_width_str(s: &str) -> usize {
+    s.chars().map(|c| UnicodeWidthChar::width(c).unwrap_or(0)).sum()
 }

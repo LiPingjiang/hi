@@ -79,6 +79,59 @@ When you're just asking how to do something:
 
 ---
 
+## Syntax Highlighting — One Engine, Everywhere
+
+Most terminal editors ship two completely separate highlighting systems: one for the editing buffer, another (if any) for auxiliary panels like chat or preview. Colors don't match, language coverage diverges, and themes can't be shared.
+
+**hi takes a different approach.** A single [syntect](https://github.com/trishume/syntect) engine — the same library that powers Sublime Text's highlighting — drives both the editor text area and the AI Chat panel's Markdown code blocks. Open a `.rs` file and ask the AI a question that includes a Rust snippet: the colors are identical, because they come from the same Sublime Text `.tmLanguage` grammar and the same theme.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        syntect engine                               │
+│                  SyntaxSet (200+ languages)                         │
+│                  ThemeSet  (Sublime Text themes)                    │
+│                                                                     │
+│         ┌──────────────────┐       ┌──────────────────────┐        │
+│         │ SyntectHighlighter│       │     MdRenderer        │        │
+│         │ (editor buffer)  │       │ (Chat panel Markdown) │        │
+│         │                  │       │                       │        │
+│         │ stateful per-line│       │ pulldown-cmark parser │        │
+│         │ HighlightLines   │       │ + syntect code blocks │        │
+│         └────────┬─────────┘       └───────────┬──────────┘        │
+│                  │                              │                   │
+│           SyntectSpan[]                   StyledSpan[]              │
+│          (byte range + RGB)            (text + RGB + attrs)         │
+│                  │                              │                   │
+│                  └──────────┬───────────────────┘                   │
+│                             ▼                                       │
+│                     Renderer (crossterm)                            │
+│                     unified ANSI painting                           │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**What this gives you:**
+
+- **200+ languages** highlighted out of the box — Rust, Python, Go, Java, TypeScript, C/C++, SQL, YAML, TOML, Markdown, and everything else Sublime Text supports.
+- **Pixel-perfect color consistency** between the file you're editing and the code the AI shows you.
+- **Stateful multi-line parsing** — block comments, heredocs, and multi-line strings are tracked correctly across lines via `HighlightLines` state machine.
+- **Overlay compositing** — search highlights and Visual Block selections are painted on top of syntax colors without destroying them.
+- **Theme unification** — one `[theme]` section in `~/.hirc` controls both the editor and the Chat panel. Switch once, everything follows.
+
+### Built-in Themes
+
+The editor text area uses syntect's Sublime Text themes. The Chat panel has its own Markdown-aware theme with carefully tuned RGB colors for headings, blockquotes, tables, and inline elements.
+
+```toml
+# ~/.hirc
+[theme]
+editor_theme = "base16-ocean.dark"   # or "Solarized (dark)", "base16-eighties.dark", etc.
+chat_theme   = "dracula"             # or "dark", "tokyo-night"
+```
+
+The Chat panel's Markdown renderer goes beyond plain syntax highlighting — it renders headings with background colors and Unicode underlines, blockquotes with colored `│` borders, tables with box-drawing characters (`┌┬┐├┼┤└┴┘`), code blocks with rounded borders (`╭╮╰╯`) and language labels, task lists with `☑`/`☐` markers, and more. The visual quality surpasses [glow](https://github.com/charmbracelet/glow) while staying pure Rust.
+
+---
+
 ## Key Design Decisions
 
 | Decision | Choice | Why |
@@ -86,6 +139,8 @@ When you're just asking how to do something:
 | Language | Rust | Memory safety, zero-cost abstractions, modern tooling, proven by Helix/Zed |
 | Text storage | Rope (ropey) | O(log n) edits on large files, efficient undo/redo snapshots |
 | Terminal | crossterm | Cross-platform, no ncurses dependency |
+| Syntax highlighting | syntect | Sublime Text grammars, 200+ languages, unified across editor + Chat |
+| Markdown rendering | pulldown-cmark + syntect | CommonMark + GFM, code blocks share the same highlight engine |
 | Config | `~/.hirc` (TOML) | Simple path, readable format |
 | AI trigger | `?` | Semantic fit (question mark = ask), symmetric with `/` (search) |
 | LLM backend | Configurable | Any OpenAI-compatible API: OpenAI, Claude, Ollama, others |
@@ -109,6 +164,8 @@ yolo_mode = false   # skip confirmation for AI execution plans
 
 [theme]
 colorscheme = "default"
+editor_theme = "base16-ocean.dark"   # syntect theme for the editor text area
+chat_theme   = "dark"                # Markdown theme for the AI Chat panel
 ```
 
 ---

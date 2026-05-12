@@ -16,6 +16,7 @@ pub enum NormalAction {
     Quit { force: bool },
     OpenFileAtCursor,
     ToggleFileTree,
+    ToggleChatPanel,
     SwitchFocus,
     AiAction(AiSubAction),
     /// Replay last repeatable action
@@ -62,7 +63,8 @@ impl Editor {
         match key.code {
             // ── Cursor movement ─────────────────────────
             KeyCode::Char('h') | KeyCode::Left  => { self.move_left(count);  NormalAction::None }
-            KeyCode::Char('l') | KeyCode::Right => { self.move_right(count); NormalAction::None }
+            KeyCode::Char('l') if !key.modifiers.contains(KeyModifiers::CONTROL) => { self.move_right(count); NormalAction::None }
+            KeyCode::Right => { self.move_right(count); NormalAction::None }
             KeyCode::Char('j') | KeyCode::Down  => { self.move_down(count);  NormalAction::None }
             KeyCode::Char('k') | KeyCode::Up    => { self.move_up(count);    NormalAction::None }
             KeyCode::Char('w') if !key.modifiers.contains(KeyModifiers::CONTROL) => { self.move_word_forward(count); NormalAction::None }
@@ -154,6 +156,9 @@ impl Editor {
             KeyCode::Char('t') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 NormalAction::ToggleFileTree
             }
+            KeyCode::Char('l') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                NormalAction::ToggleChatPanel
+            }
             KeyCode::Char('w') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 NormalAction::SwitchFocus
             }
@@ -192,6 +197,9 @@ impl Editor {
             KeyCode::Char(':') => NormalAction::EnterCommand,
             KeyCode::Char('/') => NormalAction::EnterSearch,
             KeyCode::Char('?') => NormalAction::EnterAi,
+
+            // ── Focus cycling ────────────────────────────
+            KeyCode::Tab => NormalAction::SwitchFocus,
 
             // ── Editing ─────────────────────────────────
             KeyCode::Char('x') => {

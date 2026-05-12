@@ -237,6 +237,149 @@ undo()                      → 回撤上一步操作
 
 差量重绘：只重绘发生变化的区域，避免全屏刷新造成闪烁。
 
+### 4.6 统一语法高亮架构（Unified Syntax Highlighting）
+
+这是 hi 的核心特色之一。编辑器文本区域和 AI Chat 面板的代码块共享同一套 syntect 引擎，实现了颜色一致性、语言覆盖一致性和主题一致性。
+
+#### 设计动机
+
+传统终端编辑器的语法高亮通常是手写正则规则，每种语言一套函数，维护成本高、覆盖面窄、颜色粗糙（只能用 16 色 ANSI 枚举）。当编辑器增加 Chat 面板等辅助视图时，又需要另一套独立的高亮系统，导致同一段代码在不同面板中颜色不一致。
+
+hi 的解决方案是引入 [syntect](https://github.com/trishume/syntect)（Sublime Text 的语法高亮引擎的 Rust 移植），作为唯一的语法分析后端，同时服务编辑器和 Chat 面板。
+
+#### 整体架构
+
+```
+                          ~/.hirc [theme]
+                               │
+                    ┌──────────┴──────────┐
+                    │                     │
+              editor_theme           chat_theme
+           "base16-ocean.dark"       "dracula"
+                    │                     │
+                    ▼                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     syntect engine                           │
+│                                                             │
+│   SyntaxSet::load_defaults_newlines()  ← 200+ 语言语法定义  │
+│   ThemeSet::load_defaults()            ← Sublime Text 主题  │
+│                                                             │
+│   ┌─────────────────────┐    ┌────────────────────────────┐ │
+│   │  SyntectHighlighter  │    │       MdRenderer            │ │
+│   │  (编辑器文本区域)     │    │  (Chat 面板 Markdown 渲染)  │ │
+│   │                     │    │                            │ │
+│   │  HighlightLines     │    │  pulldown-cmark 解析器      │ │
+│   │  (有状态逐行解析)    │    │  + HighlightLines 代码块    │ │
+│   │                     │    │                            │ │
+│   │  输出: SyntectSpan[]│    │  输出: MdLine<StyledSpan>  │ │
+│   └──────────┬──────────┘    └─────────────┬──────────────┘ │
+│              │                             │                │
+└──────────────┼─────────────────────────────┼────────────────┘
+               │                             │
+               ▼                             ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Renderer (crossterm)                        │
+│                                                             │
+│   render_line_with_spans(&[SyntectSpan])  ← 编辑器行渲染    │
+│   render_chat_panel(MdLine[])             ← Chat 面板渲染   │
+│                                                             │
+│   统一 ANSI 属性绘制：                                       │
+│   SetForegroundColor(RGB) + SetBackgroundColor + Bold/Italic │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### 双层类型设计
+
+编辑器和 Chat 面板的输出类型不同，但底层颜色来源相同：
+
+**编辑器侧 — `SyntectSpan`**
+
+```rust
+pub struct SyntectSpan {
+    pub start: usize,           // 行内字节偏移（起始）
+    pub end: usize,             // 行内字节偏移（结束，不含）
+    pub fg: Color,              // RGB 前景色，直接来自 syntect 主题
+    pub bold: bool,
+    pub italic: bool,
+    pub overlay: Option<OverlayKind>,  // 搜索高亮 / Visual Block 叠加
+}
+```
+
+`SyntectSpan` 使用字节范围索引，与 Rust 的 `&str` 切片语义一致。`overlay` 字段实现了叠加合成：搜索高亮和 Visual Block 选区的背景色覆盖在语法颜色之上，而不是替换它们。
+
+**Chat 侧 — `StyledSpan` / `MdLine`**
+
+```rust
+pub struct StyledSpan {
+    pub text: String,           // 文本内容（已解析，非原始 Markdown）
+    pub fg: Option<Color>,      // RGB 前景色
+    pub bg: Option<Color>,      // RGB 背景色
+    pub bold: bool,
+    pub italic: bool,
+    pub underline: bool,
+    pub strikethrough: bool,
+    pub dim: bool,
+}
+
+pub struct MdLine {
+    pub spans: Vec<StyledSpan>,
+    pub indent: usize,
+    pub border: Option<(String, Color)>,  // 块引用边框
+}
+```
+
+`StyledSpan` 携带完整的 ANSI 属性集（包括下划线、删除线、暗淡），因为 Markdown 渲染需要比纯语法高亮更丰富的样式。`MdLine` 额外携带缩进和边框信息，用于块引用、列表等结构化元素。
+
+#### 有状态解析与 Overlay 合成
+
+`SyntectHighlighter` 内部持有一个 `HighlightLines<'static>` 状态机。每次调用 `highlight_line()` 时，状态机会推进，使得跨行的块注释、heredoc、多行字符串等结构能被正确识别。当文件类型切换或文件重新加载时，调用 `reset_state()` 重置状态机。
+
+Overlay 合成的工作方式：
+
+```
+正常渲染:  syntect 输出 → SyntectSpan { fg: RGB, overlay: None }
+搜索高亮:  额外推入 → SyntectSpan { fg: White, overlay: Some(SearchMatch) }
+Visual Block: 额外推入 → SyntectSpan { fg: White, overlay: Some(VisualBlock) }
+
+Renderer 绘制时:
+  if overlay.is_some() → 使用 overlay.bg_color() 作为背景
+  else                 → 使用 span.fg 作为前景，无特殊背景
+```
+
+这种设计让搜索高亮和语法高亮完全解耦，互不干扰。
+
+#### 主题系统
+
+主题配置通过 `~/.hirc` 的 `[theme]` 段驱动：
+
+```toml
+[theme]
+editor_theme = "base16-ocean.dark"   # syntect 主题名
+chat_theme   = "dracula"             # MdTheme 名称
+```
+
+配置流转路径：
+
+```
+~/.hirc → Config::theme → Renderer::new(&config)
+                              │
+                    ┌─────────┴─────────┐
+                    ▼                   ▼
+         SyntectHighlighter::new   MdRenderer::new
+         (editor_theme)            (MdTheme::by_name(chat_theme))
+```
+
+编辑器侧的 `SyntectHighlighter` 支持运行时切换主题（`set_theme()`），为未来的 `:colorscheme` 命令预留了接口。Chat 侧的 `MdTheme` 提供三套内置主题（dark / dracula / tokyo-night），每套包含 30+ 个精调的 RGB 颜色值，覆盖 H1-H6 标题、行内代码、代码块、块引用、表格、链接等所有 Markdown 元素。
+
+#### 与旧系统的关系
+
+旧的手写 `Highlighter`（12 种语言的正则规则）仍然保留在代码中，但不再用于编辑器文本渲染。它的 `TokenKind` 枚举和 `Span` 类型仅在以下场景使用：
+
+- 作为 `FileType` 检测的载体（`from_ext` / `from_path` / `from_content`）
+- 集成测试中验证旧高亮规则的正确性
+
+所有面向用户的渲染路径已切换到 syntect。
+
 ---
 
 ## 五、配置系统
@@ -257,7 +400,9 @@ timeout_secs = 30
 yolo_mode = false     # true 则跳过执行计划确认步骤
 
 [theme]
-colorscheme = "default"   # 内置：default / dark / light
+colorscheme = "default"                  # 旧字段，保持兼容
+editor_theme = "base16-ocean.dark"       # syntect 主题（编辑器文本区域）
+chat_theme   = "dark"                    # MdTheme 名称（Chat 面板 Markdown）
 
 [keymaps]
 # 未来支持自定义按键绑定

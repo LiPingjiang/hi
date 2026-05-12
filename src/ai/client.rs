@@ -7,8 +7,10 @@
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::error::Error;
 use std::time::Duration;
 
+use crate::ai::log as ai_log;
 use crate::ai::prompt::Message;
 use crate::config::AiConfig;
 
@@ -79,6 +81,13 @@ impl AiClient {
 
         let url = format!("{}/chat/completions", self.base_url);
 
+        // Debug: log request details
+        ai_log::log(&format!("→ POST {} (model={}, timeout={}s)", url, self.model, self.timeout.as_secs()));
+        ai_log::log(&format!("  auth: {}", if self.api_key.is_empty() { "none" } else { "bearer ***" }));
+        if let Ok(json) = serde_json::to_string_pretty(&body) {
+            ai_log::log_block("Request Body", &json);
+        }
+
         let client = reqwest::blocking::Client::builder()
             .timeout(self.timeout)
             .build()
@@ -92,21 +101,40 @@ impl AiClient {
             req.bearer_auth(&self.api_key)
         };
 
-        let resp = req.send().context("HTTP request failed")?;
+        let resp = match req.send() {
+            Ok(r) => r,
+            Err(e) => {
+                ai_log::log(&format!("✗ HTTP send failed: {}", e));
+                if let Some(source) = e.source() {
+                    ai_log::log(&format!("  cause: {}", source));
+                }
+                return Err(anyhow::anyhow!(e).context("HTTP request failed"));
+            }
+        };
 
-        if !resp.status().is_success() {
-            let status = resp.status();
+        let status = resp.status();
+        ai_log::log(&format!("← HTTP {} {}", status.as_u16(), status.canonical_reason().unwrap_or("")));
+
+        if !status.is_success() {
             let text = resp.text().unwrap_or_default();
+            ai_log::log_block(&format!("Error Response ({})", status.as_u16()), &text);
             anyhow::bail!("API error {}: {}", status, text);
         }
 
-        let parsed: ChatResponse = resp.json().context("Failed to parse API response")?;
+        let raw_text = resp.text().context("Failed to read response body")?;
+        ai_log::log_block("Response Body", &raw_text);
 
-        parsed
+        let parsed: ChatResponse = serde_json::from_str(&raw_text)
+            .context("Failed to parse API response")?;
+
+        let content = parsed
             .choices
             .into_iter()
             .next()
             .map(|c| c.message.content)
-            .context("API returned empty choices")
+            .context("API returned empty choices")?;
+
+        ai_log::log(&format!("✓ AI response: {} chars", content.len()));
+        Ok(content)
     }
 }

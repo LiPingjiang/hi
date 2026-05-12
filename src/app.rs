@@ -8,8 +8,31 @@ use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 
 use crate::ai::{AiClient, AiContext, HintKind};
+use crate::ai::log as ai_log;
+use crate::ui::chatpanel::ChatPanel;
+
+/// Which panel currently has keyboard focus.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FocusZone {
+    Editor,
+    FileTree,
+    Chat,
+}
+
+/// AI connection / request status for the status bar indicator.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AiStatus {
+    /// AI is configured and idle (ready to use).
+    Idle,
+    /// No API key and using default URL — effectively not configured.
+    NotConfigured,
+    /// A request is in flight.
+    Requesting,
+    /// Last request returned an error.
+    Error(String),
+}
 use crate::ai::parser::{parse_plan, apply_steps};
-use crate::ai::prompt::{build_messages, PromptKind};
+use crate::ai::prompt::{build_messages_with_history, PromptKind};
 use crate::buffer::Buffer;
 use crate::config::Config;
 use crate::editor::Editor;
@@ -68,6 +91,19 @@ pub struct App {
     ai_pending: bool,
     ai_query_msg: Option<String>,       // single-line result shown in hint bar
     plan_lines: Option<Vec<String>>,    // plan overlay content
+    ai_status: AiStatus,
+    ai_tick: u64,                       // incremented every poll cycle (~100ms), drives spinner animation
+
+    // Chat panel (right side)
+    chat_panel: ChatPanel,
+    chat_visible: bool,
+    focus: FocusZone,
+    /// Input buffer for typing in the chat panel.
+    chat_input: String,
+    /// Cursor position (char index) within chat_input.
+    chat_input_cursor: usize,
+    /// Whether the chat panel is in input mode (typing a message).
+    chat_input_active: bool,
 
     should_quit: bool,
     filepath: Option<PathBuf>,
@@ -98,7 +134,10 @@ impl App {
             editor = editor.with_buffer(buf);
         }
 
-        let renderer = Renderer::new(ft);
+        // Initialize debug logging
+        ai_log::init(config.ai.debug);
+
+        let renderer = Renderer::new(ft, &config);
         // Resolve the directory that contains the opened file.
         // filepath may be a bare name like "Cargo.toml" whose .parent() is "",
         // so we canonicalize first and fall back to CWD.
@@ -120,6 +159,24 @@ impl App {
             ai_pending: false,
             ai_query_msg: None,
             plan_lines: None,
+            ai_status: {
+                let ai = &config.ai;
+                if ai.api_key.is_empty() && ai.api_base_url == "https://api.openai.com/v1" {
+                    AiStatus::NotConfigured
+                } else {
+                    AiStatus::Idle
+                }
+            },
+            ai_tick: 0,
+            chat_panel: ChatPanel::new(
+                config.chat.width as usize,
+                config.chat.max_messages,
+            ),
+            chat_visible: false,
+            focus: FocusZone::Editor,
+            chat_input: String::new(),
+            chat_input_cursor: 0,
+            chat_input_active: false,
             should_quit: false,
             filepath: filepath.map(PathBuf::from),
             search_saved_pos: None,
@@ -141,10 +198,22 @@ impl App {
                 &self.ai_query_msg,
                 &self.plan_lines,
                 &self.filetree_prompt,
+                &self.ai_status,
+                self.ai_pending,
+                self.ai_tick,
+                &mut self.chat_panel,
+                self.chat_visible,
+                self.focus,
+                &self.chat_input,
+                self.chat_input_active,
+                self.chat_input_cursor,
             )?;
 
             // Clear one-shot status message after render
             self.editor.status_msg = None;
+
+            // Tick animation counter (drives spinner)
+            self.ai_tick = self.ai_tick.wrapping_add(1);
 
             // Poll AI result
             self.poll_ai_result();
@@ -162,6 +231,10 @@ impl App {
                             self.editor.shell_output = None;
                         } else if self.filetree_prompt.is_some() {
                             self.handle_filetree_prompt_key(key)?;
+                        } else if self.focus == FocusZone::Chat && self.chat_visible {
+                            self.handle_chat_key(key)?;
+                        } else if self.focus == FocusZone::FileTree && self.editor.filetree_visible {
+                            self.handle_filetree_key(key)?;
                         } else {
                             self.handle_key(key)?;
                         }
@@ -173,41 +246,19 @@ impl App {
                     Event::Mouse(me) => {
                         use crossterm::event::{MouseEventKind, MouseButton};
                         match me.kind {
-                            MouseEventKind::ScrollDown => {
-                                // Scroll down = content moves up = cursor moves down
-                                if self.editor.filetree_focus {
-                                    if let Some(ft) = &mut self.filetree {
-                                        ft.move_down();
-                                    }
-                                } else {
-                                    self.editor.move_down(3);
-                                    self.editor.scroll_to_cursor();
-                                }
-                            }
-                            MouseEventKind::ScrollUp => {
-                                // Scroll up = content moves down = cursor moves up
-                                if self.editor.filetree_focus {
-                                    if let Some(ft) = &mut self.filetree {
-                                        ft.move_up();
-                                    }
-                                } else {
-                                    self.editor.move_up(3);
-                                    self.editor.scroll_to_cursor();
-                                }
-                            }
-                            MouseEventKind::Down(MouseButton::Left) => {
-                                // Click in file tree area
-                                let ft_width = self.editor.config.filetree.width as u16;
-                                if self.editor.filetree_visible && me.column < ft_width {
-                                    self.editor.filetree_focus = true;
-                                    if let Some(ft) = &mut self.filetree {
-                                        ft.cursor = me.row as usize;
-                                    }
-                                } else {
-                                    self.editor.filetree_focus = false;
-                                }
-                            }
-                            _ => {}
+                    MouseEventKind::ScrollDown => {
+                        self.handle_mouse_scroll(me.column, me.row, false);
+                    }
+                    MouseEventKind::ScrollUp => {
+                        self.handle_mouse_scroll(me.column, me.row, true);
+                    }
+                    MouseEventKind::Down(MouseButton::Left) => {
+                        self.handle_mouse_click(me.column, me.row);
+                    }
+                    MouseEventKind::Drag(MouseButton::Left) => {
+                        self.handle_mouse_drag(me.column, me.row);
+                    }
+                    _ => {}
                         }
                     }
                     _ => {}
@@ -229,6 +280,11 @@ impl App {
         };
         if let Some(hint) = result {
             self.ai_pending = false;
+            // Update AI status based on result
+            match &hint {
+                HintKind::Error(e) => self.ai_status = AiStatus::Error(e.clone()),
+                _ => self.ai_status = AiStatus::Idle,
+            }
             self.apply_ai_hint(hint);
         }
     }
@@ -236,9 +292,15 @@ impl App {
     fn apply_ai_hint(&mut self, hint: HintKind) {
         match &hint {
             HintKind::Advisor(text) => {
-                // Show in hint bar (first line) and set ghost explanation
-                self.ai_query_msg = Some(text.clone());
-                self.ghost.explanation = text.lines().next().unwrap_or("").to_string();
+                // Push to chat panel; show first line in hint bar as summary
+                let first_line = text.lines().next().unwrap_or("").to_string();
+                self.ai_query_msg = Some(first_line.clone());
+                self.ghost.explanation = first_line;
+                self.chat_panel.push_assistant(text);
+                // Auto-open chat panel when AI responds
+                if !self.chat_visible {
+                    self.chat_visible = true;
+                }
             }
             HintKind::Plan(steps) => {
                 self.plan_lines = Some(steps.clone());
@@ -259,6 +321,7 @@ impl App {
             }
             HintKind::Error(e) => {
                 self.editor.set_msg(format!("AI error: {}", e));
+                self.chat_panel.push_system(&format!("Error: {}", e));
             }
         }
     }
@@ -305,11 +368,8 @@ impl App {
             return (PromptKind::Advisor, q.to_string());
         }
 
-        // Short query with no clear signal → inline Completion
-        if q.chars().count() <= 15 {
-            return (PromptKind::Complete, q.to_string());
-        }
-
+        // Short query with no clear signal → Advisor (not Completion)
+        // Completion is only triggered by explicit code-like patterns or inline ghost
         // Default → Advisor
         (PromptKind::Advisor, q.to_string())
     }
@@ -337,7 +397,30 @@ impl App {
         };
         self.editor.set_msg(format!("AI 思考中… [{}]  [Esc]取消", intent_label));
 
-        let messages = build_messages(&kind, &context, &real_query);
+        // Debug: log query dispatch
+        ai_log::log(&format!("dispatch_ai_query: intent={}, query={:?}", intent_label, &real_query));
+        ai_log::log(&format!("  file={}, line={}, col={}",
+            self.editor.buffer.filepath().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|| "<none>".to_string()),
+            self.editor.cursor_line + 1,
+            self.editor.cursor_col + 1,
+        ));
+        ai_log::log(&format!("  model={}, base_url={}", cfg.model, cfg.api_base_url));
+
+        // Collect recent conversation history for multi-turn context
+        let history_pairs = self.chat_panel.recent_history(
+            self.editor.config.chat.context_pairs,
+        );
+        let history_owned: Vec<(String, String)> = history_pairs
+            .iter()
+            .map(|(u, a)| (u.to_string(), a.to_string()))
+            .collect();
+
+        let messages = build_messages_with_history(
+            &kind,
+            &context,
+            &real_query,
+            &history_owned.iter().map(|(u, a)| (u.as_str(), a.as_str())).collect::<Vec<_>>(),
+        );
         let result_arc = Arc::clone(&self.ai_result);
 
         std::thread::spawn(move || {
@@ -359,6 +442,62 @@ impl App {
         });
 
         self.ai_pending = true;
+        self.ai_status = AiStatus::Requesting;
+
+        // Push user message to chat panel
+        self.chat_panel.push_user(&real_query);
+        if !self.chat_visible {
+            self.chat_visible = true;
+        }
+    }
+
+    /// Dispatch a query forced to Advisor mode (used from chat panel input).
+    /// This bypasses infer_intent so short messages always get AI responses in chat.
+    fn dispatch_ai_query_as_advisor(&mut self, query: &str) {
+        let context = AiContext::from_cursor(
+            &self.editor.buffer,
+            self.editor.buffer.filepath().map(|p| p.to_str().unwrap_or("")).unwrap_or(""),
+            self.editor.cursor_line,
+            self.editor.cursor_col,
+            self.editor.config.ai.context_lines,
+            self.renderer.highlighter.filetype().name(),
+        );
+        let cfg = self.editor.config.ai.clone();
+        let kind = PromptKind::Advisor;
+        let real_query = query.to_string();
+
+        self.editor.set_msg("AI 思考中… [顾问模式]  [Esc]取消".to_string());
+        ai_log::log(&format!("dispatch_ai_query_as_advisor: query={:?}", &real_query));
+
+        let history_pairs = self.chat_panel.recent_history(
+            self.editor.config.chat.context_pairs,
+        );
+        let history_owned: Vec<(String, String)> = history_pairs
+            .iter()
+            .map(|(u, a)| (u.to_string(), a.to_string()))
+            .collect();
+
+        let messages = build_messages_with_history(
+            &kind,
+            &context,
+            &real_query,
+            &history_owned.iter().map(|(u, a)| (u.as_str(), a.as_str())).collect::<Vec<_>>(),
+        );
+        let result_arc = Arc::clone(&self.ai_result);
+
+        std::thread::spawn(move || {
+            let client = AiClient::new(&cfg);
+            let res = client.chat(messages);
+            let hint = match res {
+                Ok(text) => HintKind::Advisor(text),
+                Err(e) => HintKind::Error(e.to_string()),
+            };
+            *result_arc.lock().unwrap() = Some(hint);
+        });
+
+        self.ai_pending = true;
+        self.ai_status = AiStatus::Requesting;
+        self.chat_panel.push_user(&real_query);
     }
 
     fn apply_plan(&mut self) {
@@ -381,10 +520,6 @@ impl App {
     // ── Key dispatch ──────────────────────────────────────────────────────────
 
     fn handle_key(&mut self, key: KeyEvent) -> Result<()> {
-        // When the file tree has focus, all keys go to the tree handler
-        if self.editor.filetree_visible && self.editor.filetree_focus {
-            return self.handle_filetree_key(key);
-        }
         match self.editor.mode.clone() {
             Mode::Normal => self.handle_normal(key)?,
             Mode::Insert => self.handle_insert(key),
@@ -513,8 +648,18 @@ impl App {
                     self.filetree = FileTree::new(&root, self.editor.config.filetree.show_hidden).ok();
                 }
             }
+            NormalAction::ToggleChatPanel => {
+                self.chat_visible = !self.chat_visible;
+                if self.chat_visible {
+                    // Opening chat — focus it and enter input mode automatically
+                    self.set_focus(FocusZone::Chat);
+                } else if self.focus == FocusZone::Chat {
+                    // Closing chat — return focus to editor
+                    self.set_focus(FocusZone::Editor);
+                }
+            }
             NormalAction::SwitchFocus => {
-                self.editor.filetree_focus = !self.editor.filetree_focus;
+                self.cycle_focus();
             }
             NormalAction::ToggleHiddenFiles => {
                 if let Some(ft) = &mut self.filetree {
@@ -531,6 +676,45 @@ impl App {
             }
         }
         Ok(())
+    }
+
+    /// Cycle focus: Editor → FileTree → Chat → Editor (skipping hidden panels).
+    fn cycle_focus(&mut self) {
+        let zones = self.available_zones();
+        if zones.len() <= 1 { return; }
+        let cur_idx = zones.iter().position(|z| *z == self.focus).unwrap_or(0);
+        let next = zones[(cur_idx + 1) % zones.len()];
+        self.set_focus(next);
+    }
+
+    /// Cycle focus in reverse: Editor ← FileTree ← Chat ← Editor.
+    fn cycle_focus_reverse(&mut self) {
+        let zones = self.available_zones();
+        if zones.len() <= 1 { return; }
+        let cur_idx = zones.iter().position(|z| *z == self.focus).unwrap_or(0);
+        let next = zones[(cur_idx + zones.len() - 1) % zones.len()];
+        self.set_focus(next);
+    }
+
+    fn available_zones(&self) -> Vec<FocusZone> {
+        let mut zones = vec![FocusZone::Editor];
+        if self.editor.filetree_visible { zones.push(FocusZone::FileTree); }
+        if self.chat_visible { zones.push(FocusZone::Chat); }
+        zones
+    }
+
+    fn set_focus(&mut self, zone: FocusZone) {
+        // Leave old zone
+        if self.focus == FocusZone::Chat && zone != FocusZone::Chat {
+            self.chat_input_active = false;
+        }
+        self.focus = zone;
+        // Enter chat input mode automatically when focusing Chat
+        if zone == FocusZone::Chat {
+            self.chat_input_active = true;
+        }
+        // Sync legacy filetree_focus flag
+        self.editor.filetree_focus = zone == FocusZone::FileTree;
     }
 
     fn play_macro(&mut self, reg: char) {
@@ -955,7 +1139,7 @@ impl App {
                 if let Some(path) = selected {
                     // It was a file — open it and switch focus back to editor
                     self.open_file(&path)?;
-                    self.editor.filetree_focus = false;
+                    self.set_focus(FocusZone::Editor);
                 }
                 // If it was a dir, ft.enter() already toggled expansion, nothing else needed
             }
@@ -967,10 +1151,18 @@ impl App {
             }
             // Switch focus back to editor
             KeyCode::Esc | KeyCode::Char('q') => {
-                self.editor.filetree_focus = false;
+                self.set_focus(FocusZone::Editor);
             }
             KeyCode::Char('w') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.editor.filetree_focus = false;
+                self.cycle_focus();
+            }
+            // Tab — cycle focus
+            KeyCode::Tab => {
+                if key.modifiers.contains(KeyModifiers::SHIFT) {
+                    self.cycle_focus_reverse();
+                } else {
+                    self.cycle_focus();
+                }
             }
             // Toggle hidden files
             KeyCode::Char('H') => {
@@ -1043,6 +1235,139 @@ impl App {
                 if let Some(ft) = &mut self.filetree {
                     ft.refresh();
                 }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    // ── Chat panel key handling ──────────────────────────────────────────────
+
+    fn handle_chat_key(&mut self, key: KeyEvent) -> Result<()> {
+        // Chat panel is always in input mode when focused — no separate browse mode.
+        // Ensure input is active (should already be set by set_focus).
+        if !self.chat_input_active {
+            self.chat_input_active = true;
+        }
+        self.handle_chat_input_key(key)
+    }
+
+    /// Handle keys while typing in the chat input line.
+    fn handle_chat_input_key(&mut self, key: KeyEvent) -> Result<()> {
+        let chars: Vec<char> = self.chat_input.chars().collect();
+        let len = chars.len();
+        match key.code {
+            KeyCode::Esc => {
+                // Exit chat — return focus to editor
+                self.chat_input.clear();
+                self.chat_input_cursor = 0;
+                self.set_focus(FocusZone::Editor);
+            }
+            KeyCode::Enter => {
+                // Submit the message, stay in input mode for follow-up
+                let query = self.chat_input.trim().to_string();
+                self.chat_input.clear();
+                self.chat_input_cursor = 0;
+                // Stay in input mode — no need to press i again
+                if !query.is_empty() {
+                    self.dispatch_ai_query_as_advisor(&query);
+                }
+            }
+            KeyCode::Backspace => {
+                if self.chat_input_cursor > 0 {
+                    let mut c = chars.clone();
+                    c.remove(self.chat_input_cursor - 1);
+                    self.chat_input = c.into_iter().collect();
+                    self.chat_input_cursor -= 1;
+                }
+            }
+            KeyCode::Delete => {
+                if self.chat_input_cursor < len {
+                    let mut c = chars.clone();
+                    c.remove(self.chat_input_cursor);
+                    self.chat_input = c.into_iter().collect();
+                }
+            }
+            KeyCode::Left => {
+                if self.chat_input_cursor > 0 {
+                    self.chat_input_cursor -= 1;
+                }
+            }
+            KeyCode::Right => {
+                if self.chat_input_cursor < len {
+                    self.chat_input_cursor += 1;
+                }
+            }
+            KeyCode::Home => {
+                self.chat_input_cursor = 0;
+            }
+            KeyCode::End => {
+                self.chat_input_cursor = len;
+            }
+            // Ctrl+a — move to start
+            KeyCode::Char('a') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.chat_input_cursor = 0;
+            }
+            // Ctrl+e — move to end
+            KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.chat_input_cursor = len;
+            }
+            // Ctrl+u — delete to start
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                let remaining: String = chars[self.chat_input_cursor..].iter().collect();
+                self.chat_input = remaining;
+                self.chat_input_cursor = 0;
+            }
+            // Ctrl+k — delete to end
+            KeyCode::Char('k') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                let remaining: String = chars[..self.chat_input_cursor].iter().collect();
+                self.chat_input = remaining;
+            }
+            // Ctrl+w — delete previous word
+            KeyCode::Char('w') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                if self.chat_input_cursor > 0 {
+                    let mut pos = self.chat_input_cursor - 1;
+                    while pos > 0 && chars[pos].is_whitespace() { pos -= 1; }
+                    while pos > 0 && !chars[pos - 1].is_whitespace() { pos -= 1; }
+                    let mut c = chars;
+                    c.drain(pos..self.chat_input_cursor);
+                    self.chat_input = c.into_iter().collect();
+                    self.chat_input_cursor = pos;
+                }
+            }
+            // Tab / Shift+Tab — cycle focus
+            KeyCode::Tab => {
+                if key.modifiers.contains(KeyModifiers::SHIFT) {
+                    self.cycle_focus_reverse();
+                } else {
+                    self.cycle_focus();
+                }
+            }
+            // Ctrl+l — close chat panel
+            KeyCode::Char('l') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.chat_visible = false;
+                self.set_focus(FocusZone::Editor);
+            }
+            // PageUp / PageDown — scroll chat history
+            KeyCode::PageUp => { self.chat_panel.scroll_up(10); }
+            KeyCode::PageDown => { self.chat_panel.scroll_down(10); }
+            // Ctrl+p / Ctrl+n — scroll chat history one line
+            KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.chat_panel.scroll_up(1);
+            }
+            KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.chat_panel.scroll_down(1);
+            }
+            // Ctrl+d — clear chat history
+            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.chat_panel.clear();
+                self.editor.set_msg("对话历史已清空".to_string());
+            }
+            KeyCode::Char(c) => {
+                let mut cv = chars;
+                cv.insert(self.chat_input_cursor, c);
+                self.chat_input = cv.into_iter().collect();
+                self.chat_input_cursor += 1;
             }
             _ => {}
         }
@@ -1151,6 +1476,182 @@ impl App {
         Ok(())
     }
 
+    // ── Mouse handling ──────────────────────────────────────────────────────
+
+    /// Compute the layout regions for mouse hit-testing.
+    /// Returns (ft_width, edit_x, edit_w, chat_x, chat_width, edit_h).
+    fn layout_regions(&self) -> (usize, usize, usize, usize, usize, usize) {
+        let w = self.editor.term_width as usize;
+        let h = self.editor.term_height as usize;
+        let ft_width = if self.editor.filetree_visible {
+            self.editor.config.filetree.width as usize
+        } else { 0 };
+        let chat_width = if self.chat_visible {
+            (self.editor.config.chat.width as usize).min(w / 2)
+        } else { 0 };
+        let edit_x = ft_width + if ft_width > 0 { 1 } else { 0 };
+        let chat_total = chat_width + if chat_width > 0 { 1 } else { 0 };
+        let edit_w = w.saturating_sub(edit_x).saturating_sub(chat_total);
+        let edit_h = h.saturating_sub(2);
+        let chat_x = w.saturating_sub(chat_width);
+        (ft_width, edit_x, edit_w, chat_x, chat_width, edit_h)
+    }
+
+    /// Determine which focus zone a screen coordinate falls in.
+    fn zone_at(&self, col: u16, _row: u16) -> FocusZone {
+        let (ft_width, _edit_x, _edit_w, chat_x, chat_width, _edit_h) = self.layout_regions();
+        let x = col as usize;
+        if chat_width > 0 && x >= chat_x {
+            FocusZone::Chat
+        } else if ft_width > 0 && x < ft_width {
+            FocusZone::FileTree
+        } else {
+            FocusZone::Editor
+        }
+    }
+
+    /// Handle mouse scroll: scroll the panel under the mouse pointer.
+    fn handle_mouse_scroll(&mut self, col: u16, row: u16, up: bool) {
+        let zone = self.zone_at(col, row);
+        let amount = 3usize; // lines per scroll tick
+        match zone {
+            FocusZone::Editor => {
+                if up {
+                    self.editor.scroll_line = self.editor.scroll_line.saturating_sub(amount);
+                } else {
+                    let max = self.editor.buffer.line_count().saturating_sub(1);
+                    self.editor.scroll_line = (self.editor.scroll_line + amount).min(max);
+                }
+            }
+            FocusZone::Chat => {
+                if up {
+                    self.chat_panel.scroll_up(amount);
+                } else {
+                    self.chat_panel.scroll_down(amount);
+                }
+            }
+            FocusZone::FileTree => {
+                if let Some(ft) = &mut self.filetree {
+                    if up {
+                        ft.cursor = ft.cursor.saturating_sub(amount);
+                    } else {
+                        let max = ft.nodes.len().saturating_sub(1);
+                        ft.cursor = (ft.cursor + amount).min(max);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Handle mouse click: set focus to the clicked zone and position cursor.
+    fn handle_mouse_click(&mut self, col: u16, row: u16) {
+        let zone = self.zone_at(col, row);
+        let (_ft_width, edit_x, _edit_w, chat_x, _chat_width, edit_h) = self.layout_regions();
+
+        // Switch focus to the clicked zone
+        self.set_focus(zone);
+
+        match zone {
+            FocusZone::Editor => {
+                let r = row as usize;
+                if r < edit_h {
+                    let buf_line = self.editor.scroll_line + r;
+                    if buf_line < self.editor.buffer.line_count() {
+                        self.editor.cursor_line = buf_line;
+                        // Convert display column to char index
+                        let gutter = if self.editor.config.general.line_numbers {
+                            self.editor.gutter_width()
+                        } else { 0 };
+                        let click_display_col = (col as usize).saturating_sub(edit_x + gutter);
+                        let line = self.editor.buffer.line_str(buf_line);
+                        let mut char_col = 0usize;
+                        let mut display_acc = 0usize;
+                        for ch in line.chars() {
+                            let w = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+                            if display_acc + w > click_display_col { break; }
+                            display_acc += w;
+                            char_col += 1;
+                        }
+                        self.editor.cursor_col = char_col;
+                        self.editor.clamp_cursor();
+                    }
+                }
+            }
+            FocusZone::FileTree => {
+                let r = row as usize;
+                if let Some(ft) = &mut self.filetree {
+                    if r < ft.nodes.len() {
+                        ft.cursor = r;
+                    }
+                }
+            }
+            FocusZone::Chat => {
+                // Click in chat area — if clicking on the input line, activate input
+                let input_row = {
+                    let input_row_count = 1;
+                    let usable_h = edit_h.saturating_sub(input_row_count);
+                    let content_h = usable_h.saturating_sub(1);
+                    (1 + content_h) as u16
+                };
+                if row == input_row {
+                    self.chat_input_active = true;
+                    // Position cursor based on click column within input
+                    let prefix_w = 2usize; // "▶ " is 2 display columns
+                    let click_in_input = (col as usize).saturating_sub(chat_x + prefix_w);
+                    let chars: Vec<char> = self.chat_input.chars().collect();
+                    let mut char_pos = 0usize;
+                    let mut display_acc = 0usize;
+                    for ch in &chars {
+                        let w = unicode_width::UnicodeWidthChar::width(*ch).unwrap_or(0);
+                        if display_acc + w > click_in_input { break; }
+                        display_acc += w;
+                        char_pos += 1;
+                    }
+                    self.chat_input_cursor = char_pos.min(chars.len());
+                }
+            }
+        }
+    }
+
+    /// Handle mouse drag: in the editor area, start or extend Visual mode selection.
+    fn handle_mouse_drag(&mut self, col: u16, row: u16) {
+        let (_ft_width, edit_x, _edit_w, _chat_x, _chat_width, edit_h) = self.layout_regions();
+        let x = col as usize;
+        let r = row as usize;
+
+        // Only handle drag in the editor area
+        if x < edit_x || r >= edit_h { return; }
+
+        let buf_line = self.editor.scroll_line + r;
+        if buf_line >= self.editor.buffer.line_count() { return; }
+
+        // Convert display column to char index
+        let gutter = if self.editor.config.general.line_numbers {
+            self.editor.gutter_width()
+        } else { 0 };
+        let click_display_col = x.saturating_sub(edit_x + gutter);
+        let line = self.editor.buffer.line_str(buf_line);
+        let mut char_col = 0usize;
+        let mut display_acc = 0usize;
+        for ch in line.chars() {
+            let w = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+            if display_acc + w > click_display_col { break; }
+            display_acc += w;
+            char_col += 1;
+        }
+
+        // If not already in Visual mode, enter it with anchor at current cursor
+        if !self.editor.mode.is_visual() {
+            let anchor = self.editor.cursor_char_idx();
+            self.editor.mode = Mode::Visual { kind: VisualKind::Char, anchor };
+        }
+
+        // Move cursor to drag position
+        self.editor.cursor_line = buf_line;
+        self.editor.cursor_col = char_col;
+        self.editor.clamp_cursor();
+    }
+
     /// Return the directory to use as base for new file/dir creation.
     fn filetree_base_dir(&self) -> PathBuf {
         if let Some(ft) = &self.filetree {
@@ -1199,9 +1700,9 @@ mod intent_tests {
     #[test] fn english_question_how()    { assert_eq!(kind_name("how does this work"), "advisor"); }
     #[test] fn ends_with_question_mark() { assert_eq!(kind_name("这段代码有问题吗？"), "advisor"); }
 
-    // ── Short query → Completion ──────────────────────────────────────────────
-    #[test] fn short_query_completion()  { assert_eq!(kind_name("fn main"), "complete"); }
-    #[test] fn short_query_code()        { assert_eq!(kind_name("impl Display"), "complete"); }
+    // ── Short query → Advisor (no longer Completion) ──────────────────────────
+    #[test] fn short_query_advisor()     { assert_eq!(kind_name("fn main"), "advisor"); }
+    #[test] fn short_query_code()        { assert_eq!(kind_name("impl Display"), "advisor"); }
 
     // ── Default → Advisor ─────────────────────────────────────────────────────
     #[test] fn long_ambiguous_advisor()  { assert_eq!(kind_name("这段代码的整体逻辑结构看起来比较清晰易读"), "advisor"); }

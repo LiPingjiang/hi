@@ -24,6 +24,58 @@ Two letters. Fast to type. Easy to remember. That matters when you're in a termi
 
 ---
 
+## Install
+
+### One-line installer (Linux & macOS)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/LiPingjiang/hi/main/install.sh | sh
+```
+
+Detects your OS and architecture, downloads the matching pre-built binary from
+GitHub Releases, verifies the SHA256 checksum, and installs to `/usr/local/bin`
+(or `~/.local/bin` if you don't have write access).
+
+**Options:**
+
+```bash
+# Install a specific version
+HI_VERSION=v0.1.2 curl -fsSL .../install.sh | sh
+
+# Install to a custom directory
+HI_INSTALL=~/.bin curl -fsSL .../install.sh | sh
+```
+
+### Homebrew (macOS)
+
+```bash
+brew tap LiPingjiang/tap
+brew install hi
+```
+
+### cargo install (requires Rust toolchain)
+
+```bash
+cargo install hi
+```
+
+### Download manually
+
+Pre-built binaries for every release are available on the
+[Releases page](https://github.com/LiPingjiang/hi/releases):
+
+| Platform | Archive |
+|---|---|
+| macOS Apple Silicon | `hi-<version>-aarch64-apple-darwin.tar.gz` |
+| macOS Intel | `hi-<version>-x86_64-apple-darwin.tar.gz` |
+| Linux x86\_64 (static) | `hi-<version>-x86_64-linux-musl.tar.gz` |
+| Linux x86\_64 (glibc) | `hi-<version>-x86_64-linux-gnu.tar.gz` |
+| Linux ARM64 | `hi-<version>-aarch64-linux-gnu.tar.gz` |
+
+Each archive includes a `.sha256` checksum file.
+
+---
+
 ## The Problem with Vim
 
 Vim is powerful. But its power is invisible until you've memorized hundreds of key combinations. Most people give up not because Vim can't do something — it almost always can — but because they didn't know the right keys to press.
@@ -132,21 +184,6 @@ The Chat panel's Markdown renderer goes beyond plain syntax highlighting — it 
 
 ---
 
-## Key Design Decisions
-
-| Decision | Choice | Why |
-|---|---|---|
-| Language | Rust | Memory safety, zero-cost abstractions, modern tooling, proven by Helix/Zed |
-| Text storage | Rope (ropey) | O(log n) edits on large files, efficient undo/redo snapshots |
-| Terminal | crossterm | Cross-platform, no ncurses dependency |
-| Syntax highlighting | syntect | Sublime Text grammars, 200+ languages, unified across editor + Chat |
-| Markdown rendering | pulldown-cmark + syntect | CommonMark + GFM, code blocks share the same highlight engine |
-| Config | `~/.hirc` (TOML) | Simple path, readable format |
-| AI trigger | `?` | Semantic fit (question mark = ask), symmetric with `/` (search) |
-| LLM backend | Configurable | Any OpenAI-compatible API: OpenAI, Claude, Ollama, others |
-
----
-
 ## Configuration
 
 ```toml
@@ -170,48 +207,18 @@ chat_theme   = "dark"                # Markdown theme for the AI Chat panel
 
 ---
 
-## Install
+## Key Design Decisions
 
-### One-line installer (Linux & macOS)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/LiPingjiang/hi/main/install.sh | sh
-```
-
-Detects your OS and architecture, downloads the matching pre-built binary from
-GitHub Releases, verifies the SHA256 checksum, and installs to `/usr/local/bin`
-(or `~/.local/bin` if you don't have write access).
-
-**Options:**
-
-```bash
-# Install a specific version
-HI_VERSION=v0.1.0 curl -fsSL .../install.sh | sh
-
-# Install to a custom directory
-HI_INSTALL=~/.bin curl -fsSL .../install.sh | sh
-```
-
-### cargo install (requires Rust toolchain)
-
-```bash
-cargo install hi
-```
-
-### Download manually
-
-Pre-built binaries for every release are available on the
-[Releases page](https://github.com/LiPingjiang/hi/releases):
-
-| Platform | Archive |
-|---|---|
-| macOS Apple Silicon | `hi-<version>-aarch64-apple-darwin.tar.gz` |
-| macOS Intel | `hi-<version>-x86_64-apple-darwin.tar.gz` |
-| Linux x86\_64 (static) | `hi-<version>-x86_64-linux-musl.tar.gz` |
-| Linux x86\_64 (glibc) | `hi-<version>-x86_64-linux-gnu.tar.gz` |
-| Linux ARM64 | `hi-<version>-aarch64-linux-gnu.tar.gz` |
-
-Each archive includes a `.sha256` checksum file.
+| Decision | Choice | Why |
+|---|---|---|
+| Language | Rust | Memory safety, zero-cost abstractions, modern tooling, proven by Helix/Zed |
+| Text storage | Rope (ropey) | O(log n) edits on large files, efficient undo/redo snapshots |
+| Terminal | crossterm | Cross-platform, no ncurses dependency |
+| Syntax highlighting | syntect | Sublime Text grammars, 200+ languages, unified across editor + Chat |
+| Markdown rendering | pulldown-cmark + syntect | CommonMark + GFM, code blocks share the same highlight engine |
+| Config | `~/.hirc` (TOML) | Simple path, readable format |
+| AI trigger | `?` | Semantic fit (question mark = ask), symmetric with `/` (search) |
+| LLM backend | Configurable | Any OpenAI-compatible API: OpenAI, Claude, Ollama, others |
 
 ---
 

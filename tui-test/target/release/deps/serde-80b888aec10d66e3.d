@@ -1,0 +1,14 @@
+/Users/lipingjiang/Codes/hi/tui-test/target/release/deps/serde-80b888aec10d66e3.d: /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/lipingjiang/Codes/hi/tui-test/target/release/build/serde-8fa8152c714297c1/out/private.rs
+
+/Users/lipingjiang/Codes/hi/tui-test/target/release/deps/libserde-80b888aec10d66e3.rlib: /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/lipingjiang/Codes/hi/tui-test/target/release/build/serde-8fa8152c714297c1/out/private.rs
+
+/Users/lipingjiang/Codes/hi/tui-test/target/release/deps/libserde-80b888aec10d66e3.rmeta: /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/lipingjiang/Codes/hi/tui-test/target/release/build/serde-8fa8152c714297c1/out/private.rs
+
+/Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/Users/lipingjiang/Codes/hi/tui-test/target/release/build/serde-8fa8152c714297c1/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/lipingjiang/Codes/hi/tui-test/target/release/build/serde-8fa8152c714297c1/out

@@ -9,15 +9,16 @@ use crossterm::{
 use unicode_width::UnicodeWidthChar;
 use std::io::{self, Write, Stdout};
 
-use crate::app::{AiStatus, FocusZone};
+use crate::app::{AiStatus, FocusZone, ThemePicker};
+use crate::mode::cmd_completion::CmdCompletionState;
 use crate::config::Config;
 use crate::editor::Editor;
 use crate::mode::{Mode, VisualKind};
-use crate::syntax::highlight::{FileType, Highlighter, SyntectHighlighter, SyntectSpan, OverlayKind};
+use crate::syntax::highlight::{FileType, Highlighter, SyntectHighlighter, SyntectSpan, OverlayKind, CodePalette};
 use crate::ui::chatpanel::{ChatPanel, ChatRole};
 use crate::ui::filetree::FileTree;
 use crate::ui::ghost::GhostText;
-use crate::ui::mdrender::{MdRenderer, MdLine};
+use crate::ui::mdrender::{MdRenderer, MdLine, MdTheme};
 
 pub struct Renderer {
     pub stdout: Stdout,
@@ -33,18 +34,30 @@ impl Renderer {
     /// Create a renderer driven by the user's `~/.hirc` theme configuration.
     pub fn new(filetype: FileType, config: &Config) -> Self {
         let editor_theme = &config.theme.editor_theme;
-        let chat_theme = crate::ui::mdrender::MdTheme::by_name(&config.theme.chat_theme);
+        let chat_theme = MdTheme::by_name(&config.theme.chat_theme);
+        let palette = CodePalette::by_name(&config.theme.chat_theme)
+            .unwrap_or_else(CodePalette::neon_minimalist);
         Self {
             stdout: io::stdout(),
             highlighter: Highlighter::new(filetype),
             syntect_hl: SyntectHighlighter::new(filetype, editor_theme),
-            md_renderer: MdRenderer::new(chat_theme),
+            md_renderer: MdRenderer::new_with_palette(chat_theme, palette),
         }
     }
 
     pub fn set_filetype(&mut self, ft: FileType) {
         self.highlighter = Highlighter::new(ft);
         self.syntect_hl.set_filetype(ft);
+    }
+
+    /// Switch both the editor syntax palette and the Markdown chat theme at
+    /// runtime.  Called by `:theme <name>`.
+    pub fn set_theme(&mut self, name: &str) {
+        self.syntect_hl.set_theme(name);
+        if let Some(p) = CodePalette::by_name(name) {
+            self.md_renderer.palette = p;
+        }
+        self.md_renderer.theme = MdTheme::by_name(name);
     }
 
     pub fn init(&mut self) -> io::Result<()> {
@@ -82,6 +95,8 @@ impl Renderer {
         chat_input: &str,
         chat_input_active: bool,
         chat_input_cursor: usize,
+        theme_picker: &Option<ThemePicker>,
+        cmd_completion: &CmdCompletionState,
     ) -> io::Result<()> {
         let chat_focus = focus == FocusZone::Chat;
         let ft_focused = focus == FocusZone::FileTree;
@@ -126,6 +141,30 @@ impl Renderer {
         let search_set: std::collections::HashSet<(usize,usize)> = editor.search_matches.iter().cloned().collect();
         let current_match = editor.search_matches.get(editor.search_match_idx).cloned();
 
+        // ── Reset syntect state and pre-parse lines above the viewport ──
+        // SyntectHighlighter is a stateful state machine: each highlight_line()
+        // call advances internal parse state.  We must reset it at the start of
+        // every frame and replay all lines from the top of the file up to
+        // scroll_line so that multi-line constructs (block comments, heredocs,
+        // multi-line strings) that start above the viewport are tracked correctly.
+        //
+        // Optimisation: only replay the last MAX_PRE_PARSE lines before the
+        // viewport instead of the entire file.  200 lines is enough to cover
+        // virtually all real-world multi-line constructs (block comments,
+        // heredocs, fenced code blocks, etc.) while keeping scroll responsive.
+        const MAX_PRE_PARSE: usize = 200;
+        self.syntect_hl.reset_state();
+        let pre_start = editor.scroll_line.saturating_sub(MAX_PRE_PARSE);
+        let pre_end = editor.scroll_line.min(editor.buffer.line_count());
+        for pre_line in pre_start..pre_end {
+            let text = editor.buffer.line_str(pre_line);
+            let _ = self.syntect_hl.highlight_line(&text);
+        }
+
+        // Ensure no colour state leaks from previous frame's status bar or
+        // overlays into the editing area.
+        execute!(self.stdout, ResetColor, SetAttribute(Attribute::Reset))?;
+
         for screen_row in 0..edit_h {
             let buf_line = editor.scroll_line + screen_row;
             execute!(self.stdout, cursor::MoveTo(edit_x as u16, screen_row as u16))?;
@@ -146,13 +185,6 @@ impl Renderer {
             // Draw text
             if buf_line < editor.buffer.line_count() {
                 let line = editor.buffer.line_str(buf_line);
-
-                // Reset syntect state at the start of each visible frame so
-                // that scrolling never leaves the highlighter in a stale state.
-                // (A full incremental parse would be better, but this is safe.)
-                // We only reset once per frame, not per line, so multi-line
-                // constructs that start above the viewport are re-parsed from
-                // the top of the visible window — acceptable for a TUI editor.
 
                 let mut spans: Vec<SyntectSpan> = if editor.search_highlight && !editor.search_pattern.is_empty() {
                     // Merge syntect spans + search highlight overlays
@@ -227,6 +259,11 @@ impl Renderer {
         if let Some(output) = &editor.shell_output {
             let lines: Vec<&str> = output.lines().collect();
             self.render_shell_overlay(&lines, w, h)?;
+        }
+
+        // ── Theme picker overlay (:theme) ──────────────────
+        if let Some(picker) = theme_picker {
+            self.render_theme_picker(picker, w, h)?;
         }
 
         // ── Status bar (2 rows) ───────────────────────────
@@ -322,6 +359,11 @@ impl Renderer {
                 execute!(self.stdout, ResetColor)?;
             }
             _ => {}
+        }
+
+        // ── Command completion popup ──────────────────────
+        if editor.mode.is_command() && cmd_completion.visible() {
+            self.render_cmd_completion(cmd_completion, w, hint_row)?;
         }
 
         // ── File tree prompt overlay ──────────────────────
@@ -861,6 +903,172 @@ impl Renderer {
         // Bottom border
         execute!(self.stdout, cursor::MoveTo(start_x as u16, (footer_y + 1) as u16))?;
         write!(self.stdout, "└{}┘", "─".repeat(overlay_w.saturating_sub(2)))?;
+
+        execute!(self.stdout, ResetColor)?;
+        Ok(())
+    }
+
+    /// Render the command completion popup above the command input line.
+    /// The popup grows upward from `anchor_row` (the hint row, one above info_row).
+    fn render_cmd_completion(
+        &mut self,
+        state: &CmdCompletionState,
+        term_w: usize,
+        anchor_row: u16,
+    ) -> io::Result<()> {
+        let items = &state.items;
+        if items.is_empty() { return Ok(()); }
+
+        // Limit visible items so the popup doesn't eat the whole screen
+        let max_visible: usize = 10;
+        let visible_count = items.len().min(max_visible);
+
+        // Calculate column widths
+        let max_trigger = items.iter().take(visible_count)
+            .map(|c| c.trigger.len())
+            .max().unwrap_or(4);
+        let max_desc = items.iter().take(visible_count)
+            .map(|c| display_width_str(c.desc))
+            .max().unwrap_or(8);
+        // popup width: " :trigger  description "
+        let popup_w = (3 + max_trigger + 2 + max_desc + 1).min(term_w.saturating_sub(2));
+
+        // Scroll window: if selected item is outside visible range, shift
+        let selected = state.selected.unwrap_or(0);
+        let scroll_start = if selected >= visible_count {
+            selected - visible_count + 1
+        } else {
+            0
+        };
+        let scroll_end = (scroll_start + visible_count).min(items.len());
+
+        // Draw from bottom up: row 0 of popup = anchor_row - visible_count
+        let popup_top = (anchor_row as usize).saturating_sub(visible_count);
+
+        for (vi, idx) in (scroll_start..scroll_end).enumerate() {
+            let row = (popup_top + vi) as u16;
+            let item = &items[idx];
+            let is_selected = idx == selected;
+
+            execute!(self.stdout, cursor::MoveTo(0, row))?;
+
+            if is_selected {
+                execute!(self.stdout,
+                    SetBackgroundColor(Color::Rgb { r: 68, g: 71, b: 90 }),
+                    SetForegroundColor(Color::Rgb { r: 189, g: 147, b: 249 }),
+                )?;
+            } else {
+                execute!(self.stdout,
+                    SetBackgroundColor(Color::Rgb { r: 40, g: 42, b: 54 }),
+                    SetForegroundColor(Color::Rgb { r: 248, g: 248, b: 242 }),
+                )?;
+            }
+
+            // Format: " :trigger  description "
+            let trigger_str = format!(" :{}", item.trigger);
+            let trigger_dw = display_width_str(&trigger_str);
+            write!(self.stdout, "{}", trigger_str)?;
+
+            // Gap between trigger and description
+            let gap = (3 + max_trigger).saturating_sub(trigger_dw - 1);
+            if gap > 0 {
+                write!(self.stdout, "{:gap$}", "", gap = gap)?;
+            }
+
+            // Description in dimmer color
+            if is_selected {
+                execute!(self.stdout, SetForegroundColor(Color::Rgb { r: 166, g: 227, b: 161 }))?;
+            } else {
+                execute!(self.stdout, SetForegroundColor(Color::Rgb { r: 108, g: 112, b: 134 }))?;
+            }
+            let desc_trunc = truncate(item.desc, popup_w.saturating_sub(trigger_dw + gap + 1));
+            write!(self.stdout, "{}", desc_trunc)?;
+
+            // Pad to popup width
+            let used = trigger_dw + gap + display_width_str(&desc_trunc);
+            let pad = popup_w.saturating_sub(used);
+            if pad > 0 {
+                write!(self.stdout, "{:pad$}", "", pad = pad)?;
+            }
+
+            execute!(self.stdout, ResetColor)?;
+
+            // Clear rest of line if popup is narrower than terminal
+            if popup_w < term_w {
+                // We need to clear the remaining columns on this row
+                // to avoid leftover text from the editor area
+            }
+        }
+
+        Ok(())
+    }
+
+    fn render_theme_picker(&mut self, picker: &ThemePicker, w: usize, h: usize) -> io::Result<()> {
+        let item_count = picker.themes.len();
+        // Each item: "  ● theme-name  " or "    theme-name  "
+        let max_name_len = picker.themes.iter().map(|t| t.len()).max().unwrap_or(10);
+        // Width based on content only — don't let the title force the box wider
+        let overlay_w = (max_name_len + 8).max(36).min(w.saturating_sub(4));
+        let inner_w = overlay_w.saturating_sub(2); // space between │…│
+        let overlay_h = item_count + 4; // top border + title + items + bottom border
+        let start_x = (w.saturating_sub(overlay_w)) / 2;
+        let start_y = (h.saturating_sub(overlay_h)) / 2;
+
+        // Top border
+        execute!(self.stdout, cursor::MoveTo(start_x as u16, start_y as u16))?;
+        execute!(self.stdout, SetBackgroundColor(Color::Rgb { r: 30, g: 30, b: 46 }), SetForegroundColor(Color::Rgb { r: 180, g: 190, b: 254 }))?;
+        write!(self.stdout, "┌{}┐", "─".repeat(inner_w))?;
+
+        // Title — truncate to fit inside the box, then centre-pad
+        let title = "选择主题 j/k Enter Esc";
+        let title_trunc = truncate(title, inner_w.saturating_sub(2)); // leave 1 col padding each side
+        let title_dw = display_width_str(&title_trunc);
+        let pad_total = inner_w.saturating_sub(title_dw);
+        let pad_left = pad_total / 2;
+        let pad_right = pad_total - pad_left;
+        execute!(self.stdout, cursor::MoveTo(start_x as u16, (start_y + 1) as u16))?;
+        execute!(self.stdout, SetForegroundColor(Color::Rgb { r: 180, g: 190, b: 254 }))?;
+        write!(self.stdout, "│{:pl$}{}{:pr$}│", "", title_trunc, "", pl = pad_left, pr = pad_right)?;
+
+        // Separator
+        execute!(self.stdout, cursor::MoveTo(start_x as u16, (start_y + 2) as u16))?;
+        write!(self.stdout, "├{}┤", "─".repeat(inner_w))?;
+
+        // Theme items
+        for (i, theme_name) in picker.themes.iter().enumerate() {
+            let row = start_y + 3 + i;
+            execute!(self.stdout, cursor::MoveTo(start_x as u16, row as u16))?;
+
+            if i == picker.cursor {
+                // Selected item — highlighted
+                execute!(self.stdout,
+                    SetBackgroundColor(Color::Rgb { r: 88, g: 91, b: 112 }),
+                    SetForegroundColor(Color::Rgb { r: 166, g: 227, b: 161 }),
+                )?;
+                let label = format!("  ● {}  ", theme_name);
+                let label_trunc = truncate(&label, inner_w);
+                let label_dw = display_width_str(&label_trunc);
+                write!(self.stdout, "│{}{:pad$}│", label_trunc, "", pad = inner_w.saturating_sub(label_dw))?;
+            } else {
+                execute!(self.stdout,
+                    SetBackgroundColor(Color::Rgb { r: 30, g: 30, b: 46 }),
+                    SetForegroundColor(Color::Rgb { r: 205, g: 214, b: 244 }),
+                )?;
+                let label = format!("    {}  ", theme_name);
+                let label_trunc = truncate(&label, inner_w);
+                let label_dw = display_width_str(&label_trunc);
+                write!(self.stdout, "│{}{:pad$}│", label_trunc, "", pad = inner_w.saturating_sub(label_dw))?;
+            }
+        }
+
+        // Bottom border
+        let bottom_y = start_y + 3 + item_count;
+        execute!(self.stdout, cursor::MoveTo(start_x as u16, bottom_y as u16))?;
+        execute!(self.stdout,
+            SetBackgroundColor(Color::Rgb { r: 30, g: 30, b: 46 }),
+            SetForegroundColor(Color::Rgb { r: 180, g: 190, b: 254 }),
+        )?;
+        write!(self.stdout, "└{}┘", "─".repeat(inner_w))?;
 
         execute!(self.stdout, ResetColor)?;
         Ok(())

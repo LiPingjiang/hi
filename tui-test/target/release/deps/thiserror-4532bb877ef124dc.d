@@ -1,0 +1,14 @@
+/Users/lipingjiang/Codes/hi/tui-test/target/release/deps/thiserror-4532bb877ef124dc.d: /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /Users/lipingjiang/Codes/hi/tui-test/target/release/build/thiserror-549cf28f9e525dd0/out/private.rs
+
+/Users/lipingjiang/Codes/hi/tui-test/target/release/deps/libthiserror-4532bb877ef124dc.rlib: /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /Users/lipingjiang/Codes/hi/tui-test/target/release/build/thiserror-549cf28f9e525dd0/out/private.rs
+
+/Users/lipingjiang/Codes/hi/tui-test/target/release/deps/libthiserror-4532bb877ef124dc.rmeta: /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /Users/lipingjiang/Codes/hi/tui-test/target/release/build/thiserror-549cf28f9e525dd0/out/private.rs
+
+/Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs:
+/Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs:
+/Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs:
+/Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs:
+/Users/lipingjiang/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs:
+/Users/lipingjiang/Codes/hi/tui-test/target/release/build/thiserror-549cf28f9e525dd0/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/lipingjiang/Codes/hi/tui-test/target/release/build/thiserror-549cf28f9e525dd0/out

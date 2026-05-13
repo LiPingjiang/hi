@@ -38,14 +38,23 @@ use crate::config::Config;
 use crate::editor::Editor;
 use crate::mode::{Mode, VisualKind};
 use crate::mode::command::CommandAction;
+use crate::mode::cmd_completion::CmdCompletionState;
 use crate::mode::insert::InsertAction;
 use crate::mode::normal::NormalAction;
 use crate::mode::visual::VisualAction;
 use crate::mode::ai::{handle_ai_input_key, AiInputAction};
-use crate::syntax::highlight::FileType;
+use crate::syntax::highlight::{FileType, CodePalette};
 use crate::ui::filetree::FileTree;
 use crate::ui::ghost::GhostText;
 use crate::ui::renderer::Renderer;
+
+/// Interactive theme picker overlay state.
+pub struct ThemePicker {
+    pub themes: Vec<&'static str>,
+    pub cursor: usize,
+    /// Theme name that was active before the picker opened (for Esc restore).
+    pub original_theme: String,
+}
 
 /// Pending file-tree prompt (new file / new dir / rename / delete confirm).
 #[derive(Debug, Clone)]
@@ -116,6 +125,12 @@ pub struct App {
 
     // File tree prompt (new file / rename / delete confirm)
     filetree_prompt: Option<FileTreePrompt>,
+
+    // Theme picker overlay
+    theme_picker: Option<ThemePicker>,
+
+    // Command-line completion state
+    cmd_completion: CmdCompletionState,
 }
 
 impl App {
@@ -182,70 +197,105 @@ impl App {
             search_saved_pos: None,
             block_insert: None,
             filetree_prompt: None,
+            theme_picker: None,
+            cmd_completion: CmdCompletionState::new(),
         })
     }
 
     /// Main run loop.
     pub fn run(&mut self) -> Result<()> {
         self.renderer.init()?;
+        let mut needs_redraw = true; // first frame always renders
 
         loop {
-            // Render
-            self.renderer.render(
-                &self.editor,
-                &self.filetree,
-                &self.ghost,
-                &self.ai_query_msg,
-                &self.plan_lines,
-                &self.filetree_prompt,
-                &self.ai_status,
-                self.ai_pending,
-                self.ai_tick,
-                &mut self.chat_panel,
-                self.chat_visible,
-                self.focus,
-                &self.chat_input,
-                self.chat_input_active,
-                self.chat_input_cursor,
-            )?;
+            if needs_redraw {
+                // Render
+                self.renderer.render(
+                    &self.editor,
+                    &self.filetree,
+                    &self.ghost,
+                    &self.ai_query_msg,
+                    &self.plan_lines,
+                    &self.filetree_prompt,
+                    &self.ai_status,
+                    self.ai_pending,
+                    self.ai_tick,
+                    &mut self.chat_panel,
+                    self.chat_visible,
+                    self.focus,
+                    &self.chat_input,
+                    self.chat_input_active,
+                    self.chat_input_cursor,
+                    &self.theme_picker,
+                    &self.cmd_completion,
+                )?;
 
-            // Clear one-shot status message after render
-            self.editor.status_msg = None;
+                // Clear one-shot status message after render
+                self.editor.status_msg = None;
+                needs_redraw = false;
+            }
 
-            // Tick animation counter (drives spinner)
-            self.ai_tick = self.ai_tick.wrapping_add(1);
-
-            // Poll AI result
-            self.poll_ai_result();
+            // Poll AI result — may set needs_redraw
+            let had_ai_result = self.poll_ai_result();
+            if had_ai_result {
+                needs_redraw = true;
+            }
 
             if self.should_quit {
                 break;
             }
 
-            // Wait for input (100ms timeout so AI poll runs regularly)
+            // When AI is pending, tick the spinner animation and force redraw
+            if self.ai_pending {
+                self.ai_tick = self.ai_tick.wrapping_add(1);
+                needs_redraw = true;
+            }
+
+            // Wait for input (100ms timeout so AI poll runs regularly).
+            // After handling the first event, drain any queued events before
+            // redrawing.  This coalesces rapid-fire scroll ticks into a single
+            // frame, keeping the editor responsive during fast scrolling.
             if event::poll(Duration::from_millis(100))? {
-                match event::read()? {
-                    Event::Key(key) => {
-                        // If shell output overlay is visible, any key dismisses it
-                        if self.editor.shell_output.is_some() {
-                            self.editor.shell_output = None;
-                        } else if self.filetree_prompt.is_some() {
-                            self.handle_filetree_prompt_key(key)?;
-                        } else if self.focus == FocusZone::Chat && self.chat_visible {
-                            self.handle_chat_key(key)?;
-                        } else if self.focus == FocusZone::FileTree && self.editor.filetree_visible {
-                            self.handle_filetree_key(key)?;
-                        } else {
-                            self.handle_key(key)?;
-                        }
-                    }
-                    Event::Resize(w, h) => {
-                        self.editor.term_width  = w;
-                        self.editor.term_height = h;
-                    }
-                    Event::Mouse(me) => {
-                        use crossterm::event::{MouseEventKind, MouseButton};
-                        match me.kind {
+                needs_redraw = true;
+                self.dispatch_event(event::read()?)?;
+
+                // Drain remaining queued events without blocking
+                while event::poll(Duration::from_millis(0))? {
+                    self.dispatch_event(event::read()?)?;
+                }
+            }
+        }
+
+        self.renderer.cleanup()?;
+        Ok(())
+    }
+
+    // ── Event dispatch ──────────────────────────────────────────────────────
+
+    fn dispatch_event(&mut self, ev: Event) -> Result<()> {
+        match ev {
+            Event::Key(key) => {
+                if self.theme_picker.is_some() {
+                    self.handle_theme_picker_key(key);
+                } else if self.editor.shell_output.is_some() {
+                    self.editor.shell_output = None;
+                } else if self.filetree_prompt.is_some() {
+                    self.handle_filetree_prompt_key(key)?;
+                } else if self.focus == FocusZone::Chat && self.chat_visible {
+                    self.handle_chat_key(key)?;
+                } else if self.focus == FocusZone::FileTree && self.editor.filetree_visible {
+                    self.handle_filetree_key(key)?;
+                } else {
+                    self.handle_key(key)?;
+                }
+            }
+            Event::Resize(w, h) => {
+                self.editor.term_width  = w;
+                self.editor.term_height = h;
+            }
+            Event::Mouse(me) => {
+                use crossterm::event::{MouseEventKind, MouseButton};
+                match me.kind {
                     MouseEventKind::ScrollDown => {
                         self.handle_mouse_scroll(me.column, me.row, false);
                     }
@@ -259,21 +309,17 @@ impl App {
                         self.handle_mouse_drag(me.column, me.row);
                     }
                     _ => {}
-                        }
-                    }
-                    _ => {}
                 }
             }
+            _ => {}
         }
-
-        self.renderer.cleanup()?;
         Ok(())
     }
 
     // ── AI polling ────────────────────────────────────────────────────────────
 
-    fn poll_ai_result(&mut self) {
-        if !self.ai_pending { return; }
+    fn poll_ai_result(&mut self) -> bool {
+        if !self.ai_pending { return false; }
         let result = {
             let mut guard = self.ai_result.lock().unwrap();
             guard.take()
@@ -286,6 +332,9 @@ impl App {
                 _ => self.ai_status = AiStatus::Idle,
             }
             self.apply_ai_hint(hint);
+            true
+        } else {
+            false
         }
     }
 
@@ -525,10 +574,38 @@ impl App {
             Mode::Insert => self.handle_insert(key),
             Mode::Visual { kind, anchor } => self.handle_visual(key, kind, anchor),
             Mode::Command(mut input) => {
+                // ── Completion interaction ──
+                match key.code {
+                    KeyCode::Tab => {
+                        if self.cmd_completion.visible() {
+                            if key.modifiers.contains(KeyModifiers::SHIFT) {
+                                self.cmd_completion.select_prev();
+                            } else {
+                                self.cmd_completion.select_next();
+                            }
+                            // Preview: fill input with selected candidate
+                            if let Some(text) = self.cmd_completion.accept() {
+                                input = text;
+                            }
+                            self.editor.mode = Mode::Command(input);
+                            return Ok(());
+                        }
+                        // No completions — Tab does nothing
+                        return Ok(());
+                    }
+                    _ => {}
+                }
+
                 let action = self.editor.handle_command_key(key, &mut input);
                 // Re-sync mode (input may have changed)
                 if self.editor.mode.is_command() {
+                    // Update completion candidates based on new input
+                    self.cmd_completion.update(&input);
                     self.editor.mode = Mode::Command(input);
+                } else {
+                    // Leaving command mode — clear completions
+                    self.cmd_completion.update("");
+                    self.cmd_completion.selected = None;
                 }
                 self.execute_command_action(action)?;
             }
@@ -600,6 +677,8 @@ impl App {
             }
             NormalAction::EnterCommand => {
                 self.editor.mode = Mode::Command(String::new());
+                // Show all commands when entering command mode
+                self.cmd_completion.update("");
             }
             NormalAction::EnterSearch => {
                 // Save position for incsearch Esc-restore
@@ -977,8 +1056,84 @@ impl App {
                 }
                 self.editor.mode = Mode::Normal;
             }
+            CommandAction::SetTheme(name) => {
+                self.renderer.set_theme(&name);
+                // Persist to ~/.hirc so the theme survives restarts
+                if let Err(e) = crate::config::loader::save_theme(&name) {
+                    self.editor.set_msg(format!("Theme: {} (save failed: {})", name, e));
+                } else {
+                    self.editor.set_msg(format!("Theme: {} (saved)", name));
+                }
+                self.editor.mode = Mode::Normal;
+            }
+            CommandAction::OpenThemePicker => {
+                let themes: Vec<&'static str> = CodePalette::available_themes().to_vec();
+                let current = self.renderer.syntect_hl.theme_name().to_string();
+                let cursor = themes.iter().position(|t| *t == current).unwrap_or(0);
+                self.theme_picker = Some(ThemePicker {
+                    themes,
+                    cursor,
+                    original_theme: current,
+                });
+                self.editor.mode = Mode::Normal;
+            }
+            CommandAction::Preview => {
+                let content = self.editor.buffer.rope.to_string();
+                let file_path = self.editor.buffer.filepath().map(|p| p.to_path_buf());
+                let msg = crate::ui::preview::open_preview(
+                    &content,
+                    file_path.as_deref(),
+                );
+                self.editor.set_msg(msg);
+                self.editor.mode = Mode::Normal;
+            }
         }
         Ok(())
+    }
+
+    // ── Theme picker ──────────────────────────────────────────────────────────
+
+    fn handle_theme_picker_key(&mut self, key: KeyEvent) {
+        let picker = match self.theme_picker.as_mut() {
+            Some(p) => p,
+            None => return,
+        };
+        match key.code {
+            KeyCode::Char('j') | KeyCode::Down => {
+                if picker.cursor + 1 < picker.themes.len() {
+                    picker.cursor += 1;
+                    // Live preview
+                    let name = picker.themes[picker.cursor];
+                    self.renderer.set_theme(name);
+                }
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                if picker.cursor > 0 {
+                    picker.cursor -= 1;
+                    // Live preview
+                    let name = picker.themes[picker.cursor];
+                    self.renderer.set_theme(name);
+                }
+            }
+            KeyCode::Enter => {
+                let name = picker.themes[picker.cursor];
+                self.renderer.set_theme(name);
+                // Persist to ~/.hirc so the theme survives restarts
+                if let Err(e) = crate::config::loader::save_theme(name) {
+                    self.editor.set_msg(format!("Theme: {} (save failed: {})", name, e));
+                } else {
+                    self.editor.set_msg(format!("Theme: {} (saved)", name));
+                }
+                self.theme_picker = None;
+            }
+            KeyCode::Esc | KeyCode::Char('q') => {
+                // Restore original theme
+                let original = picker.original_theme.clone();
+                self.renderer.set_theme(&original);
+                self.theme_picker = None;
+            }
+            _ => {}
+        }
     }
 
     /// Execute a shell command via `:!{cmd}` and display the output in the message bar.

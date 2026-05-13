@@ -178,6 +178,8 @@ Other:
   :d / :{n}d / :{n,m}d — delete lines
   :u — undo
   :!{cmd} — run shell command
+  :theme — open interactive theme picker (j/k to navigate, Enter to apply, Esc to cancel, with live preview)
+  :theme {name} — switch theme directly (e.g. :theme dracula)
 
 ## Search Mode (/ prefix)
 
@@ -233,7 +235,9 @@ Input mode:
 
 [general] — line_numbers, tab_width, expand_tab, auto_indent, ignore_case, smart_case, scroll_off
 [ai] — api_base_url, api_key, model, timeout_secs, yolo_mode, context_lines, debug
-[theme] — colorscheme
+[theme] — colorscheme, editor_theme, chat_theme
+  Available themes: neon-minimalist (default), glow-dark, monokai-pro, github-dark, one-dark-pro, dracula, electric-impressionism, synthwave
+  Users can switch themes at runtime with :theme or :theme {name}
 [filetree] — width, show_hidden
 [chat] — width, max_messages, context_pairs
 ";

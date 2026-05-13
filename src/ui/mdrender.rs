@@ -8,10 +8,11 @@
 
 use crossterm::style::Color;
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd, HeadingLevel, CodeBlockKind};
-use syntect::highlighting::{ThemeSet, Style as SynStyle};
-use syntect::parsing::SyntaxSet;
-use syntect::easy::HighlightLines;
+use syntect::highlighting::ThemeSet;
+use syntect::parsing::{ParseState, ScopeStack, SyntaxSet};
 use unicode_width::UnicodeWidthChar;
+
+use crate::syntax::highlight::{classify_scope, CodePalette};
 
 // ── Core types ───────────────────────────────────────────────────────────────
 
@@ -135,57 +136,65 @@ impl Default for MdTheme {
 }
 
 impl MdTheme {
+    /// Neon-Minimalist dark theme.
+    ///
+    /// Tokyo Night base with selective neon accents.
     pub fn dark() -> Self {
         Self {
-            h1_fg: Color::Rgb { r: 189, g: 147, b: 249 },
-            h1_bg: Some(Color::Rgb { r: 40, g: 30, b: 60 }),
+            // ── Headings: purple → blue → cyan gradient ──
+            h1_fg: Color::Rgb { r: 187, g: 154, b: 247 }, // #BB9AF7 soft purple
+            h1_bg: Some(Color::Rgb { r: 30, g: 25, b: 50 }),
             h1_bold: true,
-            h2_fg: Color::Rgb { r: 139, g: 233, b: 253 },
+            h2_fg: Color::Rgb { r: 122, g: 162, b: 247 }, // #7AA2F7 vivid blue
             h2_bold: true,
-            h3_fg: Color::Rgb { r: 80, g: 250, b: 123 },
+            h3_fg: Color::Rgb { r: 125, g: 207, b: 255 }, // #7DCFFF sky blue
             h3_bold: true,
-            h4_fg: Color::Rgb { r: 255, g: 184, b: 108 },
-            h5_fg: Color::Rgb { r: 255, g: 121, b: 198 },
-            h6_fg: Color::DarkGrey,
+            h4_fg: Color::Rgb { r: 169, g: 177, b: 214 }, // #A9B1D6 muted
+            h5_fg: Color::Rgb { r: 86, g: 95, b: 137 },   // #565F89 dim
+            h6_fg: Color::Rgb { r: 86, g: 95, b: 137 },   // #565F89 dim
             heading_prefix: true,
 
-            strong_fg: Some(Color::Rgb { r: 255, g: 184, b: 108 }),
-            emphasis_fg: Some(Color::Rgb { r: 139, g: 233, b: 253 }),
-            code_inline_fg: Color::Rgb { r: 241, g: 250, b: 140 },
-            code_inline_bg: Some(Color::Rgb { r: 50, g: 50, b: 60 }),
-            strikethrough_fg: Some(Color::DarkGrey),
-            link_fg: Color::Rgb { r: 139, g: 233, b: 253 },
+            // ── Inline styles ──
+            strong_fg: Some(Color::Rgb { r: 255, g: 158, b: 100 }), // #FF9E64 orange
+            emphasis_fg: Some(Color::Rgb { r: 180, g: 249, b: 248 }), // #B4F9F8 mint
+            code_inline_fg: Color::Rgb { r: 224, g: 175, b: 104 },  // #E0AF68 gold
+            code_inline_bg: Some(Color::Rgb { r: 30, g: 32, b: 48 }),
+            strikethrough_fg: Some(Color::Rgb { r: 86, g: 95, b: 137 }),
+            link_fg: Color::Rgb { r: 42, g: 195, b: 222 },  // #2AC3DE bright cyan
             link_underline: true,
-            image_fg: Color::Rgb { r: 255, g: 121, b: 198 },
+            image_fg: Color::Rgb { r: 247, g: 118, b: 142 }, // #F7768E pink
 
-            code_block_bg: Some(Color::Rgb { r: 30, g: 30, b: 40 }),
-            code_block_border: Some(Color::Rgb { r: 68, g: 71, b: 90 }),
-            code_block_lang_fg: Color::DarkGrey,
+            // ── Code blocks ──
+            code_block_bg: Some(Color::Rgb { r: 26, g: 27, b: 38 }),  // #1A1B26
+            code_block_border: Some(Color::Rgb { r: 41, g: 46, b: 66 }), // #292E42
+            code_block_lang_fg: Color::Rgb { r: 86, g: 95, b: 137 },
             syntect_theme: "base16-ocean.dark".to_string(),
 
-            blockquote_fg: Color::Rgb { r: 150, g: 150, b: 170 },
-            blockquote_border: Color::Rgb { r: 98, g: 114, b: 164 },
+            // ── Block elements ──
+            blockquote_fg: Color::Rgb { r: 65, g: 72, b: 104 },     // #414868 muted
+            blockquote_border: Color::Rgb { r: 122, g: 162, b: 247 }, // #7AA2F7 blue
             blockquote_indent: 2,
-            list_marker_fg: Color::Rgb { r: 189, g: 147, b: 249 },
+            list_marker_fg: Color::Rgb { r: 122, g: 162, b: 247 },   // #7AA2F7 blue
             list_indent: 2,
-            table_border_fg: Color::Rgb { r: 68, g: 71, b: 90 },
+            table_border_fg: Color::Rgb { r: 41, g: 46, b: 66 },
             table_header_bold: true,
             hr_char: '─',
-            hr_fg: Color::Rgb { r: 68, g: 71, b: 90 },
+            hr_fg: Color::Rgb { r: 41, g: 46, b: 66 },
 
-            text_fg: Color::Rgb { r: 248, g: 248, b: 242 },
+            text_fg: Color::Rgb { r: 169, g: 177, b: 214 }, // #A9B1D6
             paragraph_spacing: 1,
         }
     }
 
+    /// Dracula variant with Neon-Minimalist accents.
     pub fn dracula() -> Self {
         Self {
-            h1_fg: Color::Rgb { r: 189, g: 147, b: 249 },
+            h1_fg: Color::Rgb { r: 189, g: 147, b: 249 }, // Dracula purple
             h1_bg: Some(Color::Rgb { r: 40, g: 42, b: 54 }),
             h1_bold: true,
-            h2_fg: Color::Rgb { r: 255, g: 121, b: 198 },
+            h2_fg: Color::Rgb { r: 255, g: 121, b: 198 }, // Dracula pink
             h2_bold: true,
-            h3_fg: Color::Rgb { r: 80, g: 250, b: 123 },
+            h3_fg: Color::Rgb { r: 80, g: 250, b: 123 },  // Dracula green
             h3_bold: true,
             h4_fg: Color::Rgb { r: 255, g: 184, b: 108 },
             h5_fg: Color::Rgb { r: 139, g: 233, b: 253 },
@@ -194,7 +203,7 @@ impl MdTheme {
 
             strong_fg: Some(Color::Rgb { r: 255, g: 184, b: 108 }),
             emphasis_fg: Some(Color::Rgb { r: 139, g: 233, b: 253 }),
-            code_inline_fg: Color::Rgb { r: 80, g: 250, b: 123 },
+            code_inline_fg: Color::Rgb { r: 241, g: 250, b: 140 }, // Dracula yellow
             code_inline_bg: Some(Color::Rgb { r: 40, g: 42, b: 54 }),
             strikethrough_fg: Some(Color::Rgb { r: 98, g: 114, b: 164 }),
             link_fg: Color::Rgb { r: 139, g: 233, b: 253 },
@@ -221,45 +230,286 @@ impl MdTheme {
         }
     }
 
+    /// Tokyo Night variant — closest to the Neon-Minimalist spec.
     pub fn tokyo_night() -> Self {
         Self {
-            h1_fg: Color::Rgb { r: 187, g: 154, b: 247 },
-            h1_bg: Some(Color::Rgb { r: 30, g: 30, b: 50 }),
+            h1_fg: Color::Rgb { r: 187, g: 154, b: 247 }, // #BB9AF7
+            h1_bg: Some(Color::Rgb { r: 30, g: 25, b: 50 }),
             h1_bold: true,
-            h2_fg: Color::Rgb { r: 125, g: 207, b: 255 },
+            h2_fg: Color::Rgb { r: 122, g: 162, b: 247 }, // #7AA2F7
             h2_bold: true,
-            h3_fg: Color::Rgb { r: 158, g: 206, b: 106 },
+            h3_fg: Color::Rgb { r: 125, g: 207, b: 255 }, // #7DCFFF
             h3_bold: true,
-            h4_fg: Color::Rgb { r: 224, g: 175, b: 104 },
-            h5_fg: Color::Rgb { r: 247, g: 118, b: 142 },
-            h6_fg: Color::Rgb { r: 86, g: 95, b: 137 },
+            h4_fg: Color::Rgb { r: 169, g: 177, b: 214 }, // #A9B1D6
+            h5_fg: Color::Rgb { r: 86, g: 95, b: 137 },   // #565F89
+            h6_fg: Color::Rgb { r: 86, g: 95, b: 137 },   // #565F89
             heading_prefix: true,
 
-            strong_fg: Some(Color::Rgb { r: 224, g: 175, b: 104 }),
-            emphasis_fg: Some(Color::Rgb { r: 125, g: 207, b: 255 }),
-            code_inline_fg: Color::Rgb { r: 158, g: 206, b: 106 },
+            strong_fg: Some(Color::Rgb { r: 255, g: 158, b: 100 }), // #FF9E64
+            emphasis_fg: Some(Color::Rgb { r: 180, g: 249, b: 248 }), // #B4F9F8
+            code_inline_fg: Color::Rgb { r: 224, g: 175, b: 104 },  // #E0AF68
             code_inline_bg: Some(Color::Rgb { r: 30, g: 32, b: 48 }),
             strikethrough_fg: Some(Color::Rgb { r: 86, g: 95, b: 137 }),
-            link_fg: Color::Rgb { r: 125, g: 207, b: 255 },
+            link_fg: Color::Rgb { r: 42, g: 195, b: 222 },  // #2AC3DE
             link_underline: true,
-            image_fg: Color::Rgb { r: 247, g: 118, b: 142 },
+            image_fg: Color::Rgb { r: 247, g: 118, b: 142 }, // #F7768E
 
             code_block_bg: Some(Color::Rgb { r: 26, g: 27, b: 38 }),
             code_block_border: Some(Color::Rgb { r: 41, g: 46, b: 66 }),
             code_block_lang_fg: Color::Rgb { r: 86, g: 95, b: 137 },
             syntect_theme: "base16-ocean.dark".to_string(),
 
-            blockquote_fg: Color::Rgb { r: 86, g: 95, b: 137 },
-            blockquote_border: Color::Rgb { r: 187, g: 154, b: 247 },
+            blockquote_fg: Color::Rgb { r: 65, g: 72, b: 104 },     // #414868
+            blockquote_border: Color::Rgb { r: 122, g: 162, b: 247 }, // #7AA2F7
             blockquote_indent: 2,
-            list_marker_fg: Color::Rgb { r: 187, g: 154, b: 247 },
+            list_marker_fg: Color::Rgb { r: 122, g: 162, b: 247 },   // #7AA2F7
             list_indent: 2,
             table_border_fg: Color::Rgb { r: 41, g: 46, b: 66 },
             table_header_bold: true,
             hr_char: '─',
             hr_fg: Color::Rgb { r: 41, g: 46, b: 66 },
 
-            text_fg: Color::Rgb { r: 192, g: 202, b: 245 },
+            text_fg: Color::Rgb { r: 169, g: 177, b: 214 }, // #A9B1D6
+            paragraph_spacing: 1,
+        }
+    }
+
+    /// Glow Dark — matches glow's warm, muted aesthetic.
+    pub fn glow_dark() -> Self {
+        Self {
+            h1_fg: Color::Rgb { r: 0, g: 170, b: 255 },
+            h1_bg: Some(Color::Rgb { r: 55, g: 55, b: 55 }),
+            h1_bold: true,
+            h2_fg: Color::Rgb { r: 0, g: 215, b: 135 },
+            h2_bold: true,
+            h3_fg: Color::Rgb { r: 232, g: 232, b: 168 },
+            h3_bold: true,
+            h4_fg: Color::Rgb { r: 232, g: 232, b: 232 },
+            h5_fg: Color::Rgb { r: 102, g: 102, b: 102 },
+            h6_fg: Color::Rgb { r: 102, g: 102, b: 102 },
+            heading_prefix: true,
+            strong_fg: Some(Color::Rgb { r: 232, g: 232, b: 168 }),
+            emphasis_fg: Some(Color::Rgb { r: 198, g: 150, b: 105 }),
+            code_inline_fg: Color::Rgb { r: 175, g: 255, b: 215 },
+            code_inline_bg: Some(Color::Rgb { r: 55, g: 55, b: 55 }),
+            strikethrough_fg: Some(Color::Rgb { r: 102, g: 102, b: 102 }),
+            link_fg: Color::Rgb { r: 0, g: 170, b: 255 },
+            link_underline: true,
+            image_fg: Color::Rgb { r: 255, g: 142, b: 199 },
+            code_block_bg: Some(Color::Rgb { r: 55, g: 55, b: 55 }),
+            code_block_border: Some(Color::Rgb { r: 80, g: 80, b: 80 }),
+            code_block_lang_fg: Color::Rgb { r: 102, g: 102, b: 102 },
+            syntect_theme: "base16-ocean.dark".to_string(),
+            blockquote_fg: Color::Rgb { r: 102, g: 102, b: 102 },
+            blockquote_border: Color::Rgb { r: 0, g: 170, b: 255 },
+            blockquote_indent: 2,
+            list_marker_fg: Color::Rgb { r: 232, g: 232, b: 168 },
+            list_indent: 2,
+            table_border_fg: Color::Rgb { r: 80, g: 80, b: 80 },
+            table_header_bold: true,
+            hr_char: '─',
+            hr_fg: Color::Rgb { r: 80, g: 80, b: 80 },
+            text_fg: Color::Rgb { r: 232, g: 232, b: 232 },
+            paragraph_spacing: 1,
+        }
+    }
+
+    /// Monokai Pro — warm, high-contrast.
+    pub fn monokai_pro() -> Self {
+        Self {
+            h1_fg: Color::Rgb { r: 255, g: 97, b: 136 },
+            h1_bg: Some(Color::Rgb { r: 45, g: 42, b: 46 }),
+            h1_bold: true,
+            h2_fg: Color::Rgb { r: 166, g: 226, b: 46 },
+            h2_bold: true,
+            h3_fg: Color::Rgb { r: 120, g: 220, b: 232 },
+            h3_bold: true,
+            h4_fg: Color::Rgb { r: 255, g: 216, b: 102 },
+            h5_fg: Color::Rgb { r: 117, g: 113, b: 94 },
+            h6_fg: Color::Rgb { r: 117, g: 113, b: 94 },
+            heading_prefix: true,
+            strong_fg: Some(Color::Rgb { r: 252, g: 152, b: 103 }),
+            emphasis_fg: Some(Color::Rgb { r: 120, g: 220, b: 232 }),
+            code_inline_fg: Color::Rgb { r: 255, g: 216, b: 102 },
+            code_inline_bg: Some(Color::Rgb { r: 45, g: 42, b: 46 }),
+            strikethrough_fg: Some(Color::Rgb { r: 117, g: 113, b: 94 }),
+            link_fg: Color::Rgb { r: 120, g: 220, b: 232 },
+            link_underline: true,
+            image_fg: Color::Rgb { r: 255, g: 97, b: 136 },
+            code_block_bg: Some(Color::Rgb { r: 45, g: 42, b: 46 }),
+            code_block_border: Some(Color::Rgb { r: 73, g: 72, b: 62 }),
+            code_block_lang_fg: Color::Rgb { r: 117, g: 113, b: 94 },
+            syntect_theme: "base16-ocean.dark".to_string(),
+            blockquote_fg: Color::Rgb { r: 117, g: 113, b: 94 },
+            blockquote_border: Color::Rgb { r: 171, g: 157, b: 242 },
+            blockquote_indent: 2,
+            list_marker_fg: Color::Rgb { r: 255, g: 97, b: 136 },
+            list_indent: 2,
+            table_border_fg: Color::Rgb { r: 73, g: 72, b: 62 },
+            table_header_bold: true,
+            hr_char: '─',
+            hr_fg: Color::Rgb { r: 73, g: 72, b: 62 },
+            text_fg: Color::Rgb { r: 248, g: 248, b: 242 },
+            paragraph_spacing: 1,
+        }
+    }
+
+    /// GitHub Dark — clean, professional.
+    pub fn github_dark() -> Self {
+        Self {
+            h1_fg: Color::Rgb { r: 121, g: 192, b: 255 },
+            h1_bg: Some(Color::Rgb { r: 22, g: 27, b: 34 }),
+            h1_bold: true,
+            h2_fg: Color::Rgb { r: 210, g: 168, b: 255 },
+            h2_bold: true,
+            h3_fg: Color::Rgb { r: 126, g: 231, b: 135 },
+            h3_bold: true,
+            h4_fg: Color::Rgb { r: 201, g: 209, b: 217 },
+            h5_fg: Color::Rgb { r: 139, g: 148, b: 158 },
+            h6_fg: Color::Rgb { r: 139, g: 148, b: 158 },
+            heading_prefix: true,
+            strong_fg: Some(Color::Rgb { r: 201, g: 209, b: 217 }),
+            emphasis_fg: Some(Color::Rgb { r: 201, g: 209, b: 217 }),
+            code_inline_fg: Color::Rgb { r: 165, g: 214, b: 255 },
+            code_inline_bg: Some(Color::Rgb { r: 22, g: 27, b: 34 }),
+            strikethrough_fg: Some(Color::Rgb { r: 139, g: 148, b: 158 }),
+            link_fg: Color::Rgb { r: 88, g: 166, b: 255 },
+            link_underline: true,
+            image_fg: Color::Rgb { r: 210, g: 168, b: 255 },
+            code_block_bg: Some(Color::Rgb { r: 22, g: 27, b: 34 }),
+            code_block_border: Some(Color::Rgb { r: 48, g: 54, b: 61 }),
+            code_block_lang_fg: Color::Rgb { r: 139, g: 148, b: 158 },
+            syntect_theme: "base16-ocean.dark".to_string(),
+            blockquote_fg: Color::Rgb { r: 139, g: 148, b: 158 },
+            blockquote_border: Color::Rgb { r: 88, g: 166, b: 255 },
+            blockquote_indent: 2,
+            list_marker_fg: Color::Rgb { r: 255, g: 123, b: 114 },
+            list_indent: 2,
+            table_border_fg: Color::Rgb { r: 48, g: 54, b: 61 },
+            table_header_bold: true,
+            hr_char: '─',
+            hr_fg: Color::Rgb { r: 48, g: 54, b: 61 },
+            text_fg: Color::Rgb { r: 201, g: 209, b: 217 },
+            paragraph_spacing: 1,
+        }
+    }
+
+    /// One Dark Pro — Atom-inspired.
+    pub fn one_dark_pro() -> Self {
+        Self {
+            h1_fg: Color::Rgb { r: 224, g: 108, b: 117 },
+            h1_bg: Some(Color::Rgb { r: 40, g: 44, b: 52 }),
+            h1_bold: true,
+            h2_fg: Color::Rgb { r: 97, g: 175, b: 239 },
+            h2_bold: true,
+            h3_fg: Color::Rgb { r: 198, g: 120, b: 221 },
+            h3_bold: true,
+            h4_fg: Color::Rgb { r: 171, g: 178, b: 191 },
+            h5_fg: Color::Rgb { r: 92, g: 99, b: 112 },
+            h6_fg: Color::Rgb { r: 92, g: 99, b: 112 },
+            heading_prefix: true,
+            strong_fg: Some(Color::Rgb { r: 209, g: 154, b: 102 }),
+            emphasis_fg: Some(Color::Rgb { r: 198, g: 120, b: 221 }),
+            code_inline_fg: Color::Rgb { r: 152, g: 195, b: 121 },
+            code_inline_bg: Some(Color::Rgb { r: 40, g: 44, b: 52 }),
+            strikethrough_fg: Some(Color::Rgb { r: 92, g: 99, b: 112 }),
+            link_fg: Color::Rgb { r: 97, g: 175, b: 239 },
+            link_underline: true,
+            image_fg: Color::Rgb { r: 198, g: 120, b: 221 },
+            code_block_bg: Some(Color::Rgb { r: 40, g: 44, b: 52 }),
+            code_block_border: Some(Color::Rgb { r: 60, g: 64, b: 72 }),
+            code_block_lang_fg: Color::Rgb { r: 92, g: 99, b: 112 },
+            syntect_theme: "base16-ocean.dark".to_string(),
+            blockquote_fg: Color::Rgb { r: 92, g: 99, b: 112 },
+            blockquote_border: Color::Rgb { r: 97, g: 175, b: 239 },
+            blockquote_indent: 2,
+            list_marker_fg: Color::Rgb { r: 224, g: 108, b: 117 },
+            list_indent: 2,
+            table_border_fg: Color::Rgb { r: 60, g: 64, b: 72 },
+            table_header_bold: true,
+            hr_char: '─',
+            hr_fg: Color::Rgb { r: 60, g: 64, b: 72 },
+            text_fg: Color::Rgb { r: 171, g: 178, b: 191 },
+            paragraph_spacing: 1,
+        }
+    }
+
+    /// Electric Impressionism — vibrant neon.
+    pub fn electric_impressionism() -> Self {
+        Self {
+            h1_fg: Color::Rgb { r: 0, g: 245, b: 255 },
+            h1_bg: Some(Color::Rgb { r: 15, g: 18, b: 30 }),
+            h1_bold: true,
+            h2_fg: Color::Rgb { r: 183, g: 138, b: 255 },
+            h2_bold: true,
+            h3_fg: Color::Rgb { r: 0, g: 215, b: 135 },
+            h3_bold: true,
+            h4_fg: Color::Rgb { r: 230, g: 235, b: 255 },
+            h5_fg: Color::Rgb { r: 90, g: 100, b: 120 },
+            h6_fg: Color::Rgb { r: 90, g: 100, b: 120 },
+            heading_prefix: true,
+            strong_fg: Some(Color::Rgb { r: 255, g: 200, b: 100 }),
+            emphasis_fg: Some(Color::Rgb { r: 183, g: 138, b: 255 }),
+            code_inline_fg: Color::Rgb { r: 166, g: 226, b: 46 },
+            code_inline_bg: Some(Color::Rgb { r: 20, g: 22, b: 35 }),
+            strikethrough_fg: Some(Color::Rgb { r: 90, g: 100, b: 120 }),
+            link_fg: Color::Rgb { r: 0, g: 245, b: 255 },
+            link_underline: true,
+            image_fg: Color::Rgb { r: 255, g: 77, b: 148 },
+            code_block_bg: Some(Color::Rgb { r: 15, g: 18, b: 30 }),
+            code_block_border: Some(Color::Rgb { r: 40, g: 45, b: 65 }),
+            code_block_lang_fg: Color::Rgb { r: 90, g: 100, b: 120 },
+            syntect_theme: "base16-ocean.dark".to_string(),
+            blockquote_fg: Color::Rgb { r: 90, g: 100, b: 120 },
+            blockquote_border: Color::Rgb { r: 0, g: 245, b: 255 },
+            blockquote_indent: 2,
+            list_marker_fg: Color::Rgb { r: 255, g: 77, b: 148 },
+            list_indent: 2,
+            table_border_fg: Color::Rgb { r: 40, g: 45, b: 65 },
+            table_header_bold: true,
+            hr_char: '─',
+            hr_fg: Color::Rgb { r: 40, g: 45, b: 65 },
+            text_fg: Color::Rgb { r: 230, g: 235, b: 255 },
+            paragraph_spacing: 1,
+        }
+    }
+
+    /// Synthwave '84 — retro-futuristic neon.
+    pub fn synthwave() -> Self {
+        Self {
+            h1_fg: Color::Rgb { r: 255, g: 40, b: 150 },
+            h1_bg: Some(Color::Rgb { r: 25, g: 15, b: 40 }),
+            h1_bold: true,
+            h2_fg: Color::Rgb { r: 54, g: 243, b: 240 },
+            h2_bold: true,
+            h3_fg: Color::Rgb { r: 254, g: 78, b: 210 },
+            h3_bold: true,
+            h4_fg: Color::Rgb { r: 230, g: 220, b: 245 },
+            h5_fg: Color::Rgb { r: 105, g: 90, b: 140 },
+            h6_fg: Color::Rgb { r: 105, g: 90, b: 140 },
+            heading_prefix: true,
+            strong_fg: Some(Color::Rgb { r: 255, g: 241, b: 118 }),
+            emphasis_fg: Some(Color::Rgb { r: 254, g: 78, b: 210 }),
+            code_inline_fg: Color::Rgb { r: 255, g: 241, b: 118 },
+            code_inline_bg: Some(Color::Rgb { r: 30, g: 20, b: 50 }),
+            strikethrough_fg: Some(Color::Rgb { r: 105, g: 90, b: 140 }),
+            link_fg: Color::Rgb { r: 54, g: 243, b: 240 },
+            link_underline: true,
+            image_fg: Color::Rgb { r: 254, g: 78, b: 210 },
+            code_block_bg: Some(Color::Rgb { r: 25, g: 15, b: 40 }),
+            code_block_border: Some(Color::Rgb { r: 55, g: 40, b: 80 }),
+            code_block_lang_fg: Color::Rgb { r: 105, g: 90, b: 140 },
+            syntect_theme: "base16-ocean.dark".to_string(),
+            blockquote_fg: Color::Rgb { r: 105, g: 90, b: 140 },
+            blockquote_border: Color::Rgb { r: 255, g: 40, b: 150 },
+            blockquote_indent: 2,
+            list_marker_fg: Color::Rgb { r: 255, g: 40, b: 150 },
+            list_indent: 2,
+            table_border_fg: Color::Rgb { r: 55, g: 40, b: 80 },
+            table_header_bold: true,
+            hr_char: '─',
+            hr_fg: Color::Rgb { r: 55, g: 40, b: 80 },
+            text_fg: Color::Rgb { r: 230, g: 220, b: 245 },
             paragraph_spacing: 1,
         }
     }
@@ -268,7 +518,13 @@ impl MdTheme {
         match name {
             "dracula" => Self::dracula(),
             "tokyo-night" | "tokyo_night" => Self::tokyo_night(),
-            _ => Self::dark(),
+            "glow-dark" | "glow_dark" | "glow" => Self::glow_dark(),
+            "monokai-pro" | "monokai_pro" | "monokai" => Self::monokai_pro(),
+            "github-dark" | "github_dark" | "github" => Self::github_dark(),
+            "one-dark-pro" | "one_dark_pro" | "one-dark" | "onedark" => Self::one_dark_pro(),
+            "electric-impressionism" | "electric_impressionism" | "electric" => Self::electric_impressionism(),
+            "synthwave" | "synthwave-84" | "synthwave_84" => Self::synthwave(),
+            "neon-minimalist" | "neon_minimalist" | "dark" | "default" | _ => Self::dark(),
         }
     }
 
@@ -300,14 +556,26 @@ impl MdTheme {
 /// The Markdown renderer. Holds syntect resources (loaded once, reused).
 pub struct MdRenderer {
     pub theme: MdTheme,
+    pub palette: CodePalette,
     syntax_set: SyntaxSet,
     theme_set: ThemeSet,
 }
 
 impl MdRenderer {
     pub fn new(theme: MdTheme) -> Self {
+        let palette = CodePalette::neon_minimalist();
         Self {
             theme,
+            palette,
+            syntax_set: SyntaxSet::load_defaults_newlines(),
+            theme_set: ThemeSet::load_defaults(),
+        }
+    }
+
+    pub fn new_with_palette(theme: MdTheme, palette: CodePalette) -> Self {
+        Self {
+            theme,
+            palette,
             syntax_set: SyntaxSet::load_defaults_newlines(),
             theme_set: ThemeSet::load_defaults(),
         }
@@ -315,6 +583,12 @@ impl MdRenderer {
 
     pub fn with_default_theme() -> Self {
         Self::new(MdTheme::dark())
+    }
+
+    /// Switch the theme and palette at runtime.
+    pub fn set_theme(&mut self, theme: MdTheme, palette: CodePalette) {
+        self.theme = theme;
+        self.palette = palette;
     }
 
     /// Render a Markdown string into styled lines, word-wrapped to `width`.
@@ -356,31 +630,47 @@ impl MdRenderer {
         output
     }
 
-    /// Highlight a code block using syntect.
+    /// Highlight a code block using scope-based token classification.
+    ///
+    /// Uses `ParseState` + `ScopeStack` + `classify_scope()` instead of
+    /// `HighlightLines`, giving us Chroma-quality colour differentiation.
     fn highlight_code(&self, code: &str, lang: &str, width: usize) -> Vec<MdLine> {
         let syntax = self.syntax_set
             .find_syntax_by_token(lang)
             .or_else(|| self.syntax_set.find_syntax_by_extension(lang))
             .unwrap_or_else(|| self.syntax_set.find_syntax_plain_text());
 
-        let theme_name = &self.theme.syntect_theme;
-        let syn_theme = self.theme_set.themes.get(theme_name)
-            .unwrap_or_else(|| self.theme_set.themes.values().next().unwrap());
-
-        let mut h = HighlightLines::new(syntax, syn_theme);
+        let mut parse_state = ParseState::new(syntax);
+        let mut scope_stack = ScopeStack::new();
         let bg = self.theme.code_block_bg;
         let mut lines = Vec::new();
 
         for src_line in code.lines() {
             let mut md_line = MdLine::with_indent(1);
-            match h.highlight_line(src_line, &self.syntax_set) {
-                Ok(ranges) => {
-                    for (style, text) in ranges {
-                        if text.is_empty() { continue; }
-                        let fg = syn_style_to_color(style);
-                        let mut span = StyledSpan::styled(text, Some(fg), bg);
-                        span.bold = style.font_style.contains(syntect::highlighting::FontStyle::BOLD);
-                        span.italic = style.font_style.contains(syntect::highlighting::FontStyle::ITALIC);
+            match parse_state.parse_line(src_line, &self.syntax_set) {
+                Ok(ops) => {
+                    let mut byte_pos = 0usize;
+                    for &(offset, ref op) in &ops {
+                        if offset > byte_pos && offset <= src_line.len() {
+                            let text = &src_line[byte_pos..offset];
+                            if !text.is_empty() {
+                                let tt = classify_scope(&scope_stack, &self.syntax_set);
+                                let mut span = StyledSpan::styled(text, Some(tt.to_color(&self.palette)), bg);
+                                span.bold = tt.bold();
+                                span.italic = tt.italic();
+                                md_line.push(span);
+                            }
+                            byte_pos = offset;
+                        }
+                        scope_stack.apply(op).ok();
+                    }
+                    // Remaining text after last scope op
+                    if byte_pos < src_line.len() {
+                        let text = &src_line[byte_pos..];
+                        let tt = classify_scope(&scope_stack, &self.syntax_set);
+                        let mut span = StyledSpan::styled(text, Some(tt.to_color(&self.palette)), bg);
+                        span.bold = tt.bold();
+                        span.italic = tt.italic();
                         md_line.push(span);
                     }
                 }
@@ -408,12 +698,6 @@ impl MdRenderer {
     pub fn theme_set(&self) -> &ThemeSet {
         &self.theme_set
     }
-}
-
-/// Convert a syntect `Style` foreground to a crossterm `Color`.
-fn syn_style_to_color(style: SynStyle) -> Color {
-    let fg = style.foreground;
-    Color::Rgb { r: fg.r, g: fg.g, b: fg.b }
 }
 
 // ── Render context (state machine) ───────────────────────────────────────────

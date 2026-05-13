@@ -21,6 +21,12 @@ pub enum CommandAction {
     DeleteLines { start: usize, end: usize },
     /// :u — undo (same as `u` in normal mode)
     Undo,
+    /// :theme {name} — switch colour theme at runtime
+    SetTheme(String),
+    /// :theme (no arg) — open interactive theme picker
+    OpenThemePicker,
+    /// :preview — render current Markdown file as HTML and open in browser
+    Preview,
 }
 
 #[derive(Debug, Clone)]
@@ -154,6 +160,24 @@ impl Editor {
         // :u — undo
         if cmd == "u" {
             return CommandAction::Undo;
+        }
+
+        // :theme {name} — switch colour theme
+        if let Some(name) = cmd.strip_prefix("theme ").or_else(|| cmd.strip_prefix("theme\t")) {
+            let name = name.trim();
+            if name.is_empty() {
+                return CommandAction::SetMsg("Usage: :theme <name>  (available: neon-minimalist, glow-dark, monokai-pro, github-dark, one-dark-pro, dracula, electric-impressionism, synthwave)".to_string());
+            }
+            return CommandAction::SetTheme(name.to_string());
+        }
+        // bare :theme — open interactive theme picker
+        if cmd == "theme" {
+            return CommandAction::OpenThemePicker;
+        }
+
+        // :preview — open Markdown preview in browser
+        if cmd == "preview" {
+            return CommandAction::Preview;
         }
 
         // :d / :{n}d / :{n,m}d — delete lines

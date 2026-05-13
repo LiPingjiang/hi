@@ -24,6 +24,34 @@ Two letters. Fast to type. Easy to remember. That matters when you're in a termi
 
 ---
 
+## Terminal Compatibility
+
+> **Important:** `hi` requires a modern terminal emulator with true-color (24-bit) support.
+
+The built-in macOS Terminal.app only supports 256 colors and lacks the color depth needed for `hi`'s syntax highlighting engine. You will see washed-out, incorrect colors or missing highlights if you run `hi` in Terminal.app.
+
+**Recommended terminals:**
+
+| Terminal | Platform | True-color | Notes |
+|---|---|---|---|
+| **iTerm2** | macOS | ✅ | Recommended for macOS users. Full 24-bit color, ligatures, GPU rendering. |
+| **Kitty** | macOS / Linux | ✅ | GPU-accelerated, excellent performance. |
+| **Alacritty** | macOS / Linux / Windows | ✅ | Minimal, fast, Rust-based. |
+| **WezTerm** | macOS / Linux / Windows | ✅ | Feature-rich, Lua-configurable. |
+| **Windows Terminal** | Windows | ✅ | Default choice on Windows 11. |
+| **Ghostty** | macOS / Linux | ✅ | New, fast, native platform integration. |
+| macOS Terminal.app | macOS | ❌ | **Not supported.** 256-color only, no true-color. |
+
+To verify your terminal supports true-color, run:
+
+```bash
+printf "\x1b[38;2;255;100;0mTRUE COLOR\x1b[0m\n"
+```
+
+If you see "TRUE COLOR" in orange, you're good to go.
+
+---
+
 ## Install
 
 ### One-line installer (Linux & macOS)
@@ -171,7 +199,7 @@ Most terminal editors ship two completely separate highlighting systems: one for
 
 ### Built-in Themes
 
-The editor text area uses syntect's Sublime Text themes. The Chat panel has its own Markdown-aware theme with carefully tuned RGB colors for headings, blockquotes, tables, and inline elements.
+Switch themes live with `:theme` (opens an interactive picker with real-time preview). Your choice is persisted to `~/.hirc` and survives restarts.
 
 ```toml
 # ~/.hirc
@@ -180,7 +208,77 @@ editor_theme = "base16-ocean.dark"   # or "Solarized (dark)", "base16-eighties.d
 chat_theme   = "dracula"             # or "dark", "tokyo-night"
 ```
 
-The Chat panel's Markdown renderer goes beyond plain syntax highlighting — it renders headings with background colors and Unicode underlines, blockquotes with colored `│` borders, tables with box-drawing characters (`┌┬┐├┼┤└┴┘`), code blocks with rounded borders (`╭╮╰╯`) and language labels, task lists with `☑`/`☐` markers, and more. The visual quality surpasses [glow](https://github.com/charmbracelet/glow) while staying pure Rust.
+The Chat panel's Markdown renderer goes beyond plain syntax highlighting — it renders headings with background colors and Unicode underlines, blockquotes with colored `│` borders, tables with box-drawing characters (`┌┬┐├┼┤└┴┘`), code blocks with rounded borders (`╭╮╰╯`) and language labels, task lists with `☑`/`☐` markers, and more.
+
+---
+
+## Markdown Preview — `:preview`
+
+`hi` includes a built-in Markdown preview command that renders your `.md` file as a beautifully styled HTML page and opens it in your default browser.
+
+```
+:preview
+```
+
+**How it works:**
+
+1. The current buffer content is parsed with [pulldown-cmark](https://github.com/raphlinus/pulldown-cmark) (CommonMark + GFM extensions: tables, footnotes, strikethrough, task lists).
+2. A complete HTML document is generated with an embedded GitHub-dark inspired CSS theme — dark background, proper typography, styled code blocks, tables, blockquotes, and more.
+3. The HTML is written to a temporary file (`/tmp/hi-preview-*.html`) and opened via the system browser (`open` on macOS, `xdg-open` on Linux).
+
+The preview is read-only and non-blocking — you continue editing in `hi` while the browser tab stays open. Re-running `:preview` overwrites the same temp file, so refreshing the browser tab shows your latest changes.
+
+**Supported Markdown features:**
+
+- Headings (h1–h6) with bottom borders
+- Fenced code blocks with monospace font
+- Tables with alternating row colors
+- Blockquotes with colored left border
+- Task lists with checkboxes
+- Footnotes
+- Strikethrough text
+- Images, links, horizontal rules
+- Nested lists (ordered and unordered)
+
+---
+
+## Comparison with Other Terminal Tools
+
+### vs. Terminal Editors
+
+| Feature | hi | Vim/Neovim | Helix | micro | nano |
+|---|---|---|---|---|---|
+| True-color syntax highlighting | ✅ Built-in (syntect, 200+ langs) | ✅ (requires config) | ✅ Tree-sitter | ✅ Limited | ❌ Basic |
+| AI integration | ✅ Native (`?` key) | ⚠️ Plugin (Copilot.vim) | ❌ None | ❌ None | ❌ None |
+| Markdown preview | ✅ `:preview` (browser) | ⚠️ Plugin (markdown-preview.nvim) | ❌ None | ❌ None | ❌ None |
+| Theme live-switching | ✅ `:theme` with real-time preview | ⚠️ `:colorscheme` (no preview) | ✅ `:theme` | ⚠️ Config file | ❌ N/A |
+| Learning curve | Low (hint bar + AI) | Very high | Medium | Low | Very low |
+| Startup time | ~5ms | ~50ms (Neovim + plugins) | ~10ms | ~10ms | ~5ms |
+| Language | Rust | C / Lua | Rust | Go | C |
+| Config format | TOML (`~/.hirc`) | Vimscript / Lua | TOML | JSON | nanorc |
+
+### vs. Markdown Renderers
+
+| Feature | hi `:preview` | glow | mdcat | grip | Marked (VS Code) |
+|---|---|---|---|---|---|
+| Rendering target | Browser (full HTML/CSS) | Terminal (ANSI) | Terminal (ANSI) | Browser (GitHub API) | VS Code panel |
+| Visual fidelity | ★★★★★ Full CSS styling | ★★★ Limited by terminal | ★★★ Limited by terminal | ★★★★★ GitHub-identical | ★★★★★ Full CSS |
+| Tables | ✅ Proper HTML tables | ✅ Box-drawing | ✅ Box-drawing | ✅ GitHub-rendered | ✅ HTML tables |
+| Code blocks | ✅ Monospace, styled | ✅ Colored background | ✅ Syntax highlighted | ✅ GitHub highlighting | ✅ Syntax highlighted |
+| Images | ✅ Full rendering | ❌ Not displayed | ⚠️ iTerm2/Kitty only | ✅ Full rendering | ✅ Full rendering |
+| Requires network | ❌ Fully offline | ❌ Offline | ❌ Offline | ✅ GitHub API | ❌ Offline |
+| Integrated with editor | ✅ One keystroke | ❌ Separate tool | ❌ Separate tool | ❌ Separate tool | ✅ VS Code only |
+| Dark theme | ✅ Built-in (GitHub-dark) | ✅ Auto-detect | ✅ Auto-detect | ⚠️ Depends on GitHub | ✅ Follows VS Code |
+| Footnotes | ✅ | ❌ | ❌ | ✅ | ✅ |
+| Task lists | ✅ Checkboxes | ✅ | ✅ | ✅ | ✅ |
+
+**Why `:preview` over glow/mdcat?**
+
+Terminal-based Markdown renderers like [glow](https://github.com/charmbracelet/glow) and [mdcat](https://github.com/swsnr/mdcat) are excellent for quick reads, but they're fundamentally limited by what a terminal can display. You can't render proportional fonts, complex table layouts, or inline images reliably in a character grid. `hi`'s `:preview` takes a different approach: it generates a complete HTML document with professional CSS and opens it in a real browser, giving you pixel-perfect rendering with zero compromise. And since it's integrated into the editor, it's just one command away — no context switching, no piping, no separate tool to install.
+
+**Why `:preview` over grip?**
+
+[grip](https://github.com/joeyespo/grip) renders Markdown through GitHub's API, which means it requires network access and is rate-limited. `hi`'s preview is fully offline, instant, and doesn't send your content anywhere.
 
 ---
 
@@ -216,6 +314,7 @@ chat_theme   = "dark"                # Markdown theme for the AI Chat panel
 | Terminal | crossterm | Cross-platform, no ncurses dependency |
 | Syntax highlighting | syntect | Sublime Text grammars, 200+ languages, unified across editor + Chat |
 | Markdown rendering | pulldown-cmark + syntect | CommonMark + GFM, code blocks share the same highlight engine |
+| Markdown preview | pulldown-cmark → HTML + browser | Full CSS fidelity, no terminal limitations, offline |
 | Config | `~/.hirc` (TOML) | Simple path, readable format |
 | AI trigger | `?` | Semantic fit (question mark = ask), symmetric with `/` (search) |
 | LLM backend | Configurable | Any OpenAI-compatible API: OpenAI, Claude, Ollama, others |

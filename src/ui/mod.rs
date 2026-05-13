@@ -4,3 +4,4 @@ pub mod filetree;
 pub mod ghost;
 pub mod chatpanel;
 pub mod mdrender;
+pub mod preview;

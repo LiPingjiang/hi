@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>hi Editor — Visual Regression Viewer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a1a2e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #e0e0e0;
+    }
+    h1 {
+      font-size: 16px;
+      margin-bottom: 12px;
+      color: #8be9fd;
+    }
+    .terminal-container {
+      border: 2px solid #44475a;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      margin-bottom: 20px;
+    }
+    .terminal-titlebar {
+      background: #282a36;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .terminal-dot {
+      width: 12px; height: 12px; border-radius: 50%;
+    }
+    .dot-red { background: #ff5555; }
+    .dot-yellow { background: #f1fa8c; }
+    .dot-green { background: #50fa7b; }
+    .terminal-title {
+      flex: 1;
+      text-align: center;
+      font-size: 12px;
+      color: #6272a4;
+    }
+    #terminal {
+      /* xterm.js will fill this */
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .controls button {
+      padding: 6px 14px;
+      border: 1px solid #6272a4;
+      border-radius: 4px;
+      background: #282a36;
+      color: #f8f8f2;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .controls button:hover {
+      background: #44475a;
+    }
+    .controls button.active {
+      background: #6272a4;
+      border-color: #8be9fd;
+    }
+    .info {
+      font-size: 12px;
+      color: #6272a4;
+      margin-top: 8px;
+    }
+  </style>
+  <!-- xterm.js from CDN -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
+</head>
+<body>
+  <h1>hi Editor — Visual Regression Test</h1>
+
+  <div class="controls">
+    <button id="btn-md" class="active" onclick="loadFrame('md')">Markdown</button>
+    <button id="btn-rs" onclick="loadFrame('rs')">Rust</button>
+  </div>
+
+  <div class="terminal-container">
+    <div class="terminal-titlebar">
+      <div class="terminal-dot dot-red"></div>
+      <div class="terminal-dot dot-yellow"></div>
+      <div class="terminal-dot dot-green"></div>
+      <div class="terminal-title">hi — Terminal Visual Test</div>
+    </div>
+    <div id="terminal"></div>
+  </div>
+
+  <div class="info" id="info">Loading...</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+  <script>
+    let term = null;
+
+    function initTerminal() {
+      if (term) {
+        term.dispose();
+      }
+      term = new window.Terminal({
+        cols: 80,
+        rows: 30,
+        fontFamily: '"JetBrains Mono", "Fira Code", "SF Mono", "Menlo", monospace',
+        fontSize: 14,
+        lineHeight: 1.2,
+        theme: {
+          background: '#2b303b',    // base16-ocean.dark background
+          foreground: '#c0c5ce',    // base16-ocean.dark foreground
+          cursor: '#c0c5ce',
+          cursorAccent: '#2b303b',
+          black: '#2b303b',
+          red: '#bf616a',
+          green: '#a3be8c',
+          yellow: '#ebcb8b',
+          blue: '#8fa1b3',
+          magenta: '#b48ead',
+          cyan: '#96b5b4',
+          white: '#c0c5ce',
+          brightBlack: '#65737e',
+          brightRed: '#bf616a',
+          brightGreen: '#a3be8c',
+          brightYellow: '#ebcb8b',
+          brightBlue: '#8fa1b3',
+          brightMagenta: '#b48ead',
+          brightCyan: '#96b5b4',
+          brightWhite: '#eff1f5',
+        },
+        allowTransparency: false,
+        cursorBlink: false,
+        cursorStyle: 'block',
+      });
+      term.open(document.getElementById('terminal'));
+    }
+
+    async function loadFrame(type) {
+      // Update button states
+      document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+      document.getElementById('btn-' + type).classList.add('active');
+
+      const filename = type === 'md' ? 'md_frame.ans' : 'rs_frame.ans';
+      const info = document.getElementById('info');
+
+      try {
+        const response = await fetch(filename);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const arrayBuffer = await response.arrayBuffer();
+        const data = new Uint8Array(arrayBuffer);
+
+        initTerminal();
+        // Write raw ANSI data to xterm.js
+        term.write(data);
+
+        info.textContent = `Loaded: ${filename} (${data.length} bytes) | ${type === 'md' ? 'Markdown' : 'Rust'} syntax highlighting`;
+      } catch (e) {
+        info.textContent = `Error loading ${filename}: ${e.message}`;
+        console.error(e);
+      }
+    }
+
+    // Auto-load markdown frame on page load
+    window.addEventListener('DOMContentLoaded', () => loadFrame('md'));
+  </script>
+</body>
+</html>

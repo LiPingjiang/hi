@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
@@ -36,6 +36,7 @@ use crate::ai::prompt::{build_messages_with_history, PromptKind};
 use crate::buffer::Buffer;
 use crate::config::Config;
 use crate::editor::Editor;
+use crate::locale::Locale;
 use crate::mode::{Mode, VisualKind};
 use crate::mode::command::CommandAction;
 use crate::mode::cmd_completion::CmdCompletionState;
@@ -46,6 +47,8 @@ use crate::mode::ai::{handle_ai_input_key, AiInputAction};
 use crate::syntax::highlight::{FileType, CodePalette};
 use crate::ui::filetree::FileTree;
 use crate::ui::ghost::GhostText;
+use crate::ui::picker::FilePicker;
+use crate::ui::grep_panel::GrepPanel;
 use crate::ui::renderer::Renderer;
 
 /// Interactive theme picker overlay state.
@@ -90,6 +93,7 @@ struct BlockInsertState {
 }
 
 pub struct App {
+    pub locale: Locale,
     editor: Editor,
     renderer: Renderer,
     filetree: Option<FileTree>,
@@ -131,11 +135,17 @@ pub struct App {
 
     // Command-line completion state
     cmd_completion: CmdCompletionState,
+
+    // Fuzzy file picker overlay
+    file_picker: Option<FilePicker>,
+
+    // Global grep panel overlay
+    grep_panel: Option<GrepPanel>,
 }
 
 impl App {
     /// Create a new App, optionally loading a file.
-    pub fn new(config: Config, filepath: Option<&Path>, width: u16, height: u16) -> Result<Self> {
+    pub fn new(config: Config, locale: Locale, filepath: Option<&Path>, width: u16, height: u16) -> Result<Self> {
         let ft = filepath
             .and_then(|p| p.extension())
             .and_then(|e| e.to_str())
@@ -151,6 +161,8 @@ impl App {
 
         // Initialize debug logging
         ai_log::init(config.ai.debug);
+        // Initialize render-performance logging (HI_PERF=1 to enable)
+        crate::ui::perf_log::init();
 
         let renderer = Renderer::new(ft, &config);
         // Resolve the directory that contains the opened file.
@@ -166,6 +178,7 @@ impl App {
         let filetree = FileTree::new(&filetree_root, config.filetree.show_hidden).ok();
 
         Ok(Self {
+            locale,
             editor,
             renderer,
             filetree,
@@ -199,6 +212,8 @@ impl App {
             filetree_prompt: None,
             theme_picker: None,
             cmd_completion: CmdCompletionState::new(),
+            file_picker: None,
+            grep_panel: None,
         })
     }
 
@@ -211,7 +226,7 @@ impl App {
             if needs_redraw {
                 // Render
                 self.renderer.render(
-                    &self.editor,
+                    &mut self.editor,
                     &self.filetree,
                     &self.ghost,
                     &self.ai_query_msg,
@@ -228,7 +243,22 @@ impl App {
                     self.chat_input_cursor,
                     &self.theme_picker,
                     &self.cmd_completion,
+                    &self.locale,
                 )?;
+
+                // Render file picker overlay on top if active
+                if let Some(ref picker) = self.file_picker {
+                    let w = self.editor.term_width as usize;
+                    let h = self.editor.term_height as usize;
+                    self.renderer.render_file_picker(picker, w, h)?;
+                }
+
+                // Render grep panel overlay on top if active
+                if let Some(ref panel) = self.grep_panel {
+                    let w = self.editor.term_width as usize;
+                    let h = self.editor.term_height as usize;
+                    self.renderer.render_grep_panel(panel, w, h)?;
+                }
 
                 // Clear one-shot status message after render
                 self.editor.status_msg = None;
@@ -257,12 +287,27 @@ impl App {
             // frame, keeping the editor responsive during fast scrolling.
             if event::poll(Duration::from_millis(100))? {
                 needs_redraw = true;
-                self.dispatch_event(event::read()?)?;
+                let dispatch_start = Instant::now();
+                let mut drain_count = 1usize;
+                let mut scroll_count = 0usize;
+
+                let first_ev = event::read()?;
+                if matches!(&first_ev, Event::Mouse(me) if matches!(me.kind, crossterm::event::MouseEventKind::ScrollDown | crossterm::event::MouseEventKind::ScrollUp)) {
+                    scroll_count += 1;
+                }
+                self.dispatch_event(first_ev)?;
 
                 // Drain remaining queued events without blocking
                 while event::poll(Duration::from_millis(0))? {
-                    self.dispatch_event(event::read()?)?;
+                    let ev = event::read()?;
+                    if matches!(&ev, Event::Mouse(me) if matches!(me.kind, crossterm::event::MouseEventKind::ScrollDown | crossterm::event::MouseEventKind::ScrollUp)) {
+                        scroll_count += 1;
+                    }
+                    drain_count += 1;
+                    self.dispatch_event(ev)?;
                 }
+
+                crate::ui::perf_log::log_event_batch(drain_count, scroll_count, dispatch_start.elapsed());
             }
         }
 
@@ -275,7 +320,11 @@ impl App {
     fn dispatch_event(&mut self, ev: Event) -> Result<()> {
         match ev {
             Event::Key(key) => {
-                if self.theme_picker.is_some() {
+                if self.grep_panel.is_some() {
+                    self.handle_grep_panel_key(key)?;
+                } else if self.file_picker.is_some() {
+                    self.handle_file_picker_key(key)?;
+                } else if self.theme_picker.is_some() {
                     self.handle_theme_picker_key(key);
                 } else if self.editor.shell_output.is_some() {
                     self.editor.shell_output = None;
@@ -355,10 +404,10 @@ impl App {
                 self.plan_lines = Some(steps.clone());
                 if self.editor.config.ai.yolo_mode {
                     // yolo_mode: skip confirmation, execute immediately
-                    self.editor.set_msg(format!("AI 自动执行 {} 步 (yolo)", steps.len()));
+                    self.editor.set_msg(self.locale.messages.ai_plan_steps_yolo.replace("{n}", &steps.len().to_string()));
                     self.apply_plan();
                 } else {
-                    self.editor.set_msg(format!("AI 计划 {} 步 — [y]确认  [n]取消", steps.len()));
+                    self.editor.set_msg(self.locale.messages.ai_plan_steps_confirm.replace("{n}", &steps.len().to_string()));
                     self.editor.mode = Mode::Ai(String::new());
                 }
             }
@@ -369,7 +418,7 @@ impl App {
                 self.ghost.visible = true;
             }
             HintKind::Error(e) => {
-                self.editor.set_msg(format!("AI error: {}", e));
+                self.editor.set_msg(self.locale.messages.ai_error.replace("{err}", &e));
                 self.chat_panel.push_system(&format!("Error: {}", e));
             }
         }
@@ -444,7 +493,7 @@ impl App {
             PromptKind::Complete => "补全模式",
             PromptKind::Transform(_) => "变换模式",
         };
-        self.editor.set_msg(format!("AI 思考中… [{}]  [Esc]取消", intent_label));
+        self.editor.set_msg(self.locale.messages.ai_thinking_plan.clone());
 
         // Debug: log query dispatch
         ai_log::log(&format!("dispatch_ai_query: intent={}, query={:?}", intent_label, &real_query));
@@ -469,6 +518,7 @@ impl App {
             &context,
             &real_query,
             &history_owned.iter().map(|(u, a)| (u.as_str(), a.as_str())).collect::<Vec<_>>(),
+            &self.locale,
         );
         let result_arc = Arc::clone(&self.ai_result);
 
@@ -515,7 +565,7 @@ impl App {
         let kind = PromptKind::Advisor;
         let real_query = query.to_string();
 
-        self.editor.set_msg("AI 思考中… [顾问模式]  [Esc]取消".to_string());
+        self.editor.set_msg(self.locale.messages.ai_thinking_advisor.clone());
         ai_log::log(&format!("dispatch_ai_query_as_advisor: query={:?}", &real_query));
 
         let history_pairs = self.chat_panel.recent_history(
@@ -531,6 +581,7 @@ impl App {
             &context,
             &real_query,
             &history_owned.iter().map(|(u, a)| (u.as_str(), a.as_str())).collect::<Vec<_>>(),
+            &self.locale,
         );
         let result_arc = Arc::clone(&self.ai_result);
 
@@ -556,9 +607,9 @@ impl App {
             let steps = parse_plan(&raw);
             self.editor.buffer.begin_group();
             if let Err(e) = apply_steps(&mut self.editor.buffer, &steps) {
-                self.editor.set_msg(format!("计划执行失败: {}", e));
+                self.editor.set_msg(self.locale.messages.ai_plan_failed.replace("{err}", &e.to_string()));
             } else {
-                self.editor.set_msg(format!("计划已应用 {} 步", steps.len()));
+                self.editor.set_msg(self.locale.messages.ai_plan_applied.replace("{n}", &steps.len().to_string()));
             }
             self.editor.clamp_cursor();
             self.editor.scroll_to_cursor();
@@ -600,12 +651,12 @@ impl App {
                 // Re-sync mode (input may have changed)
                 if self.editor.mode.is_command() {
                     // Update completion candidates based on new input
-                    self.cmd_completion.update(&input);
-                    self.editor.mode = Mode::Command(input);
+                self.cmd_completion.update(&input, &self.locale);
+                self.editor.mode = Mode::Command(input);
                 } else {
-                    // Leaving command mode — clear completions
-                    self.cmd_completion.update("");
-                    self.cmd_completion.selected = None;
+                // Leaving command mode — clear completions
+                self.cmd_completion.update("", &self.locale);
+                self.cmd_completion.selected = None;
                 }
                 self.execute_command_action(action)?;
             }
@@ -616,6 +667,18 @@ impl App {
     }
 
     fn handle_normal(&mut self, key: KeyEvent) -> Result<()> {
+        // Ctrl+P — open fuzzy file picker
+        if key.code == KeyCode::Char('p') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            self.open_file_picker();
+            return Ok(());
+        }
+
+        // Ctrl+F — open global grep panel (empty query, user types then presses Enter)
+        if key.code == KeyCode::Char('f') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            self.open_grep_panel(String::new(), false);
+            return Ok(());
+        }
+
         // Cancel plan/query display on any key
         let had_plan = self.plan_lines.is_some();
 
@@ -628,9 +691,9 @@ impl App {
                 }
                 KeyCode::Char('n') | KeyCode::Esc => {
                     self.plan_lines = None;
-                    self.ai_query_msg = None;
-                    self.editor.set_msg("计划已取消".to_string());
-                    return Ok(());
+                self.ai_query_msg = None;
+                self.editor.set_msg(self.locale.messages.ai_plan_cancelled.clone());
+                return Ok(());
                 }
                 _ => {}
             }
@@ -678,7 +741,7 @@ impl App {
             NormalAction::EnterCommand => {
                 self.editor.mode = Mode::Command(String::new());
                 // Show all commands when entering command mode
-                self.cmd_completion.update("");
+                self.cmd_completion.update("", &self.locale);
             }
             NormalAction::EnterSearch => {
                 // Save position for incsearch Esc-restore
@@ -701,7 +764,7 @@ impl App {
                 if force || !self.editor.buffer.modified {
                     self.should_quit = true;
                 } else {
-                    self.editor.set_msg("未保存的修改！用 :q! 强制退出或 :wq 保存退出".to_string());
+                    self.editor.set_msg(self.locale.messages.unsaved_changes.clone());
                 }
             }
             NormalAction::OpenFileAtCursor => {
@@ -710,7 +773,7 @@ impl App {
                 if path.exists() {
                     self.open_file(&path)?;
                 } else {
-                    self.editor.set_msg(format!("File not found: {}", word));
+                    self.editor.set_msg(self.locale.messages.file_not_found.replace("{path}", &word));
                 }
             }
             NormalAction::ToggleFileTree => {
@@ -801,7 +864,7 @@ impl App {
         let keys = match self.editor.macros.get(&reg) {
             Some(k) => k.iter().map(|mk| KeyEvent::new(mk.code, mk.modifiers)).collect::<Vec<_>>(),
             None => {
-                self.editor.set_msg(format!("宏 @{} 不存在", reg));
+                self.editor.set_msg(self.locale.messages.macro_not_found.replace("{reg}", &reg.to_string()));
                 return;
             }
         };
@@ -813,6 +876,8 @@ impl App {
     }
 
     fn handle_insert(&mut self, key: KeyEvent) {
+        // Record insert-mode keys into the active macro
+        self.editor.macro_append_key(key);
         match self.editor.handle_insert_key(key) {
             InsertAction::ExitToNormal => {
                 // If we were in a block-insert session, replicate typed text to remaining lines
@@ -987,13 +1052,13 @@ impl App {
                 if force || !self.editor.buffer.modified {
                     self.should_quit = true;
                 } else {
-                    self.editor.set_msg("未保存的修改！用 :q! 强制退出或 :wq 保存退出".to_string());
+                    self.editor.set_msg(self.locale.messages.unsaved_changes.clone());
                     self.editor.mode = Mode::Normal;
                 }
             }
             CommandAction::SaveAndQuit => {
                 if let Err(e) = self.editor.buffer.save() {
-                    self.editor.set_msg(format!("保存失败: {}", e));
+                    self.editor.set_msg(self.locale.messages.save_failed.replace("{err}", &e.to_string()));
                     self.editor.mode = Mode::Normal;
                 } else {
                     self.should_quit = true;
@@ -1058,17 +1123,19 @@ impl App {
             }
             CommandAction::SetTheme(name) => {
                 self.renderer.set_theme(&name);
+                // Keep config in sync so theme picker shows the correct selection.
+                self.editor.config.theme.editor_theme = name.clone();
                 // Persist to ~/.hirc so the theme survives restarts
                 if let Err(e) = crate::config::loader::save_theme(&name) {
-                    self.editor.set_msg(format!("Theme: {} (save failed: {})", name, e));
+                    self.editor.set_msg(self.locale.messages.theme_save_failed.replace("{name}", &name).replace("{err}", &e.to_string()));
                 } else {
-                    self.editor.set_msg(format!("Theme: {} (saved)", name));
+                    self.editor.set_msg(self.locale.messages.theme_saved.replace("{name}", &name));
                 }
                 self.editor.mode = Mode::Normal;
             }
             CommandAction::OpenThemePicker => {
                 let themes: Vec<&'static str> = CodePalette::available_themes().to_vec();
-                let current = self.renderer.syntect_hl.theme_name().to_string();
+                let current = self.editor.config.theme.editor_theme.clone();
                 let cursor = themes.iter().position(|t| *t == current).unwrap_or(0);
                 self.theme_picker = Some(ThemePicker {
                     themes,
@@ -1083,8 +1150,13 @@ impl App {
                 let msg = crate::ui::preview::open_preview(
                     &content,
                     file_path.as_deref(),
+                    &self.locale,
                 );
                 self.editor.set_msg(msg);
+                self.editor.mode = Mode::Normal;
+            }
+            CommandAction::Grep { pattern, is_regex } => {
+                self.open_grep_panel(pattern, is_regex);
                 self.editor.mode = Mode::Normal;
             }
         }
@@ -1120,9 +1192,9 @@ impl App {
                 self.renderer.set_theme(name);
                 // Persist to ~/.hirc so the theme survives restarts
                 if let Err(e) = crate::config::loader::save_theme(name) {
-                    self.editor.set_msg(format!("Theme: {} (save failed: {})", name, e));
+                    self.editor.set_msg(self.locale.messages.theme_save_failed.replace("{name}", name).replace("{err}", &e.to_string()));
                 } else {
-                    self.editor.set_msg(format!("Theme: {} (saved)", name));
+                    self.editor.set_msg(self.locale.messages.theme_saved.replace("{name}", name));
                 }
                 self.theme_picker = None;
             }
@@ -1166,7 +1238,7 @@ impl App {
                 }
             }
             Err(e) => {
-                self.editor.set_msg(format!("shell error: {}", e));
+                self.editor.set_msg(self.locale.messages.shell_error.replace("{err}", &e.to_string()));
                 self.editor.shell_output = None;
             }
         }
@@ -1243,6 +1315,9 @@ impl App {
             .map(FileType::from_ext)
             .unwrap_or(FileType::Plain);
         self.renderer.set_filetype(ft);
+        // Full parse so the tree is ready before the first render.
+        let source = buf.rope.to_string();
+        self.renderer.ts_hl.full_parse(&source);
         self.editor.buffer = buf;
         self.editor.cursor_line = 0;
         self.editor.cursor_col = 0;
@@ -1516,7 +1591,7 @@ impl App {
             // Ctrl+d — clear chat history
             KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.chat_panel.clear();
-                self.editor.set_msg("对话历史已清空".to_string());
+                self.editor.set_msg(self.locale.messages.chat_cleared.clone());
             }
             KeyCode::Char(c) => {
                 let mut cv = chars;
@@ -1821,6 +1896,165 @@ impl App {
             return ft.root.clone();
         }
         std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+    }
+
+    // ── Fuzzy File Picker ────────────────────────────────────────────────────
+
+    fn open_file_picker(&mut self) {
+        let root = if let Some(ft) = &self.filetree {
+            ft.root.clone()
+        } else {
+            std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+        };
+        self.file_picker = Some(FilePicker::new(root));
+    }
+
+    fn handle_file_picker_key(&mut self, key: KeyEvent) -> Result<()> {
+        let picker = match self.file_picker.as_mut() {
+            Some(p) => p,
+            None => return Ok(()),
+        };
+
+        match key.code {
+            KeyCode::Esc => {
+                self.file_picker = None;
+            }
+            KeyCode::Up | KeyCode::Char('k') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                picker.move_up();
+            }
+            KeyCode::Down | KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                picker.move_down();
+            }
+            KeyCode::Up => {
+                picker.move_up();
+            }
+            KeyCode::Down => {
+                picker.move_down();
+            }
+            KeyCode::Enter => {
+                if let Some(path) = picker.selected_path() {
+                    self.file_picker = None;
+                    self.open_path(&path)?;
+                }
+            }
+            KeyCode::Backspace => {
+                picker.pop_char();
+            }
+            KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL)
+                             && !key.modifiers.contains(KeyModifiers::ALT) => {
+                picker.push_char(c);
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    // ── Global Grep Panel ────────────────────────────────────────────────────
+
+    fn open_grep_panel(&mut self, pattern: String, is_regex: bool) {
+        let root = if let Some(ft) = &self.filetree {
+            ft.root.clone()
+        } else {
+            std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+        };
+        let mut panel = GrepPanel::new(root);
+        panel.query = pattern;
+        panel.is_regex = is_regex;
+        // If a pattern was provided (e.g. from :grep), run the search immediately.
+        if !panel.query.is_empty() {
+            panel.run_search();
+        }
+        self.grep_panel = Some(panel);
+    }
+
+    fn handle_grep_panel_key(&mut self, key: KeyEvent) -> Result<()> {
+        let panel = match self.grep_panel.as_mut() {
+            Some(p) => p,
+            None => return Ok(()),
+        };
+
+        match key.code {
+            KeyCode::Esc => {
+                self.grep_panel = None;
+            }
+            KeyCode::Enter => {
+                if !panel.searched || panel.query.is_empty() {
+                    // First Enter runs the search
+                    panel.run_search();
+                } else if let Some(m) = panel.selected() {
+                    // Second Enter (or Enter on a result) jumps to the match
+                    let path = m.path.clone();
+                    let line_no = m.line_no.saturating_sub(1); // 0-based
+                    let col = m.match_start;
+                    self.grep_panel = None;
+                    self.open_path(&path)?;
+                    self.editor.cursor_line = line_no.min(self.editor.buffer.rope.len_lines().saturating_sub(1));
+                    self.editor.cursor_col = col;
+                    // Scroll so the target line is roughly centred in the viewport
+                    let half = (self.editor.term_height as usize / 2).max(1);
+                    self.editor.scroll_line = self.editor.cursor_line.saturating_sub(half);
+                }
+            }
+            KeyCode::Up => { panel.move_up(); }
+            KeyCode::Down => { panel.move_down(); }
+            KeyCode::Char('k') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                panel.move_up();
+            }
+            KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                panel.move_down();
+            }
+            KeyCode::Backspace => {
+                panel.pop_char();
+            }
+            KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL)
+                             && !key.modifiers.contains(KeyModifiers::ALT) => {
+                panel.push_char(c);
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// Open a file path in the editor (reuse existing open_file logic).
+    fn open_path(&mut self, path: &Path) -> Result<()> {
+        if path.is_dir() {
+            // Open as file tree root
+            if let Ok(ft) = FileTree::new(path, self.editor.config.filetree.show_hidden) {
+                self.filetree = Some(ft);
+                self.editor.filetree_visible = true;
+                self.focus = FocusZone::FileTree;
+            }
+            return Ok(());
+        }
+        match Buffer::from_file(path) {
+            Ok(buf) => {
+                let ft = path.extension()
+                    .and_then(|e| e.to_str())
+                    .map(FileType::from_ext)
+                    .unwrap_or(FileType::Plain);
+                self.renderer.set_filetype(ft);
+                // Full parse so the tree is ready before the first render.
+                let source = buf.rope.to_string();
+                self.renderer.ts_hl.full_parse(&source);
+                self.editor.buffer = buf;
+                self.editor.cursor_line = 0;
+                self.editor.cursor_col = 0;
+                self.editor.scroll_line = 0;
+                self.editor.mode = Mode::Normal;
+                self.filepath = Some(path.to_path_buf());
+                // Update file tree root to the new file's directory
+                if let Some(parent) = path.parent() {
+                    if let Ok(ft_new) = FileTree::new(parent, self.editor.config.filetree.show_hidden) {
+                        self.filetree = Some(ft_new);
+                    }
+                }
+                self.editor.set_msg(format!("Opened {}", path.display()));
+            }
+            Err(e) => {
+                self.editor.set_msg(format!("Cannot open {}: {}", path.display(), e));
+            }
+        }
+        Ok(())
     }
 }
 

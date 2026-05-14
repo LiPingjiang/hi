@@ -27,6 +27,8 @@ pub enum CommandAction {
     OpenThemePicker,
     /// :preview — render current Markdown file as HTML and open in browser
     Preview,
+    /// :grep {pattern} — open global grep panel
+    Grep { pattern: String, is_regex: bool },
 }
 
 #[derive(Debug, Clone)]
@@ -178,6 +180,21 @@ impl Editor {
         // :preview — open Markdown preview in browser
         if cmd == "preview" {
             return CommandAction::Preview;
+        }
+
+        // :grep {pattern}  or  :grep /{pattern}/  (regex)
+        if let Some(rest) = cmd.strip_prefix("grep ").or_else(|| cmd.strip_prefix("grep\t")) {
+            let rest = rest.trim();
+            // Detect /pattern/ syntax → regex mode
+            if rest.starts_with('/') && rest.ends_with('/') && rest.len() > 2 {
+                let pat = &rest[1..rest.len()-1];
+                return CommandAction::Grep { pattern: pat.to_string(), is_regex: true };
+            }
+            return CommandAction::Grep { pattern: rest.to_string(), is_regex: false };
+        }
+        // bare :grep — show usage
+        if cmd == "grep" {
+            return CommandAction::SetMsg(":grep <pattern>  or  :grep /<regex>/".to_string());
         }
 
         // :d / :{n}d / :{n,m}d — delete lines

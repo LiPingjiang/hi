@@ -120,6 +120,9 @@ pub enum FileType {
     Python,
     Markdown,
     Rust,
+    Go,
+    JavaScript,
+    TypeScript,
 }
 
 impl FileType {
@@ -138,6 +141,9 @@ impl FileType {
             "py"            => FileType::Python,
             "md" | "markdown" | "mkd" => FileType::Markdown,
             "rs"            => FileType::Rust,
+            "go"            => FileType::Go,
+            "js" | "mjs" | "cjs" => FileType::JavaScript,
+            "ts" | "mts" | "cts" => FileType::TypeScript,
             _               => FileType::Plain,
         }
     }
@@ -158,6 +164,9 @@ impl FileType {
             "py"            => FileType::Python,
             "md" | "markdown" | "mkd" => FileType::Markdown,
             "rs"            => FileType::Rust,
+            "go"            => FileType::Go,
+            "js" | "mjs" | "cjs" => FileType::JavaScript,
+            "ts" | "mts" | "cts" => FileType::TypeScript,
             _ => match name.as_str() {
                 "makefile" | "dockerfile" | "vagrantfile" => FileType::Shell,
                 _ => FileType::Plain,
@@ -191,6 +200,9 @@ impl FileType {
             FileType::Python     => "PYTHON",
             FileType::Markdown   => "MARKDOWN",
             FileType::Rust       => "RUST",
+            FileType::Go         => "GO",
+            FileType::JavaScript => "JS",
+            FileType::TypeScript => "TS",
         }
     }
 }
@@ -221,6 +233,8 @@ impl Highlighter {
             FileType::Python     => highlight_python(line),
             FileType::Markdown   => highlight_markdown(line),
             FileType::Rust       => highlight_rust(line),
+            // Tree-sitter handles these; legacy engine returns empty spans
+            FileType::Go | FileType::JavaScript | FileType::TypeScript => vec![],
             FileType::Plain      => vec![],
         }
     }
@@ -1679,6 +1693,9 @@ impl FileType {
             FileType::Python     => "py",
             FileType::Markdown   => "md",
             FileType::Rust       => "rs",
+            FileType::Go         => "go",
+            FileType::JavaScript => "js",
+            FileType::TypeScript => "ts",
         }
     }
 }

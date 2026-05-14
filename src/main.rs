@@ -4,6 +4,7 @@ use clap::Parser;
 
 use hi::app::App;
 use hi::config::loader::load_config;
+use hi::locale::Locale;
 
 /// hi — a modal text editor with native AI assistance
 #[derive(Parser, Debug)]
@@ -50,7 +51,14 @@ fn main() -> Result<()> {
         config.ai.debug = true;
     }
 
+    // Load locale: "auto" means detect from LANG/LC_ALL env var.
+    let locale = if config.general.language == "auto" {
+        Locale::auto()
+    } else {
+        Locale::load(&config.general.language)
+    };
+
     let (width, height) = crossterm::terminal::size().unwrap_or((80, 24));
-    let mut app = App::new(config, cli.file.as_deref(), width, height)?;
+    let mut app = App::new(config, locale, cli.file.as_deref(), width, height)?;
     app.run()
 }

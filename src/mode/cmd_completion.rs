@@ -3,6 +3,8 @@
 //! Provides a static registry of all known commands with descriptions,
 //! a prefix-matching engine, and state management for the completion popup.
 
+use crate::locale::Locale;
+
 /// A single command entry in the registry.
 #[derive(Debug, Clone)]
 pub struct CmdEntry {
@@ -16,34 +18,64 @@ pub struct CmdEntry {
 
 /// Static registry of all known commands.
 /// Ordered by rough frequency-of-use so the default list feels natural.
+/// Descriptions here are en-US fallbacks; at runtime they are replaced by
+/// locale strings via `CmdCompletionState::update_with_locale`.
 const CMD_REGISTRY: &[CmdEntry] = &[
-    CmdEntry { trigger: "w",           desc: "保存文件",                     has_arg: false },
-    CmdEntry { trigger: "q",           desc: "退出",                         has_arg: false },
-    CmdEntry { trigger: "q!",          desc: "强制退出（不保存）",           has_arg: false },
-    CmdEntry { trigger: "wq",          desc: "保存并退出",                   has_arg: false },
-    CmdEntry { trigger: "x",           desc: "保存并退出",                   has_arg: false },
-    CmdEntry { trigger: "e",           desc: "打开文件",                     has_arg: true  },
-    CmdEntry { trigger: "e!",          desc: "重新加载当前文件",             has_arg: false },
-    CmdEntry { trigger: "w ",          desc: "另存为…",                      has_arg: true  },
-    CmdEntry { trigger: "set nu",      desc: "显示行号",                     has_arg: false },
-    CmdEntry { trigger: "set nonu",    desc: "隐藏行号",                     has_arg: false },
-    CmdEntry { trigger: "set tabstop=",desc: "设置 Tab 宽度",               has_arg: true  },
-    CmdEntry { trigger: "noh",         desc: "清除搜索高亮",                 has_arg: false },
-    CmdEntry { trigger: "theme",       desc: "打开主题选择器",               has_arg: false },
-    CmdEntry { trigger: "theme ",      desc: "切换主题（输入名称）",         has_arg: true  },
-    CmdEntry { trigger: "u",           desc: "撤销",                         has_arg: false },
-    CmdEntry { trigger: "d",           desc: "删除当前行",                   has_arg: false },
-    CmdEntry { trigger: "s/",          desc: "替换（当前行）s/pat/rep/",     has_arg: true  },
-    CmdEntry { trigger: "%s/",         desc: "全文替换 %s/pat/rep/g",        has_arg: true  },
-    CmdEntry { trigger: "!",           desc: "执行 Shell 命令",              has_arg: true  },
-    CmdEntry { trigger: "preview",     desc: "浏览器预览 Markdown",           has_arg: false },
+    CmdEntry { trigger: "w",            desc: "Save file",                          has_arg: false },
+    CmdEntry { trigger: "q",            desc: "Quit",                               has_arg: false },
+    CmdEntry { trigger: "q!",           desc: "Force quit (discard changes)",       has_arg: false },
+    CmdEntry { trigger: "wq",           desc: "Save and quit",                      has_arg: false },
+    CmdEntry { trigger: "x",            desc: "Save and quit",                      has_arg: false },
+    CmdEntry { trigger: "e",            desc: "Open file",                          has_arg: true  },
+    CmdEntry { trigger: "e!",           desc: "Reload current file",                has_arg: false },
+    CmdEntry { trigger: "w ",           desc: "Save as\u{2026}",                    has_arg: true  },
+    CmdEntry { trigger: "set nu",       desc: "Show line numbers",                  has_arg: false },
+    CmdEntry { trigger: "set nonu",     desc: "Hide line numbers",                  has_arg: false },
+    CmdEntry { trigger: "set tabstop=", desc: "Set tab width",                      has_arg: true  },
+    CmdEntry { trigger: "noh",          desc: "Clear search highlight",             has_arg: false },
+    CmdEntry { trigger: "theme",        desc: "Open theme picker",                  has_arg: false },
+    CmdEntry { trigger: "theme ",       desc: "Switch theme by name",               has_arg: true  },
+    CmdEntry { trigger: "u",            desc: "Undo",                               has_arg: false },
+    CmdEntry { trigger: "d",            desc: "Delete current line",                has_arg: false },
+    CmdEntry { trigger: "s/",           desc: "Substitute (current line) s/pat/rep/", has_arg: true },
+    CmdEntry { trigger: "%s/",          desc: "Substitute all  %s/pat/rep/g",       has_arg: true  },
+    CmdEntry { trigger: "!",            desc: "Run shell command",                  has_arg: true  },
+    CmdEntry { trigger: "preview",      desc: "Preview Markdown in browser",        has_arg: false },
 ];
+
+/// Returns the locale-translated description for a command trigger.
+fn localized_desc<'a>(trigger: &str, locale: &'a Locale) -> &'a str {
+    let c = &locale.commands;
+    match trigger {
+        "w"            => &c.cmd_w,
+        "q"            => &c.cmd_q,
+        "q!"           => &c.cmd_q_force,
+        "wq"           => &c.cmd_wq,
+        "x"            => &c.cmd_x,
+        "e"            => &c.cmd_e,
+        "e!"           => &c.cmd_e_reload,
+        "w "           => &c.cmd_w_saveas,
+        "set nu"       => &c.cmd_set_nu,
+        "set nonu"     => &c.cmd_set_nonu,
+        "set tabstop=" => &c.cmd_set_tabstop,
+        "noh"          => &c.cmd_noh,
+        "theme"        => &c.cmd_theme,
+        "theme "       => &c.cmd_theme_name,
+        "u"            => &c.cmd_u,
+        "d"            => &c.cmd_d,
+        "s/"           => &c.cmd_s,
+        "%s/"          => &c.cmd_percent_s,
+        "!"            => &c.cmd_shell,
+        "preview"      => &c.cmd_preview,
+        _              => "",
+    }
+}
 
 /// A matched completion candidate (trigger + description + match score).
 #[derive(Debug, Clone)]
 pub struct Candidate {
     pub trigger: &'static str,
-    pub desc: &'static str,
+    pub desc: String,
     pub has_arg: bool,
     /// Lower is better. 0 = exact prefix match.
     pub score: u32,
@@ -67,8 +99,8 @@ impl CmdCompletionState {
 
     /// Recompute candidates based on the current command input.
     /// Returns true if there are any candidates to show.
-    pub fn update(&mut self, input: &str) -> bool {
-        self.items = match_commands(input);
+    pub fn update(&mut self, input: &str, locale: &Locale) -> bool {
+        self.items = match_commands(input, locale);
         // Reset selection when the list changes
         self.selected = if self.items.is_empty() { None } else { Some(0) };
         !self.items.is_empty()
@@ -97,14 +129,7 @@ impl CmdCompletionState {
     pub fn accept(&self) -> Option<String> {
         let idx = self.selected?;
         let c = self.items.get(idx)?;
-        if c.has_arg {
-            // Append space for commands that take arguments
-            // (unless trigger already ends with space or special char)
-            let t = c.trigger.to_string();
-            Some(t)
-        } else {
-            Some(c.trigger.to_string())
-        }
+        Some(c.trigger.to_string())
     }
 
     /// Whether the popup should be visible.
@@ -115,14 +140,14 @@ impl CmdCompletionState {
 
 /// Match commands against the current input prefix.
 /// Returns candidates sorted by relevance (exact prefix first, then partial).
-fn match_commands(input: &str) -> Vec<Candidate> {
+fn match_commands(input: &str, locale: &Locale) -> Vec<Candidate> {
     if input.is_empty() {
         // Show all commands when input is empty (just pressed `:`)
         return CMD_REGISTRY
             .iter()
             .map(|e| Candidate {
                 trigger: e.trigger,
-                desc: e.desc,
+                desc: localized_desc(e.trigger, locale).to_string(),
                 has_arg: e.has_arg,
                 score: 100,
             })
@@ -140,16 +165,15 @@ fn match_commands(input: &str) -> Vec<Candidate> {
             let score = if trigger_lower == input_lower { 0 } else { 1 };
             candidates.push(Candidate {
                 trigger: entry.trigger,
-                desc: entry.desc,
+                desc: localized_desc(entry.trigger, locale).to_string(),
                 has_arg: entry.has_arg,
                 score,
             });
         } else if input_lower.starts_with(&trigger_lower) {
             // Trigger is a prefix of input — user has typed past this command
-            // Still show it but with lower priority (helps with subcommands)
             candidates.push(Candidate {
                 trigger: entry.trigger,
-                desc: entry.desc,
+                desc: localized_desc(entry.trigger, locale).to_string(),
                 has_arg: entry.has_arg,
                 score: 50,
             });
@@ -158,9 +182,6 @@ fn match_commands(input: &str) -> Vec<Candidate> {
 
     // Sort: exact match first, then prefix matches, then partial
     candidates.sort_by_key(|c| (c.score, c.trigger.len()));
-
-    // Deduplicate: if we have an exact match, don't show it again
-    // Limit to reasonable number
     candidates.truncate(10);
     candidates
 }

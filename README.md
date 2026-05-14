@@ -104,48 +104,143 @@ Each archive includes a `.sha256` checksum file.
 
 ---
 
-## The Problem with Vim
+## Feature Overview
 
-Vim is powerful. But its power is invisible until you've memorized hundreds of key combinations. Most people give up not because Vim can't do something — it almost always can — but because they didn't know the right keys to press.
-
-**hi solves this with two ideas:**
-
-**1. A persistent hint bar at the bottom of the screen.**
-Always on. Always predicting what you're likely to want next based on your cursor position, file type, and current selection. Like IDE autocomplete, but for editor operations. You see the key, you press it, you move on.
-
-**2. Natural language via the `?` key.**
-Press `?`, describe what you want in plain language, and hi figures out the rest.
+`hi` is organized around four capability pillars: **Navigation**, **Editing**, **Search**, and **AI**. Each pillar is designed to be immediately usable without memorizing a manual.
 
 ---
 
-## How AI Works in hi
+### Pillar 1 — Navigation
 
-`?` is the AI key. Press it from Normal mode to describe your intent.
+Getting to the right file and the right line should be instant. `hi` provides three complementary navigation tools that cover every scale of movement.
 
-**hi reads the complexity of your request and responds accordingly:**
+#### File Tree
 
-For simple requests, hi fills in the command for you as ghost text. Press Tab to confirm:
-
-```
-? replace all "China" with "France"
-
-→ :%s/China/France/g█        ← ghost text, Tab to confirm
-```
-
-For complex requests that need multiple steps, hi shows you a plan and waits for your confirmation:
+Press `Ctrl+\` to toggle the file tree sidebar. Navigate with `j`/`k`, expand/collapse directories with `Enter` or `Space`, and open files with `Enter`. The tree respects `.gitignore` and supports creating, renaming, and deleting files directly from the sidebar.
 
 ```
-? convert all numbers to Chinese characters
-
-╭─ AI Execution Plan ────────────────────────────────╮
-│ Step 1  Match all numbers with \d+                 │
-│ Step 2  Replace using mapping (1→一, 2→二, ...)    │
-│ Step 3  Handle multi-digit (11→十一, 100→一百)     │
-╰────────────────────────────────────────────────────╯
-[y] confirm    [n] cancel    [e] edit plan
+Ctrl+\        toggle file tree
+j / k         move up / down
+Enter         open file or expand directory
+n             new file in current directory
+N             new directory
+r             rename
+d             delete (with confirmation)
 ```
 
-When you're just asking how to do something:
+#### Fuzzy File Picker — `Ctrl+P`
+
+Press `Ctrl+P` to open the fuzzy file picker overlay. Type any subsequence of the filename — characters don't need to be adjacent. The picker scores matches by consecutive runs and highlights matched characters in the result list.
+
+```
+╭──────────────────────────────────────────────────────╮
+│ 🔍 app                                               │
+├──────────────────────────────────────────────────────┤
+│ ▶  src/app.rs                                        │
+│    src/ui/chatpanel.rs                               │
+│    src/mode/command.rs                               │
+│    ...                                               │
+╰ ↑↓ navigate  Enter open  Esc cancel  (312 files) ────╯
+```
+
+Matched characters are highlighted in peach. The picker searches the entire project tree, skipping `target/`, `node_modules/`, and other noise directories.
+
+#### Jump List
+
+`hi` maintains a jump list across file positions. Use `Ctrl+O` to jump back and `Ctrl+I` to jump forward — the same muscle memory as Vim. Marks (`m{a-z}`, `` `{a-z} ``) let you pin specific positions for instant return.
+
+---
+
+### Pillar 2 — Editing
+
+`hi` is a modal editor. Normal mode is for navigation and commands; Insert mode is for typing. The hint bar at the bottom of the screen always shows what keys are available in the current mode — you never need to remember.
+
+#### Modal Editing (Vim-compatible)
+
+All standard Vim motions and operators work as expected: `w`/`b`/`e` for word movement, `f`/`t`/`;`/`,` for character search, `d`/`y`/`c`/`p` for delete/yank/change/put, `gg`/`G` for file navigation, `%` for bracket matching, and so on. Text objects (`iw`, `aw`, `i"`, `a(`, etc.) are fully supported.
+
+#### Undo / Redo
+
+`u` undoes, `Ctrl+R` redoes. Undo history is stored as a grouped transaction tree — each insert session, substitution, or AI edit is a single undoable unit.
+
+#### Dot Repeat
+
+`.` repeats the last change at the current cursor position. Works for insertions, deletions, substitutions, and character replacements.
+
+#### Named Registers
+
+`"{a-z}y` yanks into a named register; `"{a-z}p` pastes from it. The `+` register maps to the system clipboard. Use `"` in Normal mode to set the active register before any yank or delete.
+
+#### Macro Recording and Playback
+
+Record a sequence of keystrokes into a named register and replay it any number of times.
+
+```
+q{a-z}        start recording into register {a-z}
+              (status bar shows  ● REC [a]  while recording)
+q             stop recording
+@{a-z}        play back the macro in register {a-z}
+@@            replay the last-used macro
+{n}@{a-z}     play back n times
+```
+
+Macros capture both Normal-mode and Insert-mode keystrokes, so a macro that enters insert, types text, and returns to Normal mode replays the full sequence faithfully.
+
+#### Visual Modes
+
+`v` enters character-wise Visual, `V` enters line-wise Visual, `Ctrl+V` enters Visual Block. In Visual Block, `I` inserts text at the start of every selected line simultaneously.
+
+#### Command Line
+
+`:` opens the command line. Supported commands include `:w`, `:q`, `:wq`, `:e {file}`, `:{n}` (go to line), `:%s/pat/rep/flags` (substitution), `:set nu`/`:set nonu`, `:!{cmd}` (shell command), `:theme`, `:grep`, and `:preview`. Command history is navigable with `↑`/`↓`, and Tab-completion is available for command names.
+
+---
+
+### Pillar 3 — Search
+
+#### In-file Search — `/`
+
+Press `/` to enter search mode. Type a pattern (literal or regex), press `Enter` to confirm. `n`/`N` jump to the next/previous match. All matches are highlighted in the buffer. `:noh` clears the highlight.
+
+#### Global Grep — `Ctrl+F` or `:grep`
+
+Press `Ctrl+F` (or type `:grep <pattern>`) to search across every file in the project. Results appear in a scrollable overlay showing the filename, line number, and the matching line with the match highlighted.
+
+```
+╭──────────────── 🔎 Grep ─────────────────────────────╮
+│ / render_file_picker                                  │
+├───────────────────────────────────────────────────────┤
+│ ▶  renderer.rs:1080  │ pub fn render_file_picker(    │
+│    app.rs:246        │ self.renderer.render_file_pi…  │
+│    app.rs:294        │ if self.file_picker.is_some()  │
+│    ...                                                │
+├───────────────────────────────────────────────────────┤
+│  3/8 matches  ↑↓ navigate  Enter jump  Esc cancel    │
+╰───────────────────────────────────────────────────────╯
+```
+
+Regex mode is available with `:grep /pattern/` (slash-delimited). Pressing Enter on a result opens the file and jumps the cursor to the exact match position, centred in the viewport.
+
+```
+Ctrl+F            open grep panel (empty query)
+:grep foo         search for literal "foo" across all files
+:grep /foo.bar/   search with regex
+↑ / ↓             navigate results
+Enter             run search (first press) or jump to match
+Esc               close panel
+```
+
+The search skips binary files, `target/`, `node_modules/`, and other noise directories. Results are capped at 1,000 matches for responsiveness.
+
+---
+
+### Pillar 4 — AI
+
+`?` is the AI key. Press it from Normal mode to describe your intent in plain language. `hi` reads the complexity of your request and responds accordingly.
+
+#### Advisor Mode — questions and explanations
+
+When you ask a question, `hi` answers in the Chat panel without touching your file.
 
 ```
 ? how do I select the current paragraph
@@ -155,47 +250,78 @@ When you're just asking how to do something:
      ip → select inner paragraph
 ```
 
-**hi never acts without being asked.** `?` is the only trigger. No interruptions, no unsolicited suggestions.
+#### Plan Mode — multi-step edits
+
+When you ask for a complex transformation, `hi` shows you a plan and waits for your confirmation before making any changes.
+
+```
+? convert all numbers to Chinese characters
+
+╭─ AI Execution Plan ────────────────────────────────╮
+│ Step 1  Match all numbers with \d+                 │
+│ Step 2  Replace using mapping (1→一, 2→二, ...)    │
+│ Step 3  Handle multi-digit (11→十一, 100→一百)     │
+╰────────────────────────────────────────────────────╯
+[y] confirm    [n] cancel
+```
+
+#### Ghost Text — command completion
+
+For simple requests, `hi` fills in the command as ghost text. Press Tab to confirm.
+
+```
+? replace all "China" with "France"
+
+→ :%s/China/France/g█        ← ghost text, Tab to confirm
+```
+
+#### Chat Panel — `Ctrl+G`
+
+`Ctrl+G` opens the persistent Chat panel on the right side of the screen. All AI responses accumulate here. You can scroll through the history, ask follow-up questions, and reference previous answers while editing.
+
+**`hi` never acts without being asked.** `?` is the only trigger. No interruptions, no unsolicited suggestions.
 
 ---
 
-## Syntax Highlighting — One Engine, Everywhere
+## Syntax Highlighting — Two Engines, One Renderer
 
-Most terminal editors ship two completely separate highlighting systems: one for the editing buffer, another (if any) for auxiliary panels like chat or preview. Colors don't match, language coverage diverges, and themes can't be shared.
+`hi` uses two purpose-built highlighting engines, each optimal for its role, feeding into a single unified renderer.
 
-**hi takes a different approach.** A single [syntect](https://github.com/trishume/syntect) engine — the same library that powers Sublime Text's highlighting — drives both the editor text area and the AI Chat panel's Markdown code blocks. Open a `.rs` file and ask the AI a question that includes a Rust snippet: the colors are identical, because they come from the same Sublime Text `.tmLanguage` grammar and the same theme.
+**Editor buffer → [Tree-sitter](https://tree-sitter.github.io/tree-sitter/)** — an incremental, error-tolerant parser that builds a concrete syntax tree of your file. On every keystroke only the dirty subtree is re-parsed (O(changed\_bytes × log n)), so highlighting stays instant even on large files. The tree is also used for future structural editing features (select-by-node, smart indent, etc.).
+
+**AI Chat panel → [syntect](https://github.com/trishume/syntect)** — the same library that powers Sublime Text's highlighting, driven by `.tmLanguage` grammars. Ideal for rendering isolated code blocks inside Markdown responses where stateful line-by-line parsing is the right model.
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        syntect engine                               │
-│                  SyntaxSet (200+ languages)                         │
-│                  ThemeSet  (Sublime Text themes)                    │
-│                                                                     │
-│         ┌──────────────────┐       ┌──────────────────────┐        │
-│         │ SyntectHighlighter│       │     MdRenderer        │        │
-│         │ (editor buffer)  │       │ (Chat panel Markdown) │        │
-│         │                  │       │                       │        │
-│         │ stateful per-line│       │ pulldown-cmark parser │        │
-│         │ HighlightLines   │       │ + syntect code blocks │        │
-│         └────────┬─────────┘       └───────────┬──────────┘        │
-│                  │                              │                   │
-│           SyntectSpan[]                   StyledSpan[]              │
-│          (byte range + RGB)            (text + RGB + attrs)         │
-│                  │                              │                   │
-│                  └──────────┬───────────────────┘                   │
-│                             ▼                                       │
-│                     Renderer (crossterm)                            │
-│                     unified ANSI painting                           │
-└─────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│  Editor buffer                    AI Chat panel                      │
+│                                                                      │
+│  ┌─────────────────────┐          ┌──────────────────────────┐       │
+│  │   Tree-sitter        │          │   syntect                │       │
+│  │   TsHighlighter      │          │   MdRenderer             │       │
+│  │                      │          │                          │       │
+│  │  incremental parse   │          │  pulldown-cmark parser   │       │
+│  │  highlight_viewport()│          │  + syntect code blocks   │       │
+│  │  (viewport-only)     │          │  (200+ tmLanguage grammars)│     │
+│  └──────────┬───────────┘          └────────────┬─────────────┘       │
+│             │                                   │                     │
+│      SyntectSpan[]                        StyledSpan[]                │
+│     (byte range + RGB)               (text + RGB + attrs)             │
+│             │                                   │                     │
+│             └──────────────┬────────────────────┘                     │
+│                            ▼                                          │
+│                    Renderer (crossterm)                               │
+│                    unified ANSI painting                              │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 **What this gives you:**
 
-- **200+ languages** highlighted out of the box — Rust, Python, Go, Java, TypeScript, C/C++, SQL, YAML, TOML, Markdown, and everything else Sublime Text supports.
-- **Pixel-perfect color consistency** between the file you're editing and the code the AI shows you.
-- **Stateful multi-line parsing** — block comments, heredocs, and multi-line strings are tracked correctly across lines via `HighlightLines` state machine.
+- **Incremental parsing** — Tree-sitter re-parses only the changed region on every keystroke. No full-file re-scan, no frame drops on large files.
+- **Viewport-only highlighting** — `highlight_viewport()` queries only the visible line range, so rendering cost is O(tokens on screen) regardless of file size or scroll position.
+- **12 languages built-in** for the editor: Rust, Python, Java, Go, JSON, YAML, TOML, Bash, HTML, JavaScript, TypeScript, Markdown.
+- **200+ languages in Chat** — any language Sublime Text supports is highlighted correctly in AI responses via syntect.
 - **Overlay compositing** — search highlights and Visual Block selections are painted on top of syntax colors without destroying them.
-- **Theme unification** — one `[theme]` section in `~/.hirc` controls both the editor and the Chat panel. Switch once, everything follows.
+- **Theme unification** — one `[theme]` section in `~/.hirc` controls both the editor palette and the Chat panel theme. Switch once, everything follows.
 
 ### Built-in Themes
 
@@ -228,17 +354,28 @@ The Chat panel's Markdown renderer goes beyond plain syntax highlighting — it 
 
 The preview is read-only and non-blocking — you continue editing in `hi` while the browser tab stays open. Re-running `:preview` overwrites the same temp file, so refreshing the browser tab shows your latest changes.
 
-**Supported Markdown features:**
+---
 
-- Headings (h1–h6) with bottom borders
-- Fenced code blocks with monospace font
-- Tables with alternating row colors
-- Blockquotes with colored left border
-- Task lists with checkboxes
-- Footnotes
-- Strikethrough text
-- Images, links, horizontal rules
-- Nested lists (ordered and unordered)
+## Quick Reference
+
+| Key / Command | Action |
+|---|---|
+| `Ctrl+P` | Fuzzy file picker |
+| `Ctrl+F` | Global grep panel |
+| `Ctrl+\` | Toggle file tree |
+| `Ctrl+G` | Toggle AI Chat panel |
+| `?` | AI prompt (Normal mode) |
+| `q{a-z}` / `q` | Start / stop macro recording |
+| `@{a-z}` | Play back macro |
+| `/` | In-file search |
+| `n` / `N` | Next / previous search match |
+| `:grep <pat>` | Global search (literal) |
+| `:grep /<regex>/` | Global search (regex) |
+| `:theme` | Interactive theme picker |
+| `:preview` | Markdown preview in browser |
+| `:w` / `:q` / `:wq` | Save / quit / save and quit |
+| `u` / `Ctrl+R` | Undo / redo |
+| `.` | Repeat last change |
 
 ---
 
@@ -248,9 +385,12 @@ The preview is read-only and non-blocking — you continue editing in `hi` while
 
 | Feature | hi | Vim/Neovim | Helix | micro | nano |
 |---|---|---|---|---|---|
-| True-color syntax highlighting | ✅ Built-in (syntect, 200+ langs) | ✅ (requires config) | ✅ Tree-sitter | ✅ Limited | ❌ Basic |
+| True-color syntax highlighting | ✅ Built-in (Tree-sitter, incremental) | ✅ (requires config) | ✅ Tree-sitter | ✅ Limited | ❌ Basic |
 | AI integration | ✅ Native (`?` key) | ⚠️ Plugin (Copilot.vim) | ❌ None | ❌ None | ❌ None |
-| Markdown preview | ✅ `:preview` (browser) | ⚠️ Plugin (markdown-preview.nvim) | ❌ None | ❌ None | ❌ None |
+| Fuzzy file picker | ✅ `Ctrl+P` built-in | ⚠️ Plugin (fzf.vim) | ✅ Built-in | ❌ None | ❌ None |
+| Global grep | ✅ `Ctrl+F` / `:grep` | ⚠️ Plugin (fzf / telescope) | ✅ Built-in | ❌ None | ❌ None |
+| Macro recording | ✅ `q{reg}` / `@{reg}` | ✅ Full | ❌ None | ❌ None | ❌ None |
+| Markdown preview | ✅ `:preview` (browser) | ⚠️ Plugin | ❌ None | ❌ None | ❌ None |
 | Theme live-switching | ✅ `:theme` with real-time preview | ⚠️ `:colorscheme` (no preview) | ✅ `:theme` | ⚠️ Config file | ❌ N/A |
 | Learning curve | Low (hint bar + AI) | Very high | Medium | Low | Very low |
 | Startup time | ~5ms | ~50ms (Neovim + plugins) | ~10ms | ~10ms | ~5ms |
@@ -272,14 +412,6 @@ The preview is read-only and non-blocking — you continue editing in `hi` while
 | Footnotes | ✅ | ❌ | ❌ | ✅ | ✅ |
 | Task lists | ✅ Checkboxes | ✅ | ✅ | ✅ | ✅ |
 
-**Why `:preview` over glow/mdcat?**
-
-Terminal-based Markdown renderers like [glow](https://github.com/charmbracelet/glow) and [mdcat](https://github.com/swsnr/mdcat) are excellent for quick reads, but they're fundamentally limited by what a terminal can display. You can't render proportional fonts, complex table layouts, or inline images reliably in a character grid. `hi`'s `:preview` takes a different approach: it generates a complete HTML document with professional CSS and opens it in a real browser, giving you pixel-perfect rendering with zero compromise. And since it's integrated into the editor, it's just one command away — no context switching, no piping, no separate tool to install.
-
-**Why `:preview` over grip?**
-
-[grip](https://github.com/joeyespo/grip) renders Markdown through GitHub's API, which means it requires network access and is rate-limited. `hi`'s preview is fully offline, instant, and doesn't send your content anywhere.
-
 ---
 
 ## Configuration
@@ -290,6 +422,7 @@ Terminal-based Markdown renderers like [glow](https://github.com/charmbracelet/g
 [general]
 line_numbers = true
 tab_width = 4
+language = "auto"   # "auto" detects from LANG/LC_ALL; or set "zh-CN", "en-US", "ru-RU", …
 
 [ai]
 api_base_url = "https://api.openai.com/v1"
@@ -303,6 +436,17 @@ editor_theme = "base16-ocean.dark"   # syntect theme for the editor text area
 chat_theme   = "dark"                # Markdown theme for the AI Chat panel
 ```
 
+### Internationalization (i18n)
+
+`hi` ships with built-in **zh-CN** and **en-US** locales. The active language is auto-detected from your `LANG` / `LC_ALL` environment variable, or you can pin it in `~/.hirc`:
+
+```toml
+[general]
+language = "zh-CN"   # force Simplified Chinese
+```
+
+Community translations live in `~/.config/hi/locales/`. Drop a `ru-RU.toml` (or any BCP-47 tag) there and set `language = "ru-RU"` — untranslated keys fall back to en-US automatically. See [`locales/CONTRIBUTING.md`](locales/CONTRIBUTING.md) for the translation guide.
+
 ---
 
 ## Key Design Decisions
@@ -310,10 +454,11 @@ chat_theme   = "dark"                # Markdown theme for the AI Chat panel
 | Decision | Choice | Why |
 |---|---|---|
 | Language | Rust | Memory safety, zero-cost abstractions, modern tooling, proven by Helix/Zed |
-| Text storage | Rope (ropey) | O(log n) edits on large files, efficient undo/redo snapshots |
+| Text storage | Rope (ropey) | O(log n) edits on large files; undo history stored as text patches, not full snapshots |
 | Terminal | crossterm | Cross-platform, no ncurses dependency |
-| Syntax highlighting | syntect | Sublime Text grammars, 200+ languages, unified across editor + Chat |
-| Markdown rendering | pulldown-cmark + syntect | CommonMark + GFM, code blocks share the same highlight engine |
+| Editor syntax highlighting | Tree-sitter | Incremental CST, viewport-only query, zero frame drops on large files |
+| Chat syntax highlighting | syntect | Sublime Text grammars, 200+ languages for AI response code blocks |
+| Markdown rendering | pulldown-cmark + syntect | CommonMark + GFM, code blocks share the syntect highlight engine |
 | Markdown preview | pulldown-cmark → HTML + browser | Full CSS fidelity, no terminal limitations, offline |
 | Config | `~/.hirc` (TOML) | Simple path, readable format |
 | AI trigger | `?` | Semantic fit (question mark = ask), symmetric with `/` (search) |

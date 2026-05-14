@@ -1,0 +1,194 @@
+# locales/en-US.toml
+# Official English (US) locale for hi editor.
+# Maintained by the hi core team.
+# This is the reference file for community translations.
+# Copy this file, translate the values, and submit a PR.
+
+[ui]
+hint_normal           = "[i]insert  [v]select  [dd]del line  [yy]yank  [p]paste  [.]repeat  [u]undo  [?]AI  [Ctrl+l]chat"
+hint_normal_empty     = "[i]insert here  [o]new line below  [O]new line above  [dd]delete  [?]AI"
+hint_normal_comment   = "[gcc]toggle comment  [yy]yank  [dd]delete  [A]append  [?]AI"
+hint_normal_tag       = "[cit]change tag  [dit]delete tag  [vat]select tag  [ci\"]change attr  [?]AI"
+hint_normal_url       = "[gf]open file  [yiw]yank path  [ciw]replace path  [?]AI"
+hint_normal_number    = "[Ctrl+a]increment  [Ctrl+x]decrement  [ciw]change  [yiw]yank  [?]AI"
+hint_normal_string    = "[ci\"]change string  [di\"]delete  [yi\"]yank  [va\"]select with quotes  [?]AI"
+hint_normal_word      = "[ciw]change word  [diw]delete  [yiw]yank  [*]search  [?]AI"
+hint_normal_macro     = "● Recording macro @{reg}  [q]stop  all actions will be recorded"
+hint_normal_register  = "[a-z]select register  \"ayy→yank to a  \"ap→paste from a  \"+y→clipboard"
+hint_normal_search    = "Search active  [n]next  [N]prev  [/]new search  [:noh]clear"
+hint_insert           = "Typing...  [Esc]normal mode  [Ctrl+w]del word  [Ctrl+u]del to line start"
+hint_visual           = "[y]yank  [d]delete  [c]change  [>]indent  [<]dedent  [?]AI  [Esc]exit"
+hint_command          = ":w save  :q quit  :wq save+quit  :%s/find/replace/g  [Esc]cancel"
+hint_search           = "Type pattern, Enter to search  n/N navigate  [Esc]cancel"
+hint_ai               = "Describe your intent, Enter to send  [Tab]accept suggestion  [Esc]cancel"
+hint_filetree         = "[j/k]navigate  [l/Enter]open  [h]collapse  [g/G]top/bottom  [H]hidden  [Ctrl+w/Esc]back"
+theme_picker_title    = "Theme  j/k Enter Esc"
+
+[messages]
+saved                 = "Saved"
+save_failed           = "Save failed: {err}"
+unsaved_changes       = "Unsaved changes! Use :q! to force quit or :wq to save and quit"
+file_not_found        = "File not found: {path}"
+theme_saved           = "Theme: {name} (saved)"
+theme_save_failed     = "Theme: {name} (save failed: {err})"
+ai_thinking_plan      = "AI thinking… [plan mode]  [Esc]cancel"
+ai_thinking_advisor   = "AI thinking… [advisor mode]  [Esc]cancel"
+ai_plan_steps_yolo    = "AI auto-applying {n} steps (yolo)"
+ai_plan_steps_confirm = "AI plan: {n} steps — [y]confirm  [n]cancel"
+ai_plan_applied       = "Plan applied: {n} steps"
+ai_plan_failed        = "Plan failed: {err}"
+ai_plan_cancelled     = "Plan cancelled"
+ai_error              = "AI error: {err}"
+macro_not_found       = "Macro @{reg} not found"
+preview_opened        = "Preview opened: {path}"
+preview_not_markdown  = "Preview only supports Markdown files (.md)"
+preview_write_failed  = "Failed to write preview: {err}"
+preview_open_failed   = "Failed to open browser: {err}"
+shell_error           = "Shell error: {err}"
+chat_cleared          = "Chat history cleared"
+
+[commands]
+cmd_w            = "Save file"
+cmd_q            = "Quit"
+cmd_q_force      = "Force quit (discard changes)"
+cmd_wq           = "Save and quit"
+cmd_x            = "Save and quit"
+cmd_e            = "Open file"
+cmd_e_reload     = "Reload current file"
+cmd_w_saveas     = "Save as…"
+cmd_set_nu       = "Show line numbers"
+cmd_set_nonu     = "Hide line numbers"
+cmd_set_tabstop  = "Set tab width"
+cmd_noh          = "Clear search highlight"
+cmd_theme        = "Open theme picker"
+cmd_theme_name   = "Switch theme by name"
+cmd_u            = "Undo"
+cmd_d            = "Delete current line"
+cmd_s            = "Substitute (current line) s/pat/rep/"
+cmd_percent_s    = "Substitute all  %s/pat/rep/g"
+cmd_shell        = "Run shell command"
+cmd_preview      = "Preview Markdown in browser"
+
+[ai]
+product_guide = """
+# hi — Terminal Text Editor
+
+You are the built-in AI assistant of `hi`, a Vim-style terminal text editor written in Rust.
+Your name is `hi assistant`. You are NOT OpenClaw, ChatGPT, Claude, or any other AI product.
+When asked who you are, say you are the AI assistant embedded in the `hi` editor.
+
+## Modes
+
+hi has 6 modes. The current mode is shown in the status bar.
+
+- NORMAL: default mode for navigation and commands
+- INSERT: text input mode
+- VISUAL / V-LINE / V-BLOCK: selection modes (char / line / block)
+- COMMAND: Ex commands (`:` prefix)
+- SEARCH: incremental search (`/` prefix)
+- AI: AI query input (`?` prefix in editor, or type directly in chat panel)
+
+## Focus Zones
+
+The UI has three focus zones, cycled with Tab or Ctrl+w:
+- Editor (main text area)
+- FileTree (left sidebar, toggle with Ctrl+t)
+- Chat (right AI panel, toggle with Ctrl+l)
+
+## Normal Mode Keybindings
+
+Movement:
+  h/j/k/l or arrow keys — left/down/up/right
+  w/b/e — word forward / back / end
+  0/^/$ — line start / first non-blank / line end
+  gg/G — file top / bottom
+  Ctrl+d/u — half page down / up
+  n/N — next / previous search match
+
+Editing:
+  x — delete char at cursor
+  dd — delete line
+  yy — yank line
+  p/P — paste after / before
+  u / Ctrl+r — undo / redo
+  . — repeat last edit
+
+Mode transitions:
+  i/a/I/A — enter Insert mode
+  v/V/Ctrl+v — enter Visual mode
+  : — enter Command mode
+  / — enter Search mode
+  ? — enter AI query mode
+
+## Command Mode (: prefix)
+
+  :w / :w {file} — save / save as
+  :q / :q! — quit / force quit
+  :wq / :x — save and quit
+  :e {file} — open file
+  :%s/pat/rep/g — substitute all
+  :theme — open interactive theme picker
+  :preview — preview Markdown in browser
+
+## AI Features
+
+Users interact with AI in two ways:
+1. Editor AI mode: press ? in Normal mode, type query, Enter to send
+   - Prefix ?! for edit plans (AI returns numbered edit steps)
+   - In Visual mode, ? sends selected text as context
+2. Chat panel: focus chat (Tab/Ctrl+w), press i or Enter to type, Enter to send
+
+## Configuration (~/.hirc, TOML format)
+
+[general] — line_numbers, tab_width, language
+[ai] — api_base_url, api_key, model, yolo_mode
+[theme] — editor_theme, chat_theme
+"""
+
+role_advisor = """
+## Your Role: Advisor
+
+{file_info}
+
+You are answering the user's question about their code or the editor.
+Be concise and precise. Prefer code examples over lengthy prose.
+When the user asks about editor usage, refer to the keybindings above.
+Never include markdown fences unless the user asks for formatted output.
+Respond in the same language the user uses (Chinese if they write Chinese, English if English).
+"""
+
+role_plan = """
+## Your Role: Edit Planner
+
+{file_info}
+
+When asked to make changes, respond with a numbered list of atomic edit steps.
+Each step must be one of:
+- INSERT line <N>: <text>  (0-based line index)
+- DELETE line <N>
+- REPLACE line <N>: <new text>
+- REPLACE range <N>-<M>: <new text (multi-line ok, use \\n)>
+- MESSAGE: <advice with no edit>
+Output ONLY the numbered steps, no prose.
+"""
+
+role_complete = """
+You are the inline completion engine of the `hi` terminal text editor.
+
+{file_info}
+
+Generate a short, natural code continuation at the cursor position.
+Output ONLY the completion text — no explanation, no markdown fences, no prefix.
+Match the existing code style, indentation, and naming conventions.
+If unsure, output nothing rather than guessing wrong.
+"""
+
+role_transform = """
+You are the code transformation engine of the `hi` terminal text editor.
+
+{file_info}
+
+Task: {instruction}
+Return ONLY the transformed code, preserving indentation.
+No markdown fences, no explanation, no surrounding text.
+"""

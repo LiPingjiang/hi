@@ -22,6 +22,9 @@ pub struct GeneralConfig {
     pub ignore_case: bool,
     pub smart_case: bool,
     pub scroll_off: usize,
+    /// Language tag for UI strings, e.g. "zh-CN", "en-US", "auto".
+    /// "auto" (default) detects from the LANG / LC_ALL environment variable.
+    pub language: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -90,6 +93,7 @@ impl Default for GeneralConfig {
             ignore_case: true,
             smart_case: true,
             scroll_off: 5,
+            language: "auto".to_string(),
         }
     }
 }

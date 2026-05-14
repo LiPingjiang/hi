@@ -8,6 +8,7 @@ use std::path::Path;
 use std::process::Command;
 
 use pulldown_cmark::{html, Options, Parser};
+use crate::locale::Locale;
 
 /// Generate a complete HTML document from Markdown source with embedded CSS.
 fn markdown_to_html(markdown: &str, title: &str) -> String {
@@ -54,7 +55,7 @@ fn html_escape(s: &str) -> String {
 /// Open the current buffer as a Markdown preview in the default browser.
 ///
 /// Returns a user-facing message string (success or error).
-pub fn open_preview(buffer_content: &str, file_path: Option<&Path>) -> String {
+pub fn open_preview(buffer_content: &str, file_path: Option<&Path>, locale: &Locale) -> String {
     let title = file_path
         .and_then(|p| p.file_name())
         .map(|n| n.to_string_lossy().to_string())
@@ -70,7 +71,7 @@ pub fn open_preview(buffer_content: &str, file_path: Option<&Path>) -> String {
         .unwrap_or(false);
 
     if !is_md {
-        return "Preview only supports Markdown files (.md)".to_string();
+        return locale.messages.preview_not_markdown.clone();
     }
 
     let html = markdown_to_html(buffer_content, &title);
@@ -82,10 +83,10 @@ pub fn open_preview(buffer_content: &str, file_path: Option<&Path>) -> String {
     match std::fs::File::create(&tmp_path) {
         Ok(mut f) => {
             if let Err(e) = f.write_all(html.as_bytes()) {
-                return format!("Failed to write preview: {}", e);
+                return locale.messages.preview_write_failed.replace("{err}", &e.to_string());
             }
         }
-        Err(e) => return format!("Failed to create preview file: {}", e),
+        Err(e) => return locale.messages.preview_write_failed.replace("{err}", &e.to_string()),
     }
 
     // Open in browser
@@ -100,8 +101,8 @@ pub fn open_preview(buffer_content: &str, file_path: Option<&Path>) -> String {
     };
 
     match result {
-        Ok(_) => format!("Preview opened: {}", tmp_path.display()),
-        Err(e) => format!("Failed to open browser: {}", e),
+        Ok(_) => locale.messages.preview_opened.replace("{path}", &tmp_path.display().to_string()),
+        Err(e) => locale.messages.preview_open_failed.replace("{err}", &e.to_string()),
     }
 }
 

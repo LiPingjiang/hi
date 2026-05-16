@@ -35,6 +35,8 @@ pub enum CommandAction {
     ToggleTutorial,
     /// :mouse — toggle mouse mode
     ToggleMouse,
+    /// :ai <instruction> — start AI agent-edit session on the whole file
+    AiEdit(String),
 }
 
 #[derive(Debug, Clone)]
@@ -204,6 +206,18 @@ impl Editor {
         // :mouse — toggle mouse mode
         if cmd == "mouse" {
             return CommandAction::ToggleMouse;
+        }
+
+        // :ai <instruction> — start AI agent-edit session
+        if let Some(instruction) = cmd.strip_prefix("ai ").or_else(|| cmd.strip_prefix("ai\t")) {
+            let instruction = instruction.trim();
+            if instruction.is_empty() {
+                return CommandAction::SetMsg(":ai <instruction>  — describe what you want the AI to do".to_string());
+            }
+            return CommandAction::AiEdit(instruction.to_string());
+        }
+        if cmd == "ai" {
+            return CommandAction::SetMsg(":ai <instruction>  — describe what you want the AI to do".to_string());
         }
 
         // :grep {pattern}  or  :grep /{pattern}/  (regex)

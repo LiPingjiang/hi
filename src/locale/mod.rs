@@ -153,11 +153,13 @@ pub struct CommandStrings {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
 pub struct AiStrings {
-    pub product_guide:  String,
-    pub role_advisor:   String,
-    pub role_plan:      String,
-    pub role_complete:  String,
-    pub role_transform: String,
+    pub product_guide:    String,
+    pub role_advisor:     String,
+    pub role_plan:        String,
+    pub role_complete:    String,
+    pub role_transform:   String,
+    /// Agent-edit mode system prompt. Placeholders: {file_info}, {tool_spec}
+    pub role_agent_edit:  String,
 }
 
 // ── Default impls (hard-coded en-US fallback) ─────────────────────────────────
@@ -267,10 +269,21 @@ impl Default for AiStrings {
     fn default() -> Self {
         Self {
             product_guide:  "# hi — Terminal Text Editor\n\nYou are the built-in AI assistant of `hi`.".into(),
-            role_advisor:   "## Your Role: Advisor\n\n{file_info}\n\nAnswer the user's question concisely.".into(),
-            role_plan:      "## Your Role: Edit Planner\n\n{file_info}\n\nOutput numbered edit steps only.".into(),
-            role_complete:  "You are the inline completion engine.\n\n{file_info}\n\nOutput ONLY the completion text.".into(),
-            role_transform: "You are the code transformation engine.\n\n{file_info}\n\nTask: {instruction}\nReturn ONLY the transformed code.".into(),
+            role_advisor:     "## Your Role: Advisor\n\n{file_info}\n\nAnswer the user's question concisely.".into(),
+            role_plan:        "## Your Role: Edit Planner\n\n{file_info}\n\nOutput numbered edit steps only.".into(),
+            role_complete:    "You are the inline completion engine.\n\n{file_info}\n\nOutput ONLY the completion text.".into(),
+            role_transform:   "You are the code transformation engine.\n\n{file_info}\n\nTask: {instruction}\nReturn ONLY the transformed code.".into(),
+            role_agent_edit:  concat!(
+                "You are an AI code/text editor agent running inside the `hi` terminal editor.\n",
+                "You can read and modify the document through the tool API below.\n\n",
+                "{file_info}\n\n",
+                "{tool_spec}\n\n",
+                "Rules:\n",
+                "- Always read the relevant section before writing.\n",
+                "- Prefer minimal, targeted edits.\n",
+                "- When done, call the `done` tool with a one-line summary.\n",
+                "- Never output raw text outside a tool call."
+            ).into(),
         }
     }
 }

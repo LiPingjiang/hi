@@ -12,6 +12,9 @@ pub enum VisualAction {
     EnterAi(String), // selected text passed to AI
     /// Copy selected text to system clipboard (handled by App layer via pbcopy/xclip).
     CopyToClipboard(String),
+    /// `ga` — enter AI agent-edit mode with the current selection.
+    /// Carries (start_line, end_line, selected_text).
+    EnterAiEdit { start_line: usize, end_line: usize, selected_text: String },
 }
 
 impl Editor {
@@ -232,6 +235,18 @@ impl Editor {
                 let end = sel_end.min(self.buffer.len_chars());
                 let selected: String = self.buffer.rope.slice(sel_start..end).to_string();
                 VisualAction::EnterAi(selected)
+            }
+
+            // ── AI agent-edit mode (ga) ───────────────────
+            KeyCode::Char('a') if key.modifiers.is_empty() => {
+                // Only trigger on 'ga' — but we can't check the previous key here.
+                // The 'g' prefix is handled by the pending-key mechanism in app.rs;
+                // visual.rs receives the second key ('a') after 'g' was consumed.
+                // We use a dedicated variant so app.rs can route it correctly.
+                let end = sel_end.min(self.buffer.len_chars());
+                let selected: String = self.buffer.rope.slice(sel_start..end).to_string();
+                let (start_line, end_line) = self.visual_line_range(anchor);
+                VisualAction::EnterAiEdit { start_line, end_line, selected_text: selected }
             }
 
             _ => VisualAction::None,

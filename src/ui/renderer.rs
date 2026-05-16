@@ -1616,6 +1616,120 @@ impl Renderer {
         // Flush here since render_grep_panel is a public entry-point
         self.stdout.flush()
     }
+
+    /// Render the AI diff confirmation panel overlay.
+    pub fn render_diff_panel(
+        &mut self,
+        panel: &crate::ui::diff_panel::DiffPanel,
+        diff: &crate::ai::EditDiff,
+        status_text: &str,
+        term_w: usize,
+        term_h: usize,
+    ) -> io::Result<()> {
+        use crate::ui::diff_panel::{all_display_lines, DiffLineKind};
+
+        let box_w = (term_w * 4 / 5).max(70).min(term_w.saturating_sub(4));
+        let max_content_rows = (term_h / 2).max(10).min(20);
+        let box_h = max_content_rows + 5; // border + summary + separator + content + status + border
+        let start_x = (term_w.saturating_sub(box_w)) / 2;
+        let start_y = (term_h.saturating_sub(box_h)) / 4;
+        let inner_w = box_w.saturating_sub(2);
+
+        // Colour palette (Catppuccin Mocha)
+        let bg       = Color::Rgb { r: 24,  g: 24,  b: 37  };
+        let border   = Color::Rgb { r: 137, g: 180, b: 250 }; // blue
+        let fg_dim   = Color::Rgb { r: 108, g: 112, b: 134 };
+        let fg_main  = Color::Rgb { r: 205, g: 214, b: 244 };
+        let red_fg   = Color::Rgb { r: 243, g: 139, b: 168 }; // red
+        let green_fg = Color::Rgb { r: 166, g: 227, b: 161 }; // green
+        let yellow_fg= Color::Rgb { r: 249, g: 226, b: 175 }; // yellow
+
+        // ── Top border ──
+        queue!(self.stdout, cursor::MoveTo(start_x as u16, start_y as u16))?;
+        queue!(self.stdout, SetBackgroundColor(bg), SetForegroundColor(border))?;
+        let title = " ✦ AI Edit Diff ";
+        let title_dw = display_width_str(title);
+        let dashes_left = (inner_w.saturating_sub(title_dw)) / 2;
+        let dashes_right = inner_w.saturating_sub(title_dw + dashes_left);
+        write!(self.stdout, "╭{}{}{}╮",
+            "─".repeat(dashes_left), title, "─".repeat(dashes_right))?;
+
+        // ── Summary line ──
+        queue!(self.stdout, cursor::MoveTo(start_x as u16, (start_y + 1) as u16))?;
+        queue!(self.stdout, SetBackgroundColor(bg), SetForegroundColor(border))?;
+        write!(self.stdout, "│")?;
+        queue!(self.stdout, SetForegroundColor(yellow_fg))?;
+        let summary_trunc = truncate(&panel.summary, inner_w.saturating_sub(2));
+        let summary_dw = display_width_str(&summary_trunc);
+        write!(self.stdout, " {}{:pad$}", summary_trunc, "", pad = inner_w.saturating_sub(1 + summary_dw))?;
+        queue!(self.stdout, SetForegroundColor(border))?;
+        write!(self.stdout, "│")?;
+
+        // ── Separator ──
+        queue!(self.stdout, cursor::MoveTo(start_x as u16, (start_y + 2) as u16))?;
+        queue!(self.stdout, SetBackgroundColor(bg), SetForegroundColor(border))?;
+        write!(self.stdout, "├{}┤", "─".repeat(inner_w))?;
+
+        // ── Diff content ──
+        let all_lines = all_display_lines(diff);
+        let total_lines = all_lines.len();
+        let scroll = panel.scroll.min(total_lines.saturating_sub(max_content_rows));
+        let visible = &all_lines[scroll..total_lines.min(scroll + max_content_rows)];
+
+        for (row_i, dl) in visible.iter().enumerate() {
+            queue!(self.stdout, cursor::MoveTo(start_x as u16, (start_y + 3 + row_i) as u16))?;
+            queue!(self.stdout, SetBackgroundColor(bg), SetForegroundColor(border))?;
+            write!(self.stdout, "│")?;
+
+            let (color, prefix) = match dl.kind {
+                DiffLineKind::Header => (fg_dim, ""),
+                DiffLineKind::Removed => (red_fg, ""),
+                DiffLineKind::Added => (green_fg, ""),
+                DiffLineKind::Hint => (yellow_fg, ""),
+            };
+            queue!(self.stdout, SetForegroundColor(color))?;
+            let text_trunc = truncate(&dl.text, inner_w.saturating_sub(1));
+            let text_dw = display_width_str(&text_trunc);
+            write!(self.stdout, " {}{:pad$}", text_trunc, "", pad = inner_w.saturating_sub(1 + text_dw))?;
+            let _ = prefix; // used for future prefix chars
+            queue!(self.stdout, SetForegroundColor(border))?;
+            write!(self.stdout, "│")?;
+        }
+
+        // Fill empty rows if content is shorter than max_content_rows
+        for row_i in visible.len()..max_content_rows {
+            queue!(self.stdout, cursor::MoveTo(start_x as u16, (start_y + 3 + row_i) as u16))?;
+            queue!(self.stdout, SetBackgroundColor(bg), SetForegroundColor(border))?;
+            write!(self.stdout, "│{:pad$}│", "", pad = inner_w)?;
+        }
+
+        // ── Status / hint line ──
+        let status_y = start_y + 3 + max_content_rows;
+        queue!(self.stdout, cursor::MoveTo(start_x as u16, status_y as u16))?;
+        queue!(self.stdout, SetBackgroundColor(bg), SetForegroundColor(border))?;
+        write!(self.stdout, "├{}┤", "─".repeat(inner_w))?;
+
+        queue!(self.stdout, cursor::MoveTo(start_x as u16, (status_y + 1) as u16))?;
+        queue!(self.stdout, SetBackgroundColor(bg), SetForegroundColor(border))?;
+        write!(self.stdout, "│")?;
+        queue!(self.stdout, SetForegroundColor(fg_main))?;
+        let st_trunc = truncate(status_text, inner_w.saturating_sub(2));
+        let st_dw = display_width_str(&st_trunc);
+        write!(self.stdout, " {}{:pad$}", st_trunc, "", pad = inner_w.saturating_sub(1 + st_dw))?;
+        queue!(self.stdout, SetForegroundColor(border))?;
+        write!(self.stdout, "│")?;
+
+        // ── Bottom border ──
+        queue!(self.stdout, cursor::MoveTo(start_x as u16, (status_y + 2) as u16))?;
+        queue!(self.stdout, SetBackgroundColor(bg), SetForegroundColor(border))?;
+        write!(self.stdout, "╰{}╯", "─".repeat(inner_w))?;
+
+        // Hide cursor while diff panel is shown
+        queue!(self.stdout, cursor::Hide)?;
+
+        queue!(self.stdout, ResetColor)?;
+        self.stdout.flush()
+    }
 }
 
 fn truncate(s: &str, max: usize) -> String {

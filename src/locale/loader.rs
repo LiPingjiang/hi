@@ -150,10 +150,11 @@ fn merge_commands(b: super::CommandStrings, o: super::CommandStrings) -> super::
 
 fn merge_ai(b: super::AiStrings, o: super::AiStrings) -> super::AiStrings {
     super::AiStrings {
-        product_guide:  pick!(b.product_guide,  o.product_guide),
-        role_advisor:   pick!(b.role_advisor,   o.role_advisor),
-        role_plan:      pick!(b.role_plan,      o.role_plan),
-        role_complete:  pick!(b.role_complete,  o.role_complete),
-        role_transform: pick!(b.role_transform, o.role_transform),
+        product_guide:   pick!(b.product_guide,   o.product_guide),
+        role_advisor:    pick!(b.role_advisor,    o.role_advisor),
+        role_plan:       pick!(b.role_plan,       o.role_plan),
+        role_complete:   pick!(b.role_complete,   o.role_complete),
+        role_transform:  pick!(b.role_transform,  o.role_transform),
+        role_agent_edit: pick!(b.role_agent_edit, o.role_agent_edit),
     }
 }

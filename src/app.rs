@@ -9,7 +9,10 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 
 use crate::ai::{AiClient, AiContext, HintKind};
 use crate::ai::log as ai_log;
+use crate::ai::{AiEditSession, AiEditStepResult, AiTool, ToolResult, DiffHunk, HunkKind};
+use crate::ai::parser::{parse_tool_call, extract_thought};
 use crate::ui::chatpanel::ChatPanel;
+use crate::ui::diff_panel::DiffPanel;
 
 /// Which panel currently has keyboard focus.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -146,6 +149,17 @@ pub struct App {
 
     // Global grep panel overlay
     grep_panel: Option<GrepPanel>,
+
+    // AI agent-edit session (Tool-Use Loop)
+    ai_edit_session: Option<AiEditSession>,
+    /// Result channel for the agent-edit background thread.
+    ai_edit_result: Arc<Mutex<Option<AiEditStepResult>>>,
+    /// DiffPanel overlay (shown when session is AwaitingConfirm).
+    diff_panel: Option<DiffPanel>,
+    /// Monotonically increasing session ID counter.
+    ai_edit_session_id: u64,
+    /// Pending selection for ga-triggered agent-edit (start_line, end_line, text).
+    ai_edit_pending_selection: Option<(usize, usize, String)>,
 }
 
 impl App {
@@ -221,6 +235,11 @@ impl App {
             cmd_completion: CmdCompletionState::new(),
             file_picker: None,
             grep_panel: None,
+            ai_edit_session: None,
+            ai_edit_result: Arc::new(Mutex::new(None)),
+            diff_panel: None,
+            ai_edit_session_id: 0,
+            ai_edit_pending_selection: None,
         })
     }
 
@@ -269,6 +288,13 @@ impl App {
                     self.renderer.render_grep_panel(panel, w, h)?;
                 }
 
+                // Render diff panel overlay on top if active
+                if let (Some(ref dp), Some(ref session)) = (&self.diff_panel, &self.ai_edit_session) {
+                    let w = self.editor.term_width as usize;
+                    let h = self.editor.term_height as usize;
+                    self.renderer.render_diff_panel(dp, &session.pending_diff, &session.status_text(), w, h)?;
+                }
+
                 // Clear one-shot status message after render
                 self.editor.status_msg = None;
                 needs_redraw = false;
@@ -277,6 +303,12 @@ impl App {
             // Poll AI result — may set needs_redraw
             let had_ai_result = self.poll_ai_result();
             if had_ai_result {
+                needs_redraw = true;
+            }
+
+            // Poll AI agent-edit step result
+            let had_edit_result = self.poll_ai_edit_result();
+            if had_edit_result {
                 needs_redraw = true;
             }
 
@@ -329,7 +361,9 @@ impl App {
     fn dispatch_event(&mut self, ev: Event) -> Result<()> {
         match ev {
             Event::Key(key) => {
-                if self.grep_panel.is_some() {
+                if self.diff_panel.is_some() {
+                    self.handle_diff_panel_key(key)?;
+                } else if self.grep_panel.is_some() {
                     self.handle_grep_panel_key(key)?;
                 } else if self.file_picker.is_some() {
                     self.handle_file_picker_key(key)?;
@@ -512,6 +546,7 @@ impl App {
             PromptKind::Advisor  => "顾问模式",
             PromptKind::Complete => "补全模式",
             PromptKind::Transform(_) => "变换模式",
+            PromptKind::AgentEdit { .. } => "编辑模式",
         };
         self.editor.set_msg(self.locale.messages.ai_thinking_plan.clone());
 
@@ -943,6 +978,18 @@ impl App {
                 self.ai_query_msg = None;
                 self.editor.mode = Mode::Ai(selected);
             }
+            VisualAction::EnterAiEdit { start_line, end_line, selected_text } => {
+                // Prompt user for instruction via Ai input mode, then start session
+                // We store the selection info in a temporary field and enter Ai mode.
+                // When the user confirms the instruction, start_ai_edit_session is called.
+                self.editor.mode = Mode::Normal;
+                // Immediately open an Ai input prompt; the selection context is embedded
+                // in the prompt hint so the user knows what they selected.
+                let hint = format!("[{}-{}] ", start_line + 1, end_line + 1);
+                self.editor.mode = Mode::Ai(hint.clone());
+                // Store selection for when the user confirms
+                self.ai_edit_pending_selection = Some((start_line, end_line, selected_text));
+            }
             VisualAction::CopyToClipboard(text) => {
                 // Write to system clipboard via pbcopy (macOS) or xclip/xsel (Linux)
                 let escaped = text.replace('\'', "'\\''");
@@ -1050,7 +1097,17 @@ impl App {
                 self.editor.mode = Mode::Normal;
             }
             AiInputAction::Submit(query) => {
-                self.dispatch_ai_query(&query);
+                // Check if this is a ga-triggered agent-edit (has pending selection)
+                if let Some((start_line, end_line, selected_text)) = self.ai_edit_pending_selection.take() {
+                    // Strip the "[N-M] " prefix we injected as a hint
+                    let instruction = query
+                        .trim_start_matches(|c: char| c == '[' || c.is_ascii_digit() || c == '-' || c == ']' || c == ' ')
+                        .to_string();
+                    let instruction = if instruction.is_empty() { query } else { instruction };
+                    self.start_ai_edit_session_selection(instruction, start_line, end_line, selected_text);
+                } else {
+                    self.dispatch_ai_query(&query);
+                }
                 self.editor.mode = Mode::Normal;
             }
             AiInputAction::ConfirmGhost => {
@@ -1228,6 +1285,402 @@ impl App {
                 self.editor.set_msg(msg.to_string());
                 self.editor.mode = Mode::Normal;
             }
+            CommandAction::AiEdit(instruction) => {
+                self.editor.mode = Mode::Normal;
+                self.start_ai_edit_session_command(instruction);
+            }
+        }
+        Ok(())
+    }
+
+    // ── AI agent-edit session ─────────────────────────────────────────────────
+
+    /// Start an agent-edit session from the `:ai <instruction>` command (whole-file mode).
+    fn start_ai_edit_session_command(&mut self, instruction: String) {
+        self.ai_edit_session_id += 1;
+        let session = AiEditSession::from_command(self.ai_edit_session_id, instruction.clone());
+        self.ai_edit_session = Some(session);
+        self.diff_panel = None;
+        self.editor.set_msg(format!("AI editing… [Esc]cancel"));
+        self.spawn_ai_edit_turn();
+    }
+
+    /// Start an agent-edit session from Visual `ga` (selection mode).
+    fn start_ai_edit_session_selection(
+        &mut self,
+        instruction: String,
+        start_line: usize,
+        end_line: usize,
+        selected_text: String,
+    ) {
+        self.ai_edit_session_id += 1;
+        let session = AiEditSession::from_selection(
+            self.ai_edit_session_id,
+            instruction.clone(),
+            start_line,
+            end_line,
+            selected_text,
+        );
+        self.ai_edit_session = Some(session);
+        self.diff_panel = None;
+        self.editor.set_msg(format!("AI editing selection… [Esc]cancel"));
+        self.spawn_ai_edit_turn();
+    }
+
+    /// Spawn a background thread to get the next AI response in the Tool-Use Loop.
+    fn spawn_ai_edit_turn(&mut self) {
+        let session = match self.ai_edit_session.as_mut() {
+            Some(s) => s,
+            None => return,
+        };
+
+        if session.over_limit() {
+            session.transition_to_confirm();
+            self.diff_panel = Some(DiffPanel::new("Max tool turns reached."));
+            return;
+        }
+
+        // Build messages for this turn
+        let context = AiContext::from_cursor(
+            &self.editor.buffer,
+            self.editor.buffer.filepath().map(|p| p.to_str().unwrap_or("")).unwrap_or(""),
+            self.editor.cursor_line,
+            self.editor.cursor_col,
+            self.editor.config.ai.context_lines,
+            self.renderer.highlighter.filetype().name(),
+        );
+        let cfg = self.editor.config.ai.clone();
+
+        use crate::ai::prompt::{PromptKind, build_messages};
+        let kind = match &session.source {
+            crate::ai::EditSource::VisualSelection { selected_text, .. } => {
+                PromptKind::AgentEdit {
+                    instruction: session.instruction.clone(),
+                    selection: selected_text.clone(),
+                }
+            }
+            crate::ai::EditSource::CommandLine => {
+                PromptKind::AgentEdit {
+                    instruction: session.instruction.clone(),
+                    selection: String::new(),
+                }
+            }
+        };
+
+        // First turn: build fresh messages; subsequent turns: append tool result
+        if session.messages.is_empty() {
+            session.messages = build_messages(&kind, &context, &session.instruction, &self.locale);
+        }
+
+        let messages = session.messages.clone();
+        let result_arc = Arc::clone(&self.ai_edit_result);
+
+        std::thread::spawn(move || {
+            let client = AiClient::new(&cfg);
+            let res = client.chat(messages);
+            let step = match res {
+                Ok(text) => {
+                    let thought = extract_thought(&text);
+                    if let Some(tool) = parse_tool_call(&text) {
+                        AiEditStepResult::ToolCall { tool, thought }
+                    } else {
+                        // No tool call — treat as Done with the text as summary
+                        AiEditStepResult::Done { summary: thought }
+                    }
+                }
+                Err(e) => AiEditStepResult::Error(e.to_string()),
+            };
+            *result_arc.lock().unwrap() = Some(step);
+        });
+
+        session.tool_turns += 1;
+        self.ai_status = AiStatus::Requesting;
+    }
+
+    /// Poll the AI edit result channel and advance the session state machine.
+    fn poll_ai_edit_result(&mut self) -> bool {
+        let result = {
+            let mut guard = self.ai_edit_result.lock().unwrap();
+            guard.take()
+        };
+        let step = match result {
+            Some(s) => s,
+            None => return false,
+        };
+
+        self.ai_status = AiStatus::Idle;
+
+        match step {
+            AiEditStepResult::ToolCall { tool, thought } => {
+                // Record thought
+                if let Some(session) = self.ai_edit_session.as_mut() {
+                    if !thought.is_empty() {
+                        session.add_thought(thought.clone());
+                    }
+                    // Append assistant message
+                    session.messages.push(crate::ai::prompt::Message {
+                        role: "assistant".into(),
+                        content: thought,
+                    });
+                }
+
+                // Execute the tool (may mutate session.pending_diff)
+                let tool_result = self.execute_ai_tool(tool);
+
+                // Append tool result as user message
+                if let Some(session) = self.ai_edit_session.as_mut() {
+                    session.messages.push(crate::ai::prompt::Message {
+                        role: "user".into(),
+                        content: format!("Tool result:\n{}", tool_result.to_message()),
+                    });
+                }
+
+                // Continue the loop
+                self.spawn_ai_edit_turn();
+            }
+            AiEditStepResult::Done { summary } => {
+                if let Some(session) = self.ai_edit_session.as_mut() {
+                    session.transition_to_confirm();
+                    let summary_clone = summary.clone();
+                    self.diff_panel = Some(DiffPanel::new(summary_clone));
+                    self.editor.set_msg(session.status_text());
+                }
+            }
+            AiEditStepResult::Error(e) => {
+                if let Some(session) = self.ai_edit_session.as_mut() {
+                    session.transition_to_error(e.clone());
+                }
+                self.editor.set_msg(format!("AI edit error: {}", e));
+                self.ai_edit_session = None;
+                self.diff_panel = None;
+            }
+        }
+        true
+    }
+
+    /// Execute a single AI tool call and return the result.
+    /// Write operations are collected into `session.pending_diff`.
+    fn execute_ai_tool(&mut self, tool: AiTool) -> ToolResult {
+        let session = match self.ai_edit_session.as_mut() {
+            Some(s) => s,
+            None => return ToolResult::Error("No active session".into()),
+        };
+
+        match tool {
+            AiTool::ReadBuffer { start, end } => {
+                let total = self.editor.buffer.line_count();
+                let end = end.unwrap_or(total.saturating_sub(1)).min(total.saturating_sub(1));
+                let start = start.min(end);
+                let mut lines = Vec::new();
+                for l in start..=end {
+                    lines.push((l, self.editor.buffer.line_str(l).to_string()));
+                }
+                ToolResult::Lines(lines)
+            }
+
+            AiTool::ReplaceRange { start, end, new_text } => {
+                let total = self.editor.buffer.line_count();
+                let end = end.min(total.saturating_sub(1));
+                let start = start.min(end);
+                // Collect old text for diff display
+                let mut old_lines = Vec::new();
+                for l in start..=end {
+                    old_lines.push(self.editor.buffer.line_str(l).to_string());
+                }
+                let old_text = old_lines.join("\n");
+                let hunk = DiffHunk::replace(start, end, old_text, new_text);
+                let count = session.pending_diff.hunks.len() + 1;
+                session.pending_diff.push(hunk);
+                ToolResult::DiffQueued { hunk_count: count }
+            }
+
+            AiTool::InsertAfter { line, text } => {
+                let hunk = DiffHunk::insert(line, text);
+                let count = session.pending_diff.hunks.len() + 1;
+                session.pending_diff.push(hunk);
+                ToolResult::DiffQueued { hunk_count: count }
+            }
+
+            AiTool::DeleteRange { start, end } => {
+                let total = self.editor.buffer.line_count();
+                let end = end.min(total.saturating_sub(1));
+                let start = start.min(end);
+                let mut old_lines = Vec::new();
+                for l in start..=end {
+                    old_lines.push(self.editor.buffer.line_str(l).to_string());
+                }
+                let old_text = old_lines.join("\n");
+                let hunk = DiffHunk::delete(start, end, old_text);
+                let count = session.pending_diff.hunks.len() + 1;
+                session.pending_diff.push(hunk);
+                ToolResult::DiffQueued { hunk_count: count }
+            }
+
+            AiTool::Search { pattern } => {
+                let mut matches = Vec::new();
+                let total = self.editor.buffer.line_count();
+                for l in 0..total {
+                    let line = self.editor.buffer.line_str(l);
+                    if line.contains(&pattern) {
+                        matches.push((l, line.to_string()));
+                    }
+                }
+                if matches.is_empty() {
+                    ToolResult::Text(format!("No lines matching {:?}", pattern))
+                } else {
+                    ToolResult::Lines(matches)
+                }
+            }
+
+            AiTool::GetOutline => {
+                use crate::ai::OutlineItem;
+                let mut items = Vec::new();
+                let total = self.editor.buffer.line_count();
+                for l in 0..total {
+                    let line = self.editor.buffer.line_str(l);
+                    let trimmed = line.trim_start();
+                    if let Some(rest) = trimmed.strip_prefix("######") {
+                        items.push(OutlineItem { level: 6, title: rest.trim().to_string(), line: l });
+                    } else if let Some(rest) = trimmed.strip_prefix("#####") {
+                        items.push(OutlineItem { level: 5, title: rest.trim().to_string(), line: l });
+                    } else if let Some(rest) = trimmed.strip_prefix("####") {
+                        items.push(OutlineItem { level: 4, title: rest.trim().to_string(), line: l });
+                    } else if let Some(rest) = trimmed.strip_prefix("###") {
+                        items.push(OutlineItem { level: 3, title: rest.trim().to_string(), line: l });
+                    } else if let Some(rest) = trimmed.strip_prefix("##") {
+                        items.push(OutlineItem { level: 2, title: rest.trim().to_string(), line: l });
+                    } else if let Some(rest) = trimmed.strip_prefix('#') {
+                        items.push(OutlineItem { level: 1, title: rest.trim().to_string(), line: l });
+                    }
+                }
+                if items.is_empty() {
+                    ToolResult::Text("No outline items found.".into())
+                } else {
+                    ToolResult::Outline(items)
+                }
+            }
+
+            AiTool::AskUser { question } => {
+                // For now, surface the question in the status bar and pause the loop.
+                // A future enhancement could open an input prompt.
+                self.editor.set_msg(format!("AI asks: {}", question));
+                ToolResult::UserInput("(user input not yet supported — please use :ai to continue)".into())
+            }
+
+            AiTool::Done { summary } => {
+                // The Done tool is handled by the caller (poll_ai_edit_result),
+                // but if it arrives here via execute_ai_tool, treat it gracefully.
+                session.transition_to_confirm();
+                let summary_clone = summary.clone();
+                self.diff_panel = Some(DiffPanel::new(summary_clone));
+                ToolResult::Text(format!("Done: {}", summary))
+            }
+        }
+    }
+
+    /// Apply the pending diff to the buffer (called when user presses 'y' in DiffPanel).
+    fn apply_ai_edit_diff(&mut self) {
+        let session = match self.ai_edit_session.take() {
+            Some(s) => s,
+            None => return,
+        };
+        self.diff_panel = None;
+
+        if session.pending_diff.is_empty() {
+            self.editor.set_msg("AI: no changes to apply.");
+            return;
+        }
+
+        self.editor.buffer.begin_group();
+        // Apply hunks in reverse order so line numbers stay valid
+        let mut hunks = session.pending_diff.hunks.clone();
+        hunks.sort_by(|a, b| b.start_line.cmp(&a.start_line));
+
+        for hunk in &hunks {
+            match hunk.kind {
+                HunkKind::Replace => {
+                    let start = hunk.start_line;
+                    let end   = hunk.end_line;
+                    let char_start = self.editor.buffer.line_to_char(start);
+                    let is_last = end + 1 >= self.editor.buffer.line_count();
+                    let char_end = if is_last {
+                        self.editor.buffer.len_chars()
+                    } else {
+                        self.editor.buffer.line_to_char(end + 1)
+                    };
+                    let delete_count = char_end.saturating_sub(char_start);
+                    self.editor.buffer.delete(char_start, delete_count);
+                    let to_insert = if is_last {
+                        hunk.new_text.clone()
+                    } else {
+                        format!("{}\n", hunk.new_text)
+                    };
+                    self.editor.buffer.insert(char_start, &to_insert);
+                }
+                HunkKind::Insert => {
+                    let after = hunk.start_line;
+                    let line_end = self.editor.buffer.line_to_char(after)
+                        + self.editor.buffer.line_len(after);
+                    self.editor.buffer.insert(line_end, &format!("\n{}", hunk.new_text));
+                }
+                HunkKind::Delete => {
+                    let start = hunk.start_line;
+                    let end   = hunk.end_line;
+                    let char_start = self.editor.buffer.line_to_char(start);
+                    let is_last = end + 1 >= self.editor.buffer.line_count();
+                    let char_end = if is_last {
+                        self.editor.buffer.len_chars()
+                    } else {
+                        self.editor.buffer.line_to_char(end + 1)
+                    };
+                    let delete_count = char_end.saturating_sub(char_start);
+                    self.editor.buffer.delete(char_start, delete_count);
+                }
+            }
+        }
+
+        self.editor.clamp_cursor();
+        self.editor.scroll_to_cursor();
+        self.editor.set_msg(format!("AI edits applied ({} hunk(s)).", hunks.len()));
+    }
+
+    /// Handle keyboard input while the DiffPanel overlay is visible.
+    fn handle_diff_panel_key(&mut self, key: KeyEvent) -> Result<()> {
+        let total_hunks = self.ai_edit_session
+            .as_ref()
+            .map(|s| s.pending_diff.hunks.len())
+            .unwrap_or(0);
+
+        match key.code {
+            KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
+                self.apply_ai_edit_diff();
+            }
+            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                self.ai_edit_session = None;
+                self.diff_panel = None;
+                self.editor.set_msg("AI edit cancelled.");
+            }
+            KeyCode::Char('j') | KeyCode::Down => {
+                if let Some(dp) = self.diff_panel.as_mut() {
+                    dp.next_hunk(total_hunks);
+                }
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                if let Some(dp) = self.diff_panel.as_mut() {
+                    dp.prev_hunk(total_hunks);
+                }
+            }
+            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                if let Some(dp) = self.diff_panel.as_mut() {
+                    dp.scroll_down();
+                }
+            }
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                if let Some(dp) = self.diff_panel.as_mut() {
+                    dp.scroll_up();
+                }
+            }
+            _ => {}
         }
         Ok(())
     }

@@ -16,6 +16,10 @@ pub enum PromptKind {
     Complete,
     /// Refactor/transform the selected text
     Transform(String),
+    /// Agent-edit mode: Tool-Use Loop with read/write tools.
+    /// `instruction` is the user's high-level intent.
+    /// `selection` is the pre-selected text (empty for whole-file mode).
+    AgentEdit { instruction: String, selection: String },
 }
 
 #[derive(Debug, Clone)]
@@ -82,6 +86,12 @@ fn system_prompt(kind: &PromptKind, ctx: &AiContext, locale: &Locale) -> String 
                 .replace("{file_info}", &file_info)
                 .replace("{instruction}", instruction)
         }
+
+        PromptKind::AgentEdit { .. } => {
+            ai.role_agent_edit
+                .replace("{file_info}", &file_info)
+                .replace("{tool_spec}", TOOL_SPEC)
+        }
     }
 }
 
@@ -105,5 +115,65 @@ fn user_prompt(kind: &PromptKind, ctx: &AiContext, query: &str) -> String {
         PromptKind::Transform(_) => {
             format!("{}\n\nTransform the selected text above.", snippet_header)
         }
+        PromptKind::AgentEdit { instruction, selection } => {
+            if selection.is_empty() {
+                format!(
+                    "{}\n\nInstruction: {}\n\nPlease use the tool API to read the document and make the requested changes.",
+                    snippet_header, instruction
+                )
+            } else {
+                format!(
+                    "{}\n\nSelected text:\n```\n{}\n```\n\nInstruction: {}\n\nPlease use the tool API to apply the requested changes to the selected region.",
+                    snippet_header, selection, instruction
+                )
+            }
+        }
     }
 }
+
+// ── Tool specification injected into the AgentEdit system prompt ──────────────
+
+/// JSON-schema-style description of all available tools, injected into the
+/// AgentEdit system prompt so the model knows what it can call.
+const TOOL_SPEC: &str = r#"## Available Tools
+
+Respond with a JSON object on a single line starting with `TOOL:` to call a tool.
+
+```
+TOOL: {"tool": "<name>", "args": { ... }}
+```
+
+### read_buffer
+Read lines from the document (0-based line numbers).
+Args: `start` (int), `end` (int | null — null means end of file)
+Returns: numbered lines
+
+### replace_range
+Replace lines start..=end (0-based, inclusive) with new_text.
+Args: `start` (int), `end` (int), `new_text` (string, use \n for newlines)
+
+### insert_after
+Insert text after the given line (0-based).
+Args: `line` (int), `text` (string)
+
+### delete_range
+Delete lines start..=end (0-based, inclusive).
+Args: `start` (int), `end` (int)
+
+### search
+Find lines matching a literal pattern.
+Args: `pattern` (string)
+Returns: list of matching line numbers and content
+
+### get_outline
+Get the document outline (Markdown headings / code structure).
+Args: (none)
+
+### ask_user
+Ask the user a clarifying question (pauses the loop).
+Args: `question` (string)
+
+### done
+Signal that all edits are complete.
+Args: `summary` (string — one-line description of what was changed)
+"#;

@@ -7,25 +7,54 @@
 # Options (via environment variables):
 #   HI_VERSION   — install a specific version, e.g. HI_VERSION=v0.1.0
 #   HI_INSTALL   — install directory, default: /usr/local/bin (falls back to ~/.local/bin)
+#   HI_MIRROR    — force a specific download mirror:
+#                    "github"   — direct GitHub (default, tries mirrors on failure)
+#                    "ghproxy"  — https://ghfast.top
+#                    "mirror"   — https://hub.gitmirror.com
 #
 # The script:
 #   1. Detects OS and CPU architecture
-#   2. Downloads the matching pre-built binary from GitHub Releases
-#   3. Verifies the SHA256 checksum
-#   4. Removes stale copies of `hi` from other locations (e.g. ~/.cargo/bin)
-#   5. Installs the binary to HI_INSTALL
-#   6. Verifies `which hi` resolves to the newly installed binary
+#   2. Resolves the latest version (with CN-friendly API fallback)
+#   3. Downloads the matching pre-built binary (tries mirrors on slow/failed connections)
+#   4. Verifies the SHA256 checksum
+#   5. Removes stale copies of `hi` from other locations (e.g. ~/.cargo/bin)
+#   6. Installs the binary to HI_INSTALL
+#   7. Verifies `which hi` resolves to the newly installed binary
 
 set -eu
 
 REPO="LiPingjiang/hi"
 BINARY="hi"
 
+# ── Mirror configuration ────────────────────────────────────────────────────────
+# Each mirror wraps a GitHub Release URL.
+# Usage: mirror_url <mirror_name> <original_github_url>
+#
+# Supported mirrors (in priority order when auto-detecting):
+#   ghfast     https://ghfast.top/           — fast, reliable CN proxy
+#   gitmirror  https://hub.gitmirror.com/    — gitmirror.com proxy
+#   github     https://github.com/           — direct (last resort in CN)
+
+MIRROR_GHFAST="ghfast"
+MIRROR_GITMIRROR="gitmirror"
+MIRROR_DIRECT="github"
+
+# Build a download URL for a given mirror and original GitHub release URL
+mirror_url() {
+    _MIRROR="$1"
+    _ORIG="$2"   # full https://github.com/... URL
+    case "$_MIRROR" in
+        ghfast)     echo "https://ghfast.top/${_ORIG}" ;;
+        gitmirror)  echo "https://hub.gitmirror.com/${_ORIG}" ;;
+        github)     echo "${_ORIG}" ;;
+        *)          echo "${_ORIG}" ;;
+    esac
+}
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-# step N/TOTAL "description"  — numbered progress header
 STEP_CURRENT=0
-STEP_TOTAL=6
+STEP_TOTAL=7
 
 step() {
     STEP_CURRENT=$((STEP_CURRENT + 1))
@@ -76,7 +105,6 @@ detect_arch() {
 }
 
 # ── Map (os, arch) → archive suffix used in release filenames ─────────────────
-# Filenames follow the pattern: hi-<version>-<suffix>.tar.gz
 
 archive_suffix() {
     OS="$1"
@@ -84,13 +112,15 @@ archive_suffix() {
     case "${OS}-${ARCH}" in
         macos-aarch64)  echo "aarch64-apple-darwin" ;;
         macos-x86_64)   echo "x86_64-apple-darwin" ;;
-        linux-x86_64)   echo "x86_64-linux-musl" ;;   # static musl = widest compat
+        linux-x86_64)   echo "x86_64-linux-musl" ;;
         linux-aarch64)  echo "aarch64-linux-gnu" ;;
         *)              err "no pre-built binary for ${OS}-${ARCH}" ;;
     esac
 }
 
 # ── Resolve version ────────────────────────────────────────────────────────────
+# Try GitHub API first; if it fails or returns empty, fall back to the
+# ghfast mirror API (which is accessible from mainland China).
 
 resolve_version() {
     if [ -n "${HI_VERSION:-}" ]; then
@@ -98,14 +128,38 @@ resolve_version() {
         return
     fi
     need_cmd curl
-    info "Querying GitHub API for latest release... (may be slow in China)"
-    LATEST=$(curl -fsSL --connect-timeout 15 --max-time 30 \
-        "https://api.github.com/repos/${REPO}/releases/latest" \
-        | grep '"tag_name"' \
-        | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
+
+    # Helper: query a releases/latest API endpoint and extract tag_name
+    _query_api() {
+        curl -fsSL --connect-timeout 10 --max-time 20 "$1" 2>/dev/null \
+            | grep '"tag_name"' \
+            | sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' \
+            | tr -d '[:space:]'
+    }
+
+    # 1st attempt: direct GitHub API
+    info "Querying GitHub API for latest release..."
+    LATEST=$(_query_api "https://api.github.com/repos/${REPO}/releases/latest" || true)
+
+    # 2nd attempt: ghfast mirror API (CN-friendly)
     if [ -z "$LATEST" ]; then
-        err "could not determine latest version (GitHub API rate limit?). Set HI_VERSION=vX.Y.Z and retry."
+        warn "GitHub API unreachable, trying mirror API..."
+        LATEST=$(_query_api "https://ghfast.top/https://api.github.com/repos/${REPO}/releases/latest" || true)
     fi
+
+    # 3rd attempt: gitmirror API
+    if [ -z "$LATEST" ]; then
+        warn "Mirror API also failed, trying gitmirror..."
+        LATEST=$(_query_api "https://hub.gitmirror.com/https://api.github.com/repos/${REPO}/releases/latest" || true)
+    fi
+
+    if [ -z "$LATEST" ]; then
+        err "Could not determine latest version from any source.
+  GitHub API may be rate-limited or blocked.
+  Fix: set HI_VERSION=vX.Y.Z and retry, e.g.:
+    HI_VERSION=v0.1.3 curl -fsSL https://raw.githubusercontent.com/LiPingjiang/hi/main/install.sh | sh"
+    fi
+
     echo "$LATEST"
 }
 
@@ -116,12 +170,75 @@ resolve_install_dir() {
         echo "$HI_INSTALL"
         return
     fi
-    # Prefer /usr/local/bin if writable, otherwise ~/.local/bin
     if [ -w "/usr/local/bin" ]; then
         echo "/usr/local/bin"
     else
         echo "${HOME}/.local/bin"
     fi
+}
+
+# ── Download with mirror fallback ─────────────────────────────────────────────
+# download_with_fallback <output_file> <github_url>
+#
+# Mirror priority:
+#   If HI_MIRROR is set → only try that mirror (no fallback)
+#   Otherwise           → ghfast → gitmirror → direct GitHub
+#
+# Each attempt uses a 30-second timeout; on failure we move to the next mirror.
+
+download_with_fallback() {
+    _OUT="$1"
+    _GITHUB_URL="$2"   # original https://github.com/... URL
+
+    # Build the ordered list of mirrors to try
+    if [ -n "${HI_MIRROR:-}" ]; then
+        _MIRRORS="$HI_MIRROR"
+    else
+        _MIRRORS="${MIRROR_GHFAST} ${MIRROR_GITMIRROR} ${MIRROR_DIRECT}"
+    fi
+
+    for _M in $_MIRRORS; do
+        _URL=$(mirror_url "$_M" "$_GITHUB_URL")
+        info "Trying [${_M}]: ${_URL}"
+        if curl -fL --progress-bar \
+                --connect-timeout 15 --max-time 120 \
+                --retry 2 --retry-delay 3 \
+                "$_URL" -o "$_OUT" 2>/dev/null; then
+            say "Downloaded via [${_M}]"
+            return 0
+        fi
+        warn "Mirror [${_M}] failed, trying next..."
+    done
+
+    err "All download mirrors failed for: ${_GITHUB_URL}
+  You can:
+    1. Set HI_MIRROR=github and use a VPN/proxy
+    2. Download manually from https://github.com/${REPO}/releases
+       and place the binary in your PATH"
+}
+
+# Silent variant for small files (checksums) — no progress bar
+download_silent_with_fallback() {
+    _OUT="$1"
+    _GITHUB_URL="$2"
+
+    if [ -n "${HI_MIRROR:-}" ]; then
+        _MIRRORS="$HI_MIRROR"
+    else
+        _MIRRORS="${MIRROR_GHFAST} ${MIRROR_GITMIRROR} ${MIRROR_DIRECT}"
+    fi
+
+    for _M in $_MIRRORS; do
+        _URL=$(mirror_url "$_M" "$_GITHUB_URL")
+        if curl -fsSL \
+                --connect-timeout 15 --max-time 30 \
+                --retry 2 --retry-delay 3 \
+                "$_URL" -o "$_OUT" 2>/dev/null; then
+            return 0
+        fi
+    done
+
+    err "Failed to download checksum from all mirrors: ${_GITHUB_URL}"
 }
 
 # ── Verify SHA256 ──────────────────────────────────────────────────────────────
@@ -142,39 +259,27 @@ verify_checksum() {
     fi
 
     if [ "$ACTUAL" != "$EXPECTED" ]; then
-        err "checksum mismatch!\n  expected: $EXPECTED\n  actual:   $ACTUAL"
+        err "Checksum mismatch — the downloaded file may be corrupted or tampered with.
+  expected: $EXPECTED
+  actual:   $ACTUAL"
     fi
     say "Checksum OK"
 }
 
-# ── Remove stale hi binaries that would shadow the new install ─────────────────
-# Common locations: ~/.cargo/bin (cargo install), ~/go/bin, ~/.local/bin, etc.
-# We only remove copies that are NOT in the target install directory.
+# ── Remove stale hi binaries ───────────────────────────────────────────────────
 
 cleanup_old_versions() {
     TARGET_DIR="$1"
-    TARGET_PATH="${TARGET_DIR}/${BINARY}"
 
-    # Well-known directories where package managers drop binaries
     KNOWN_DIRS="${HOME}/.cargo/bin ${HOME}/.local/bin /usr/local/bin /usr/bin ${HOME}/go/bin ${HOME}/.bin ${HOME}/bin"
 
     for DIR in $KNOWN_DIRS; do
         CANDIDATE="${DIR}/${BINARY}"
-
-        # Skip the directory we're installing into
         [ "$DIR" = "$TARGET_DIR" ] && continue
-
-        # Skip if no hi binary exists there
         [ -f "$CANDIDATE" ] || continue
-
-        # Skip if it's a symlink (likely managed by a package manager like brew)
         [ -L "$CANDIDATE" ] && continue
 
-        # Found a stale copy — remove it
-        if [ -w "$CANDIDATE" ]; then
-            say "Removing old hi at ${CANDIDATE}"
-            rm -f "$CANDIDATE"
-        elif [ -w "$DIR" ]; then
+        if [ -w "$CANDIDATE" ] || [ -w "$DIR" ]; then
             say "Removing old hi at ${CANDIDATE}"
             rm -f "$CANDIDATE"
         else
@@ -183,11 +288,9 @@ cleanup_old_versions() {
         fi
     done
 
-    # Also handle cargo specifically: if cargo is available and hi is installed
-    # via cargo, uninstall it cleanly so cargo's metadata stays consistent.
     if command -v cargo > /dev/null 2>&1; then
         if cargo install --list 2>/dev/null | grep -q "^hi v"; then
-            info "Found hi installed via cargo, uninstalling... (this may take a moment)"
+            info "Found hi installed via cargo, uninstalling..."
             cargo uninstall hi 2>/dev/null || true
             say "Removed cargo-installed hi"
         fi
@@ -195,14 +298,12 @@ cleanup_old_versions() {
 }
 
 # ── Post-install verification ──────────────────────────────────────────────────
-# Make sure `which hi` points to the binary we just installed.
 
 verify_install() {
     TARGET_DIR="$1"
     TARGET_PATH="${TARGET_DIR}/${BINARY}"
     EXPECTED_VERSION="$2"
 
-    # Check which hi the shell would find
     RESOLVED=$(command -v "$BINARY" 2>/dev/null || true)
 
     if [ -z "$RESOLVED" ]; then
@@ -210,7 +311,6 @@ verify_install() {
         return
     fi
 
-    # Normalize paths for comparison (resolve symlinks)
     RESOLVED_REAL=$(cd "$(dirname "$RESOLVED")" && pwd -P)/$(basename "$RESOLVED")
     TARGET_REAL=$(cd "$(dirname "$TARGET_PATH")" && pwd -P)/$(basename "$TARGET_PATH")
 
@@ -223,7 +323,6 @@ verify_install() {
         return
     fi
 
-    # Verify version matches
     ACTUAL_VERSION=$("$TARGET_PATH" --version 2>/dev/null | awk '{print $NF}' || true)
     CLEAN_EXPECTED=$(echo "$EXPECTED_VERSION" | sed 's/^v//')
 
@@ -254,10 +353,15 @@ main() {
     say "Version: ${VERSION}"
     info "Install dir: ${INSTALL_DIR}"
 
+    # Sanity-check: VERSION must not contain whitespace
+    case "$VERSION" in
+        *[[:space:]]*) err "Resolved version contains whitespace: '${VERSION}'. Set HI_VERSION=vX.Y.Z and retry." ;;
+    esac
+
     ARCHIVE_NAME="${BINARY}-${VERSION}-${SUFFIX}.tar.gz"
-    BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
-    ARCHIVE_URL="${BASE_URL}/${ARCHIVE_NAME}"
-    CHECKSUM_URL="${ARCHIVE_URL}.sha256"
+    GITHUB_BASE="https://github.com/${REPO}/releases/download/${VERSION}"
+    ARCHIVE_GITHUB_URL="${GITHUB_BASE}/${ARCHIVE_NAME}"
+    CHECKSUM_GITHUB_URL="${ARCHIVE_GITHUB_URL}.sha256"
 
     # ── Step 3: Clean up old versions ──
     step "Cleaning up old installations"
@@ -265,16 +369,24 @@ main() {
 
     # ── Step 4: Download ──
     step "Downloading binary"
-    info "Source: ${ARCHIVE_URL}"
-    info "Note: GitHub downloads may be slow in China — please wait..."
+    info "Package: ${ARCHIVE_NAME}"
+    if [ -n "${HI_MIRROR:-}" ]; then
+        info "Mirror: ${HI_MIRROR} (forced via HI_MIRROR)"
+    else
+        info "Mirror: auto (ghfast → gitmirror → github)"
+    fi
 
     TMP_DIR=$(mktemp -d)
     trap 'rm -rf "$TMP_DIR"' EXIT
 
-    curl -fL --progress-bar --connect-timeout 15 --retry 3 --retry-delay 2 \
-        "$ARCHIVE_URL" -o "${TMP_DIR}/${ARCHIVE_NAME}"
-    curl -fsSL --connect-timeout 15 --retry 3 --retry-delay 2 \
-        "$CHECKSUM_URL" -o "${TMP_DIR}/${ARCHIVE_NAME}.sha256"
+    download_with_fallback \
+        "${TMP_DIR}/${ARCHIVE_NAME}" \
+        "$ARCHIVE_GITHUB_URL"
+
+    download_silent_with_fallback \
+        "${TMP_DIR}/${ARCHIVE_NAME}.sha256" \
+        "$CHECKSUM_GITHUB_URL"
+
     say "Download complete"
 
     # ── Step 5: Verify and extract ──
@@ -289,7 +401,6 @@ main() {
     install -m 755 "${TMP_DIR}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
     say "Installed to ${INSTALL_DIR}/${BINARY}"
 
-    # Warn if install dir is not in PATH
     case ":${PATH}:" in
         *":${INSTALL_DIR}:"*) ;;
         *)
@@ -299,7 +410,8 @@ main() {
             ;;
     esac
 
-    # Verify the install is clean
+    # ── Step 7: Verify install ──
+    step "Verifying installation"
     verify_install "$INSTALL_DIR" "$VERSION"
 
     printf '\n\033[1;32m✓ All done!\033[0m Run: hi --version\n\n'

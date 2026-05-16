@@ -181,3 +181,57 @@ fn step_line(step: &EditStep) -> Option<usize> {
         EditStep::Message(_) => None,
     }
 }
+
+// ── Agent-edit tool call parser ───────────────────────────────────────────────
+
+use crate::ai::tools::AiTool;
+
+/// Parse a single AI tool call from the model's raw response text.
+///
+/// The model is instructed to emit tool calls as:
+/// ```text
+/// TOOL: {"tool": "read_buffer", "args": {"start": 0, "end": 10}}
+/// ```
+///
+/// Returns `Some(AiTool)` if a valid `TOOL:` line is found, `None` otherwise.
+/// Only the **first** `TOOL:` line in `raw` is parsed.
+pub fn parse_tool_call(raw: &str) -> Option<AiTool> {
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if let Some(json_str) = trimmed.strip_prefix("TOOL:") {
+            let json_str = json_str.trim();
+            if let Ok(tool) = serde_json::from_str::<AiTool>(json_str) {
+                return Some(tool);
+            }
+            // Fallback: try wrapping in the tagged enum format if the model
+            // emitted a flat object like {"tool":"read_buffer","start":0,"end":5}
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(json_str) {
+                if let Some(tool_name) = v.get("tool").and_then(|t| t.as_str()) {
+                    // Re-wrap into {"tool": name, "args": rest}
+                    let args = v.clone();
+                    let wrapped = serde_json::json!({
+                        "tool": tool_name,
+                        "args": args
+                    });
+                    if let Ok(tool) = serde_json::from_value::<AiTool>(wrapped) {
+                        return Some(tool);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Extract the "thought" text from a model response — everything before the
+/// first `TOOL:` line (or the whole response if no tool call is present).
+pub fn extract_thought(raw: &str) -> String {
+    let mut lines = Vec::new();
+    for line in raw.lines() {
+        if line.trim().starts_with("TOOL:") {
+            break;
+        }
+        lines.push(line);
+    }
+    lines.join("\n").trim().to_string()
+}

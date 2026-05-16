@@ -29,6 +29,7 @@ use crate::ui::chatpanel::{ChatPanel, ChatRole};
 use crate::ui::filetree::FileTree;
 use crate::ui::ghost::GhostText;
 use crate::ui::mdrender::{MdRenderer, MdLine, MdTheme};
+use crate::ui::tutorial::{TutorialBoard, tutorial_content};
 
 pub struct Renderer {
     pub stdout: BufWriter<Stdout>,
@@ -42,6 +43,11 @@ pub struct Renderer {
     /// Invalidated when `source_generation` differs from `buffer.generation`.
     source_cache: String,
     source_generation: u64,
+    /// Whether mouse mode is active (mouse events are processed normally).
+    /// When false, mouse events trigger a "drop the mouse" reminder.
+    /// Always true for mouse capture at the terminal level — we capture
+    /// mouse events regardless so we can show the reminder.
+    pub mouse_enabled: bool,
 }
 
 impl Renderer {
@@ -57,6 +63,7 @@ impl Renderer {
             md_renderer: MdRenderer::new_with_palette(chat_theme, palette),
             source_cache: String::new(),
             source_generation: u64::MAX, // force refresh on first frame
+            mouse_enabled: config.general.mouse,
         }
     }
 
@@ -77,7 +84,8 @@ impl Renderer {
 
     pub fn init(&mut self) -> io::Result<()> {
         terminal::enable_raw_mode()?;
-        // init/cleanup are one-shot — execute! is fine here.
+        // Always capture mouse events so we can show the "drop the mouse"
+        // reminder when mouse mode is off.
         execute!(self.stdout,
             terminal::EnterAlternateScreen,
             EnableMouseCapture,
@@ -114,6 +122,8 @@ impl Renderer {
         theme_picker: &Option<ThemePicker>,
         cmd_completion: &CmdCompletionState,
         locale: &Locale,
+        tutorial_board: &TutorialBoard,
+        tutorial_visible: bool,
     ) -> io::Result<()> {
         let chat_focus = focus == FocusZone::Chat;
         let ft_focused = focus == FocusZone::FileTree;
@@ -126,6 +136,7 @@ impl Renderer {
         let chat_width = if chat_visible {
             (editor.config.chat.width as usize).min(w / 2)
         } else { 0 };
+        let tut_width = if tutorial_visible { 32usize } else { 0 };
 
         // ── Perf: start frame timer ──────────────────────
         let mut perf = FrameTimer::start();
@@ -151,7 +162,8 @@ impl Renderer {
         // ── Editing area ──────────────────────────────────
         let edit_x = ft_width + if ft_width > 0 { 1 } else { 0 };
         let chat_total = chat_width + if chat_width > 0 { 1 } else { 0 }; // +1 for separator
-        let edit_w = w.saturating_sub(edit_x).saturating_sub(chat_total);
+        let tut_total = tut_width + if tut_width > 0 { 1 } else { 0 };   // +1 for separator
+        let edit_w = w.saturating_sub(edit_x).saturating_sub(chat_total).saturating_sub(tut_total);
         let edit_h = h.saturating_sub(2);
         let gutter = if editor.config.general.line_numbers { editor.gutter_width() } else { 0 };
 
@@ -263,6 +275,60 @@ impl Renderer {
                     }
                 }
 
+                // Visual Char highlight: highlight from anchor to cursor (inclusive)
+                if let Mode::Visual { kind: VisualKind::Char, anchor } = &editor.mode {
+                    let cursor_idx = editor.cursor_char_idx();
+                    let (sel_start, sel_end) = if *anchor <= cursor_idx {
+                        (*anchor, cursor_idx + 1)
+                    } else {
+                        (cursor_idx, anchor + 1)
+                    };
+                    let line_start = editor.buffer.line_to_char(buf_line);
+                    let line_end   = line_start + editor.buffer.line_len(buf_line);
+                    // Clamp selection to this line's byte range
+                    if sel_start < line_end && sel_end > line_start {
+                        let char_s = sel_start.saturating_sub(line_start);
+                        let char_e = (sel_end - line_start).min(editor.buffer.line_len(buf_line));
+                        let chars: Vec<char> = line.chars().collect();
+                        let byte_s: usize = chars[..char_s.min(chars.len())].iter().map(|c| c.len_utf8()).sum();
+                        let byte_e: usize = chars[..char_e.min(chars.len())].iter().map(|c| c.len_utf8()).sum();
+                        if byte_s < byte_e {
+                            spans.push(SyntectSpan {
+                                start: byte_s,
+                                end:   byte_e,
+                                fg: Color::White,
+                                bold: false,
+                                italic: false,
+                                overlay: Some(OverlayKind::VisualChar),
+                            });
+                        }
+                    }
+                }
+
+                // Visual Line highlight: highlight every character on selected lines
+                if let Mode::Visual { kind: VisualKind::Line, anchor } = &editor.mode {
+                    let anchor_line = editor.buffer.char_to_line(*anchor);
+                    let cursor_line = editor.cursor_line;
+                    let (sel_start_line, sel_end_line) = if cursor_line <= anchor_line {
+                        (cursor_line, anchor_line)
+                    } else {
+                        (anchor_line, cursor_line)
+                    };
+                    if buf_line >= sel_start_line && buf_line <= sel_end_line {
+                        let line_len_bytes: usize = line.len();
+                        if line_len_bytes > 0 {
+                            spans.push(SyntectSpan {
+                                start: 0,
+                                end:   line_len_bytes,
+                                fg: Color::White,
+                                bold: false,
+                                italic: false,
+                                overlay: Some(OverlayKind::VisualLine),
+                            });
+                        }
+                    }
+                }
+
                 self.render_line_with_spans(&line, &spans, text_w, buf_line, editor)?;
             } else {
                 // Empty rows past EOF
@@ -287,6 +353,21 @@ impl Renderer {
                 write!(self.stdout, "│")?;
             }
             queue!(self.stdout, ResetColor)?;
+        }
+
+        // ── Tutorial board (right side, left of chat) ────
+        if tutorial_visible && tut_width > 0 {
+            // Tutorial sits to the left of chat (or at the right edge if no chat)
+            let tut_x = w.saturating_sub(chat_total).saturating_sub(tut_width);
+            let tut_sep_x = tut_x.saturating_sub(1);
+            // Separator
+            queue!(self.stdout, SetForegroundColor(Color::DarkGrey))?;
+            for row in 0..edit_h {
+                queue!(self.stdout, cursor::MoveTo(tut_sep_x as u16, row as u16))?;
+                write!(self.stdout, "│")?;
+            }
+            queue!(self.stdout, ResetColor)?;
+            self.render_tutorial_panel(tutorial_board, tut_x, tut_width, edit_h, locale)?;
         }
 
         // ── Chat panel (right side) ─────────────────────
@@ -345,7 +426,17 @@ impl Renderer {
             } else if ghost.visible {
                 format!("[Tab]确认执行  [Esc]取消  {}", ghost.explanation)
             } else {
-                editor.hint_line(locale)
+                let base = editor.hint_line(locale, self.highlighter.filetype());
+                // When multiple panels are visible, append the zone-switch hint
+                // so the user always knows how to navigate between areas.
+                let multi_panel = (editor.filetree_visible && !editor.filetree_focus)
+                    || (chat_visible && focus != FocusZone::Chat)
+                    || tutorial_visible;
+                if multi_panel && !editor.filetree_focus {
+                    format!("{}  {}", base, locale.ui.hint_switch_zone)
+                } else {
+                    base
+                }
             };
             let hint_trunc = truncate(&hint, w);
             let hint_dw = display_width_str(&hint_trunc);
@@ -859,19 +950,81 @@ impl Renderer {
         Ok(())
     }
 
+    fn render_tutorial_panel(
+        &mut self,
+        _board: &TutorialBoard,
+        x: usize,
+        width: usize,
+        height: usize,
+        locale: &Locale,
+    ) -> io::Result<()> {
+        // Detect language from locale
+        let lang = if locale.messages.saved == "已保存" { "zh-CN" } else { "en-US" };
+        let lines = tutorial_content(lang);
+        let content_h = height.saturating_sub(1); // 1 row for title
+
+        // Title bar
+        queue!(self.stdout, cursor::MoveTo(x as u16, 0))?;
+        queue!(self.stdout, SetBackgroundColor(Color::DarkYellow), SetForegroundColor(Color::Black))?;
+        let title = if lang.starts_with("zh") { "教学板" } else { "Tutorial" };
+        let title_trunc = truncate(title, width);
+        let title_dw = display_width_str(&title_trunc);
+        write!(self.stdout, "{}", title_trunc)?;
+        if title_dw < width {
+            write!(self.stdout, "{:padding$}", "", padding = width - title_dw)?;
+        }
+        queue!(self.stdout, ResetColor)?;
+
+        // Content area
+        for row in 0..content_h {
+            queue!(self.stdout, cursor::MoveTo(x as u16, (row + 1) as u16))?;
+            if let Some(line) = lines.get(row) {
+                let mut col = 0usize;
+                for span in &line.spans {
+                    let avail = width.saturating_sub(col);
+                    if avail == 0 { break; }
+                    let span_text = truncate(&span.text, avail);
+                    let span_dw = display_width_str(&span_text);
+
+                    if let Some(fg) = span.fg {
+                        queue!(self.stdout, SetForegroundColor(fg))?;
+                    }
+                    if span.bold {
+                        queue!(self.stdout, SetAttribute(Attribute::Bold))?;
+                    }
+                    write!(self.stdout, "{}", span_text)?;
+                    col += span_dw;
+                    queue!(self.stdout, ResetColor)?;
+                    if span.bold {
+                        queue!(self.stdout, SetAttribute(Attribute::Reset))?;
+                    }
+                }
+                // Pad remaining width
+                let pad = width.saturating_sub(col);
+                if pad > 0 {
+                    write!(self.stdout, "{:padding$}", "", padding = pad)?;
+                }
+            } else {
+                write!(self.stdout, "{:width$}", "", width = width)?;
+            }
+        }
+
+        Ok(())
+    }
+
     fn render_info_line(&mut self, info: &str, w: usize, editor: &Editor, ai_indicator: &str, ai_status: &AiStatus) -> io::Result<()> {
-        let mode_color = match &editor.mode {
-            Mode::Normal       => Color::Blue,
-            Mode::Insert       => Color::Green,
-            Mode::Visual { kind: VisualKind::Block, .. } => Color::DarkMagenta,
-            Mode::Visual { .. } => Color::Magenta,
-            Mode::Command(_)   => Color::Yellow,
-            Mode::Ai(_)        => Color::Cyan,
-            Mode::Search(_)    => Color::Yellow,
+        let (mode_bg, mode_fg) = match &editor.mode {
+            Mode::Normal       => (Color::Blue,    Color::White),
+            Mode::Insert       => (Color::Green,   Color::Black),
+            Mode::Visual { kind: VisualKind::Block, .. } => (Color::DarkMagenta, Color::White),
+            Mode::Visual { .. } => (Color::Magenta, Color::White),
+            Mode::Command(_)   => (Color::Yellow,  Color::Black),
+            Mode::Ai(_)        => (Color::Cyan,    Color::Black),
+            Mode::Search(_)    => (Color::Yellow,  Color::Black),
         };
         queue!(self.stdout,
-            SetBackgroundColor(mode_color),
-            SetForegroundColor(Color::Black),
+            SetBackgroundColor(mode_bg),
+            SetForegroundColor(mode_fg),
             SetAttribute(Attribute::Bold),
         )?;
 
@@ -918,20 +1071,20 @@ impl Renderer {
 
         // Title
         queue!(self.stdout, cursor::MoveTo(start_x as u16, (start_y + 1) as u16))?;
-        write!(self.stdout, "│{:^width$}│", "Shell 输出", width = overlay_w.saturating_sub(2))?;
+        write!(self.stdout, "│{}│", center_to_dw("Shell 输出", overlay_w.saturating_sub(2)))?;
 
+        let inner_w = overlay_w.saturating_sub(3);
         for (i, line) in visible.iter().enumerate() {
             queue!(self.stdout, cursor::MoveTo(start_x as u16, (start_y + 2 + i) as u16))?;
-            write!(self.stdout, "│ {:<width$}│",
-                truncate(line, overlay_w.saturating_sub(3)),
-                width = overlay_w.saturating_sub(3))?;
+            let content = truncate(line, inner_w);
+            write!(self.stdout, "│ {}│", pad_to_dw(&content, inner_w))?;
         }
 
         // Footer
         let footer_y = start_y + 2 + visible.len();
         queue!(self.stdout, cursor::MoveTo(start_x as u16, footer_y as u16))?;
         let hint = "[任意键关闭]";
-        write!(self.stdout, "│{:^width$}│", hint, width = overlay_w.saturating_sub(2))?;
+        write!(self.stdout, "│{}│", center_to_dw(hint, overlay_w.saturating_sub(2)))?;
 
         // Bottom border
         queue!(self.stdout, cursor::MoveTo(start_x as u16, (footer_y + 1) as u16))?;
@@ -954,18 +1107,21 @@ impl Renderer {
 
         // Title
         queue!(self.stdout, cursor::MoveTo(start_x as u16, (start_y + 1) as u16))?;
-        write!(self.stdout, "│{:^width$}│", "AI 执行计划", width = overlay_w.saturating_sub(2))?;
+        write!(self.stdout, "│{}│", center_to_dw("AI 执行计划", overlay_w.saturating_sub(2)))?;
 
+        let inner_w = overlay_w.saturating_sub(3); // "│ " + content + "│"
         for (i, line) in plan.iter().enumerate() {
             queue!(self.stdout, cursor::MoveTo(start_x as u16, (start_y + 2 + i) as u16))?;
-            write!(self.stdout, "│ {:<width$}│", truncate(line, overlay_w.saturating_sub(3)), width = overlay_w.saturating_sub(3))?;
+            let content = truncate(line, inner_w);
+            write!(self.stdout, "│ {}│", pad_to_dw(&content, inner_w))?;
         }
 
         // Footer
         let footer_y = start_y + 2 + plan.len();
         queue!(self.stdout, cursor::MoveTo(start_x as u16, footer_y as u16))?;
         let hint = "[y]确认执行  [n]取消  [e]编辑计划";
-        write!(self.stdout, "│{:^width$}│", hint, width = overlay_w.saturating_sub(2))?;
+        let footer_inner = overlay_w.saturating_sub(2); // "│" + content + "│"
+        write!(self.stdout, "│{}│", center_to_dw(hint, footer_inner))?;
 
         // Bottom border
         queue!(self.stdout, cursor::MoveTo(start_x as u16, (footer_y + 1) as u16))?;
@@ -1477,4 +1633,27 @@ fn truncate(s: &str, max: usize) -> String {
 /// Calculate the display width of a string (accounting for wide chars).
 fn display_width_str(s: &str) -> usize {
     s.chars().map(|c| UnicodeWidthChar::width(c).unwrap_or(0)).sum()
+}
+
+/// Pad `s` with trailing spaces so its display width equals `target_dw`.
+/// Unlike `{:<width$}`, this accounts for CJK double-width characters.
+fn pad_to_dw(s: &str, target_dw: usize) -> String {
+    let dw = display_width_str(s);
+    if dw >= target_dw {
+        s.to_string()
+    } else {
+        format!("{}{}", s, " ".repeat(target_dw - dw))
+    }
+}
+
+/// Center `s` within `target_dw` columns using display-width-aware padding.
+fn center_to_dw(s: &str, target_dw: usize) -> String {
+    let dw = display_width_str(s);
+    if dw >= target_dw {
+        return s.to_string();
+    }
+    let total_pad = target_dw - dw;
+    let left = total_pad / 2;
+    let right = total_pad - left;
+    format!("{}{}{}", " ".repeat(left), s, " ".repeat(right))
 }

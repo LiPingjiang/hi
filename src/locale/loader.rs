@@ -86,6 +86,7 @@ fn merge_ui(b: super::UiStrings, o: super::UiStrings) -> super::UiStrings {
         hint_search:          pick!(b.hint_search,          o.hint_search),
         hint_ai:              pick!(b.hint_ai,              o.hint_ai),
         hint_filetree:        pick!(b.hint_filetree,        o.hint_filetree),
+        hint_switch_zone:     pick!(b.hint_switch_zone,     o.hint_switch_zone),
         theme_picker_title:   pick!(b.theme_picker_title,   o.theme_picker_title),
     }
 }
@@ -94,6 +95,7 @@ fn merge_messages(b: super::MessageStrings, o: super::MessageStrings) -> super::
     super::MessageStrings {
         saved:                 pick!(b.saved,                 o.saved),
         save_failed:           pick!(b.save_failed,           o.save_failed),
+        no_file_name:          pick!(b.no_file_name,          o.no_file_name),
         unsaved_changes:       pick!(b.unsaved_changes,       o.unsaved_changes),
         file_not_found:        pick!(b.file_not_found,        o.file_not_found),
         theme_saved:           pick!(b.theme_saved,           o.theme_saved),
@@ -113,6 +115,7 @@ fn merge_messages(b: super::MessageStrings, o: super::MessageStrings) -> super::
         preview_open_failed:   pick!(b.preview_open_failed,   o.preview_open_failed),
         shell_error:           pick!(b.shell_error,           o.shell_error),
         chat_cleared:          pick!(b.chat_cleared,          o.chat_cleared),
+        mouse_hint:            pick!(b.mouse_hint,            o.mouse_hint),
     }
 }
 
@@ -138,6 +141,10 @@ fn merge_commands(b: super::CommandStrings, o: super::CommandStrings) -> super::
         cmd_percent_s:   pick!(b.cmd_percent_s,   o.cmd_percent_s),
         cmd_shell:       pick!(b.cmd_shell,       o.cmd_shell),
         cmd_preview:     pick!(b.cmd_preview,     o.cmd_preview),
+        cmd_filetree:    pick!(b.cmd_filetree,    o.cmd_filetree),
+        cmd_grep:        pick!(b.cmd_grep,        o.cmd_grep),
+        cmd_tutorial:    pick!(b.cmd_tutorial,    o.cmd_tutorial),
+        cmd_mouse:       pick!(b.cmd_mouse,       o.cmd_mouse),
     }
 }
 

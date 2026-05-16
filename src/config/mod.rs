@@ -25,6 +25,11 @@ pub struct GeneralConfig {
     /// Language tag for UI strings, e.g. "zh-CN", "en-US", "auto".
     /// "auto" (default) detects from the LANG / LC_ALL environment variable.
     pub language: String,
+    /// Enable mouse reporting (scroll, click, drag).  Default: false.
+    /// When false the editor operates in pure-keyboard Vim mode; mouse
+    /// events trigger a "drop the mouse" reminder.  Use `:mouse` to toggle
+    /// at runtime, or set `mouse = true` in ~/.hirc to start with mouse on.
+    pub mouse: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -94,6 +99,7 @@ impl Default for GeneralConfig {
             smart_case: true,
             scroll_off: 5,
             language: "auto".to_string(),
+            mouse: false,
         }
     }
 }

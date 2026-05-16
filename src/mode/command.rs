@@ -29,6 +29,12 @@ pub enum CommandAction {
     Preview,
     /// :grep {pattern} — open global grep panel
     Grep { pattern: String, is_regex: bool },
+    /// :filetree / :FT — toggle file tree sidebar
+    ToggleFileTree,
+    /// :tutorial — toggle tutorial board
+    ToggleTutorial,
+    /// :mouse — toggle mouse mode
+    ToggleMouse,
 }
 
 #[derive(Debug, Clone)]
@@ -105,11 +111,14 @@ impl Editor {
         match cmd {
             "q"  => return CommandAction::Quit { force: false },
             "q!" => return CommandAction::Quit { force: true },
-            "wq" | "x" => return CommandAction::SaveAndQuit,
+            "wq" | "wq!" | "x" | "x!" => return CommandAction::SaveAndQuit,
             "w"  => {
                 match self.buffer.save() {
                     Ok(_) => return CommandAction::SetMsg(format!("\"{}\" written", self.buffer.display_name())),
-                    Err(e) => return CommandAction::SetMsg(format!("Error: {}", e)),
+                    Err(e) if e.to_string().contains("No file path") => {
+                        return CommandAction::SetMsg("No file name — use :w <filename> to save".to_string());
+                    }
+                    Err(e) => return CommandAction::SetMsg(format!("Save failed: {}", e)),
                 }
             }
             "e!" => {
@@ -180,6 +189,21 @@ impl Editor {
         // :preview — open Markdown preview in browser
         if cmd == "preview" {
             return CommandAction::Preview;
+        }
+
+        // :filetree / :FT — toggle file tree sidebar
+        if cmd == "filetree" || cmd == "FT" || cmd == "ft" || cmd == "FileTree" || cmd == "filetreeToggle" || cmd == "FileTreeToggle" {
+            return CommandAction::ToggleFileTree;
+        }
+
+        // :tutorial — toggle tutorial board
+        if cmd == "tutorial" || cmd == "tut" || cmd == "Tutorial" {
+            return CommandAction::ToggleTutorial;
+        }
+
+        // :mouse — toggle mouse mode
+        if cmd == "mouse" {
+            return CommandAction::ToggleMouse;
         }
 
         // :grep {pattern}  or  :grep /{pattern}/  (regex)

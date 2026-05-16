@@ -8,3 +8,4 @@ pub mod preview;
 pub mod picker;
 pub mod grep_panel;
 pub mod perf_log;
+pub mod tutorial;

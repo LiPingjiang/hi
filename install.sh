@@ -23,16 +23,29 @@ BINARY="hi"
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
+# step N/TOTAL "description"  — numbered progress header
+STEP_CURRENT=0
+STEP_TOTAL=6
+
+step() {
+    STEP_CURRENT=$((STEP_CURRENT + 1))
+    printf '\033[1;36m[%d/%d]\033[0m \033[1m%s\033[0m\n' "$STEP_CURRENT" "$STEP_TOTAL" "$*"
+}
+
 say() {
-    printf '\033[1;32m==> \033[0m%s\n' "$*"
+    printf '\033[1;32m  ✓ \033[0m%s\n' "$*"
+}
+
+info() {
+    printf '\033[0;37m    %s\033[0m\n' "$*"
 }
 
 warn() {
-    printf '\033[1;33mwarn:\033[0m %s\n' "$*" >&2
+    printf '\033[1;33m  ⚠ \033[0m%s\n' "$*" >&2
 }
 
 err() {
-    printf '\033[1;31merror:\033[0m %s\n' "$*" >&2
+    printf '\033[1;31m  ✗ error:\033[0m %s\n' "$*" >&2
     exit 1
 }
 
@@ -85,8 +98,9 @@ resolve_version() {
         return
     fi
     need_cmd curl
-    # Query GitHub API for the latest release tag
-    LATEST=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
+    info "Querying GitHub API for latest release... (may be slow in China)"
+    LATEST=$(curl -fsSL --connect-timeout 15 --max-time 30 \
+        "https://api.github.com/repos/${REPO}/releases/latest" \
         | grep '"tag_name"' \
         | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
     if [ -z "$LATEST" ]; then
@@ -173,8 +187,9 @@ cleanup_old_versions() {
     # via cargo, uninstall it cleanly so cargo's metadata stays consistent.
     if command -v cargo > /dev/null 2>&1; then
         if cargo install --list 2>/dev/null | grep -q "^hi v"; then
-            say "Uninstalling old hi from cargo..."
+            info "Found hi installed via cargo, uninstalling... (this may take a moment)"
             cargo uninstall hi 2>/dev/null || true
+            say "Removed cargo-installed hi"
         fi
     fi
 }
@@ -225,43 +240,56 @@ main() {
     need_cmd curl
     need_cmd tar
 
+    # ── Step 1: Detect environment ──
+    step "Detecting environment"
     OS=$(detect_os)
     ARCH=$(detect_arch)
+    say "OS: ${OS}, Arch: ${ARCH}"
+
+    # ── Step 2: Resolve version ──
+    step "Resolving version"
     VERSION=$(resolve_version)
     SUFFIX=$(archive_suffix "$OS" "$ARCH")
     INSTALL_DIR=$(resolve_install_dir)
+    say "Version: ${VERSION}"
+    info "Install dir: ${INSTALL_DIR}"
 
     ARCHIVE_NAME="${BINARY}-${VERSION}-${SUFFIX}.tar.gz"
     BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
     ARCHIVE_URL="${BASE_URL}/${ARCHIVE_NAME}"
     CHECKSUM_URL="${ARCHIVE_URL}.sha256"
 
-    say "Installing hi ${VERSION} for ${OS}/${ARCH}"
-
-    # ── Step 1: Clean up old versions before installing ──
+    # ── Step 3: Clean up old versions ──
+    step "Cleaning up old installations"
     cleanup_old_versions "$INSTALL_DIR"
 
-    # ── Step 2: Download ──
-    say "Downloading ${ARCHIVE_NAME} ..."
+    # ── Step 4: Download ──
+    step "Downloading binary"
+    info "Source: ${ARCHIVE_URL}"
+    info "Note: GitHub downloads may be slow in China — please wait..."
 
     TMP_DIR=$(mktemp -d)
     trap 'rm -rf "$TMP_DIR"' EXIT
 
-    curl -fsSL --progress-bar "$ARCHIVE_URL"  -o "${TMP_DIR}/${ARCHIVE_NAME}"
-    curl -fsSL "$CHECKSUM_URL" -o "${TMP_DIR}/${ARCHIVE_NAME}.sha256"
+    curl -fL --progress-bar --connect-timeout 15 --retry 3 --retry-delay 2 \
+        "$ARCHIVE_URL" -o "${TMP_DIR}/${ARCHIVE_NAME}"
+    curl -fsSL --connect-timeout 15 --retry 3 --retry-delay 2 \
+        "$CHECKSUM_URL" -o "${TMP_DIR}/${ARCHIVE_NAME}.sha256"
+    say "Download complete"
 
-    # ── Step 3: Verify checksum ──
+    # ── Step 5: Verify and extract ──
+    step "Verifying checksum & extracting"
     verify_checksum "${TMP_DIR}/${ARCHIVE_NAME}" "${TMP_DIR}/${ARCHIVE_NAME}.sha256"
-
-    # ── Step 4: Extract and install ──
     tar -xzf "${TMP_DIR}/${ARCHIVE_NAME}" -C "$TMP_DIR"
+    say "Extraction OK"
 
+    # ── Step 6: Install ──
+    step "Installing"
     mkdir -p "$INSTALL_DIR"
     install -m 755 "${TMP_DIR}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
-
     say "Installed to ${INSTALL_DIR}/${BINARY}"
 
-    # ── Step 5: Warn if install dir is not in PATH ──
+    # Warn if install dir is not in PATH
     case ":${PATH}:" in
         *":${INSTALL_DIR}:"*) ;;
         *)
@@ -271,10 +299,10 @@ main() {
             ;;
     esac
 
-    # ── Step 6: Verify the install is clean ──
+    # Verify the install is clean
     verify_install "$INSTALL_DIR" "$VERSION"
 
-    say "Done! Run: hi --version"
+    printf '\n\033[1;32m✓ All done!\033[0m Run: hi --version\n\n'
 }
 
 main "$@"

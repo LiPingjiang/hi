@@ -109,6 +109,11 @@ pub struct MdTheme {
     pub code_inline_bg: Option<Color>,
     pub strikethrough_fg: Option<Color>,
     pub link_fg: Color,
+    /// Colour for the visible link text (the `[text]` part).
+    /// In glow-dark this is ANSI 35 (#00AF5F, green+bold).
+    /// Set to `None` to use `link_fg` for both text and URL.
+    pub link_text_fg: Option<Color>,
+    pub link_text_bold: bool,
     pub link_underline: bool,
     pub image_fg: Color,
 
@@ -161,6 +166,8 @@ impl MdTheme {
             code_inline_bg: Some(Color::Rgb { r: 30, g: 32, b: 48 }),
             strikethrough_fg: Some(Color::Rgb { r: 86, g: 95, b: 137 }),
             link_fg: Color::Rgb { r: 42, g: 195, b: 222 },  // #2AC3DE bright cyan
+            link_text_fg: None,
+            link_text_bold: false,
             link_underline: true,
             image_fg: Color::Rgb { r: 247, g: 118, b: 142 }, // #F7768E pink
 
@@ -207,6 +214,8 @@ impl MdTheme {
             code_inline_bg: Some(Color::Rgb { r: 40, g: 42, b: 54 }),
             strikethrough_fg: Some(Color::Rgb { r: 98, g: 114, b: 164 }),
             link_fg: Color::Rgb { r: 139, g: 233, b: 253 },
+            link_text_fg: None,
+            link_text_bold: false,
             link_underline: true,
             image_fg: Color::Rgb { r: 255, g: 121, b: 198 },
 
@@ -251,6 +260,8 @@ impl MdTheme {
             code_inline_bg: Some(Color::Rgb { r: 30, g: 32, b: 48 }),
             strikethrough_fg: Some(Color::Rgb { r: 86, g: 95, b: 137 }),
             link_fg: Color::Rgb { r: 42, g: 195, b: 222 },  // #2AC3DE
+            link_text_fg: None,
+            link_text_bold: false,
             link_underline: true,
             image_fg: Color::Rgb { r: 247, g: 118, b: 142 }, // #F7768E
 
@@ -274,42 +285,73 @@ impl MdTheme {
         }
     }
 
-    /// Glow Dark — matches glow's warm, muted aesthetic.
+    /// Glow Dark — pixel-accurate port of glamour's dark.json.
+    ///
+    /// All colours are converted from ANSI-256 to their exact RGB values:
+    ///   39  → #00AFFF   (heading default / h2–h5)
+    ///  228  → #FFFF87   (h1 fg)
+    ///   63  → #5F5FAF   (h1 bg)
+    ///   35  → #00AF5F   (h6, link_text bold)
+    ///  252  → #D0D0D0   (body text)
+    ///  240  → #585858   (hr)
+    ///   30  → #008787   (link url)
+    ///  212  → #FF87D7   (image)
+    ///  243  → #767676   (image_text)
+    ///  203  → #FF5F5F   (inline code fg)
+    ///  236  → #303030   (inline code bg)
+    /// #373737            (code block bg)
+    ///  244  → #808080   (code block text / border)
     pub fn glow_dark() -> Self {
         Self {
-            h1_fg: Color::Rgb { r: 0, g: 170, b: 255 },
-            h1_bg: Some(Color::Rgb { r: 55, g: 55, b: 55 }),
+            // h1: yellow fg (#FFFF87) on purple bg (#5F5FAF), bold
+            h1_fg: Color::Rgb { r: 255, g: 255, b: 135 },   // ANSI 228
+            h1_bg: Some(Color::Rgb { r: 95, g: 95, b: 175 }), // ANSI 63
             h1_bold: true,
-            h2_fg: Color::Rgb { r: 0, g: 215, b: 135 },
+            // h2–h5: all inherit heading default #00AFFF (ANSI 39), bold
+            h2_fg: Color::Rgb { r: 0, g: 175, b: 255 },     // ANSI 39
             h2_bold: true,
-            h3_fg: Color::Rgb { r: 232, g: 232, b: 168 },
+            h3_fg: Color::Rgb { r: 0, g: 175, b: 255 },     // ANSI 39
             h3_bold: true,
-            h4_fg: Color::Rgb { r: 232, g: 232, b: 232 },
-            h5_fg: Color::Rgb { r: 102, g: 102, b: 102 },
-            h6_fg: Color::Rgb { r: 102, g: 102, b: 102 },
+            h4_fg: Color::Rgb { r: 0, g: 175, b: 255 },     // ANSI 39
+            h5_fg: Color::Rgb { r: 0, g: 175, b: 255 },     // ANSI 39
+            // h6: green #00AF5F (ANSI 35), not bold
+            h6_fg: Color::Rgb { r: 0, g: 175, b: 95 },      // ANSI 35
             heading_prefix: true,
-            strong_fg: Some(Color::Rgb { r: 232, g: 232, b: 168 }),
-            emphasis_fg: Some(Color::Rgb { r: 198, g: 150, b: 105 }),
-            code_inline_fg: Color::Rgb { r: 175, g: 255, b: 215 },
-            code_inline_bg: Some(Color::Rgb { r: 55, g: 55, b: 55 }),
-            strikethrough_fg: Some(Color::Rgb { r: 102, g: 102, b: 102 }),
-            link_fg: Color::Rgb { r: 0, g: 170, b: 255 },
+            // strong: bold only, no colour override (inherits text colour)
+            strong_fg: None,
+            // emph: italic only, no colour override
+            emphasis_fg: None,
+            // inline code: red fg (#FF5F5F) on dark bg (#303030)
+            code_inline_fg: Color::Rgb { r: 255, g: 95, b: 95 },   // ANSI 203
+            code_inline_bg: Some(Color::Rgb { r: 48, g: 48, b: 48 }), // ANSI 236
+            strikethrough_fg: Some(Color::Rgb { r: 88, g: 88, b: 88 }), // ANSI 240
+            // link URL: dark teal #008787 (ANSI 30), underline
+            link_fg: Color::Rgb { r: 0, g: 135, b: 135 },   // ANSI 30
+            // link text: green #00AF5F (ANSI 35), bold
+            link_text_fg: Some(Color::Rgb { r: 0, g: 175, b: 95 }), // ANSI 35
+            link_text_bold: true,
             link_underline: true,
-            image_fg: Color::Rgb { r: 255, g: 142, b: 199 },
-            code_block_bg: Some(Color::Rgb { r: 55, g: 55, b: 55 }),
-            code_block_border: Some(Color::Rgb { r: 80, g: 80, b: 80 }),
-            code_block_lang_fg: Color::Rgb { r: 102, g: 102, b: 102 },
+            // image: pink #FF87D7 (ANSI 212)
+            image_fg: Color::Rgb { r: 255, g: 135, b: 215 }, // ANSI 212
+            // code block: bg #373737, border/text #808080 (ANSI 244)
+            code_block_bg: Some(Color::Rgb { r: 55, g: 55, b: 55 }),  // #373737
+            code_block_border: Some(Color::Rgb { r: 128, g: 128, b: 128 }), // ANSI 244
+            code_block_lang_fg: Color::Rgb { r: 128, g: 128, b: 128 }, // ANSI 244
             syntect_theme: "base16-ocean.dark".to_string(),
-            blockquote_fg: Color::Rgb { r: 102, g: 102, b: 102 },
-            blockquote_border: Color::Rgb { r: 0, g: 170, b: 255 },
-            blockquote_indent: 2,
-            list_marker_fg: Color::Rgb { r: 232, g: 232, b: 168 },
+            // blockquote: indent 1, border │ in heading colour
+            blockquote_fg: Color::Rgb { r: 208, g: 208, b: 208 },    // ANSI 252 (body text)
+            blockquote_border: Color::Rgb { r: 0, g: 175, b: 255 },  // ANSI 39
+            blockquote_indent: 1,
+            // list: bullet • in body text colour
+            list_marker_fg: Color::Rgb { r: 208, g: 208, b: 208 },   // ANSI 252
             list_indent: 2,
-            table_border_fg: Color::Rgb { r: 80, g: 80, b: 80 },
+            table_border_fg: Color::Rgb { r: 128, g: 128, b: 128 },  // ANSI 244
             table_header_bold: true,
-            hr_char: '─',
-            hr_fg: Color::Rgb { r: 80, g: 80, b: 80 },
-            text_fg: Color::Rgb { r: 232, g: 232, b: 232 },
+            // hr: "--------" (8 dashes) in #585858 (ANSI 240)
+            hr_char: '-',
+            hr_fg: Color::Rgb { r: 88, g: 88, b: 88 },      // ANSI 240
+            // body text: #D0D0D0 (ANSI 252)
+            text_fg: Color::Rgb { r: 208, g: 208, b: 208 }, // ANSI 252
             paragraph_spacing: 1,
         }
     }
@@ -334,6 +376,8 @@ impl MdTheme {
             code_inline_bg: Some(Color::Rgb { r: 45, g: 42, b: 46 }),
             strikethrough_fg: Some(Color::Rgb { r: 117, g: 113, b: 94 }),
             link_fg: Color::Rgb { r: 120, g: 220, b: 232 },
+            link_text_fg: None,
+            link_text_bold: false,
             link_underline: true,
             image_fg: Color::Rgb { r: 255, g: 97, b: 136 },
             code_block_bg: Some(Color::Rgb { r: 45, g: 42, b: 46 }),
@@ -374,6 +418,8 @@ impl MdTheme {
             code_inline_bg: Some(Color::Rgb { r: 22, g: 27, b: 34 }),
             strikethrough_fg: Some(Color::Rgb { r: 139, g: 148, b: 158 }),
             link_fg: Color::Rgb { r: 88, g: 166, b: 255 },
+            link_text_fg: None,
+            link_text_bold: false,
             link_underline: true,
             image_fg: Color::Rgb { r: 210, g: 168, b: 255 },
             code_block_bg: Some(Color::Rgb { r: 22, g: 27, b: 34 }),
@@ -414,6 +460,8 @@ impl MdTheme {
             code_inline_bg: Some(Color::Rgb { r: 40, g: 44, b: 52 }),
             strikethrough_fg: Some(Color::Rgb { r: 92, g: 99, b: 112 }),
             link_fg: Color::Rgb { r: 97, g: 175, b: 239 },
+            link_text_fg: None,
+            link_text_bold: false,
             link_underline: true,
             image_fg: Color::Rgb { r: 198, g: 120, b: 221 },
             code_block_bg: Some(Color::Rgb { r: 40, g: 44, b: 52 }),
@@ -454,6 +502,8 @@ impl MdTheme {
             code_inline_bg: Some(Color::Rgb { r: 20, g: 22, b: 35 }),
             strikethrough_fg: Some(Color::Rgb { r: 90, g: 100, b: 120 }),
             link_fg: Color::Rgb { r: 0, g: 245, b: 255 },
+            link_text_fg: None,
+            link_text_bold: false,
             link_underline: true,
             image_fg: Color::Rgb { r: 255, g: 77, b: 148 },
             code_block_bg: Some(Color::Rgb { r: 15, g: 18, b: 30 }),
@@ -494,6 +544,8 @@ impl MdTheme {
             code_inline_bg: Some(Color::Rgb { r: 30, g: 20, b: 50 }),
             strikethrough_fg: Some(Color::Rgb { r: 105, g: 90, b: 140 }),
             link_fg: Color::Rgb { r: 54, g: 243, b: 240 },
+            link_text_fg: None,
+            link_text_bold: false,
             link_underline: true,
             image_fg: Color::Rgb { r: 254, g: 78, b: 210 },
             code_block_bg: Some(Color::Rgb { r: 25, g: 15, b: 40 }),
@@ -599,16 +651,19 @@ impl MdRenderer {
 
         let opts = Options::ENABLE_STRIKETHROUGH
             | Options::ENABLE_TABLES
-            | Options::ENABLE_TASKLISTS;
+            | Options::ENABLE_TASKLISTS
+            | Options::ENABLE_GFM; // enables bare URL autolinks, matching glow/goldmark
         let parser = Parser::new_ext(markdown, opts);
 
         for event in parser {
             match event {
-                Event::Start(tag) => ctx.open_tag(tag),
+                Event::Start(tag) => ctx.open_tag(tag, &mut output),
                 Event::End(tag_end) => ctx.close_tag(tag_end, &mut output, self),
                 Event::Text(text) => ctx.push_text(&text),
                 Event::Code(code) => ctx.push_inline_code(&code),
-                Event::SoftBreak => ctx.push_text(" "),
+                // glow treats SoftBreak as a hard newline (adds "\n" to the token).
+                // We replicate this by flushing the current line.
+                Event::SoftBreak => ctx.flush_line(&mut output),
                 Event::HardBreak => ctx.flush_line(&mut output),
                 Event::Rule => ctx.push_rule(&mut output),
                 Event::TaskListMarker(checked) => ctx.push_task_marker(checked),
@@ -775,10 +830,21 @@ impl<'t> RenderContext<'t> {
 
     fn current_indent(&self) -> usize {
         let mut indent = 0;
+        // Count list nesting depth (0 = top-level list, 1 = first nested, etc.)
+        let mut list_depth: usize = 0;
         for ctx in &self.block_stack {
             match ctx {
-                BlockCtx::BlockQuote => indent += self.theme.blockquote_indent + 2,
-                BlockCtx::List { .. } => indent += self.theme.list_indent,
+                // BlockQuote adds no extra indent — the "│ " border IS the indent.
+                // (glow: blockquote indent=1, indent_token="│ ", no extra padding)
+                BlockCtx::BlockQuote => {}
+                BlockCtx::List { .. } => {
+                    // glow: top-level list has indent=0; nested lists add level_indent=2.
+                    // So only depth >= 1 (nested) contributes to indent.
+                    if list_depth > 0 {
+                        indent += self.theme.list_indent;
+                    }
+                    list_depth += 1;
+                }
                 _ => {}
             }
         }
@@ -800,7 +866,7 @@ impl<'t> RenderContext<'t> {
 
     // ── Tag open / close ─────────────────────────────────────────────────
 
-    fn open_tag(&mut self, tag: Tag) {
+    fn open_tag(&mut self, tag: Tag, output: &mut Vec<MdLine>) {
         match tag {
             Tag::Paragraph => {
                 self.block_stack.push(BlockCtx::Paragraph);
@@ -820,11 +886,30 @@ impl<'t> RenderContext<'t> {
                 self.code_block = Some(CodeBlockState { lang, content: String::new() });
             }
             Tag::List(start) => {
+                // Flush any pending content BEFORE pushing the new List context,
+                // so the indent is computed correctly for the parent item's line.
+                self.flush_line(output);
                 let ordered = start.is_some();
                 let index = start.unwrap_or(0);
                 self.block_stack.push(BlockCtx::List { ordered, index });
             }
             Tag::Item => {
+                // Inject the list marker (• or N.) immediately as the first span
+                // of the new item line, before any text arrives.
+                let marker = if let Some(BlockCtx::List { ordered, index }) =
+                    self.block_stack.iter().rev().find(|b| matches!(b, BlockCtx::List { .. }))
+                {
+                    if *ordered {
+                        format!("{index}. ")
+                    } else {
+                        "• ".to_string()
+                    }
+                } else {
+                    "• ".to_string()
+                };
+                let mut ms = StyledSpan::styled(marker, Some(self.theme.list_marker_fg), None);
+                ms.bold = false;
+                self.current_line.push(ms);
                 self.block_stack.push(BlockCtx::ListItem);
             }
             Tag::Emphasis => { self.italic += 1; }
@@ -868,10 +953,17 @@ impl<'t> RenderContext<'t> {
         match tag_end {
             TagEnd::Paragraph => {
                 self.flush_line(output);
-                for _ in 0..self.theme.paragraph_spacing {
-                    let mut blank = MdLine::empty();
-                    self.apply_block_decoration(&mut blank);
-                    output.push(blank);
+                // glow: paragraph has no margin (empty config "{}").
+                // Only add spacing when NOT inside a blockquote or list item,
+                // to avoid extra blank lines with "│ " borders.
+                let inside_bq = self.block_stack.iter().any(|b| matches!(b, BlockCtx::BlockQuote));
+                let inside_list = self.block_stack.iter().any(|b| matches!(b, BlockCtx::ListItem));
+                if !inside_bq && !inside_list {
+                    for _ in 0..self.theme.paragraph_spacing {
+                        let mut blank = MdLine::empty();
+                        self.apply_block_decoration(&mut blank);
+                        output.push(blank);
+                    }
                 }
                 self.pop_block_match(|b| matches!(b, BlockCtx::Paragraph));
             }
@@ -882,6 +974,8 @@ impl<'t> RenderContext<'t> {
             }
             TagEnd::BlockQuote(_) => {
                 self.pop_block_match(|b| matches!(b, BlockCtx::BlockQuote));
+                // glow: blockquote has margin, so add a blank line after it
+                output.push(MdLine::empty());
             }
             TagEnd::CodeBlock => {
                 if let Some(cb) = self.code_block.take() {
@@ -890,10 +984,15 @@ impl<'t> RenderContext<'t> {
             }
             TagEnd::List(_) => {
                 self.pop_block_match(|b| matches!(b, BlockCtx::List { .. }));
-                // Blank line after list
-                let mut blank = MdLine::empty();
-                self.apply_block_decoration(&mut blank);
-                output.push(blank);
+                // Only add a blank line after the top-level list (not nested lists).
+                // glow: lists are separated from surrounding content by blank lines,
+                // but nested lists don't add extra blank lines between items.
+                let is_nested = self.block_stack.iter().any(|b| matches!(b, BlockCtx::List { .. }));
+                if !is_nested {
+                    let mut blank = MdLine::empty();
+                    self.apply_block_decoration(&mut blank);
+                    output.push(blank);
+                }
             }
             TagEnd::Item => {
                 self.flush_line(output);
@@ -910,11 +1009,12 @@ impl<'t> RenderContext<'t> {
             TagEnd::Strikethrough => { self.strikethrough = self.strikethrough.saturating_sub(1); }
             TagEnd::Link => {
                 if let Some(url) = self.link_url.take() {
-                    // Append URL in dimmed style after the link text
+                    // glow: append " URL" (space + URL) using link style (color+underline)
+                    // No parentheses — matches glamour's renderHrefPart with prefix=" "
                     self.push_styled_text(
-                        &format!(" ({})", url),
+                        &format!(" {}", url),
                         Some(self.theme.link_fg), None,
-                        false, false, false, true,
+                        false, false, self.theme.link_underline, false,
                     );
                 }
             }
@@ -989,23 +1089,27 @@ impl<'t> RenderContext<'t> {
         }
 
         // Normal inline text — apply current style stack
+        let inside_link = self.link_url.is_some();
         let fg = if self.bold > 0 {
             self.theme.strong_fg
         } else if self.italic > 0 {
             self.theme.emphasis_fg
         } else if self.strikethrough > 0 {
             self.theme.strikethrough_fg
-        } else if self.link_url.is_some() {
-            Some(self.theme.link_fg)
+        } else if inside_link {
+            // Link text uses link_text_fg (if set), otherwise link_fg
+            self.theme.link_text_fg.or(Some(self.theme.link_fg))
         } else {
             Some(self.theme.text_fg)
         };
+        // Link text is bold when link_text_bold is set (glow-dark: bold=true)
+        let bold = self.bold > 0 || (inside_link && self.theme.link_text_bold);
 
         self.push_styled_text(
             text, fg, None,
-            self.bold > 0,
+            bold,
             self.italic > 0,
-            self.link_url.is_some() && self.theme.link_underline,
+            false, // link text itself is NOT underlined (only the URL part is)
             self.strikethrough > 0,
         );
     }
@@ -1051,8 +1155,10 @@ impl<'t> RenderContext<'t> {
 
     fn push_rule(&mut self, output: &mut Vec<MdLine>) {
         self.flush_line(output);
-        let avail = self.width.saturating_sub(self.current_indent());
-        let rule_str: String = std::iter::repeat(self.theme.hr_char).take(avail).collect();
+        // glow renders HR as exactly 8 dashes via format="\n--------\n"
+        // (the token is empty; the format string is the literal output).
+        // We replicate that: always 8 hr_chars, regardless of terminal width.
+        let rule_str: String = std::iter::repeat(self.theme.hr_char).take(8).collect();
         let mut line = MdLine::new();
         line.push(StyledSpan::styled(rule_str, Some(self.theme.hr_fg), None));
         self.apply_block_decoration(&mut line);
@@ -1093,11 +1199,17 @@ impl<'t> RenderContext<'t> {
         let (fg, bg, bold) = self.theme.heading_style(level);
         let mut line = MdLine::new();
 
-        if self.theme.heading_prefix {
+        if level == HeadingLevel::H1 {
+            // glow H1: prefix=" " suffix=" " with background colour — no "# " marker.
+            // We add a leading space as part of the styled span.
+            let mut ps = StyledSpan::styled(" ", Some(fg), bg);
+            ps.bold = bold;
+            line.push(ps);
+        } else if self.theme.heading_prefix {
+            // H2-H6: show "## " etc. prefix (glow: prefix="## " etc.)
             let prefix = MdTheme::heading_prefix_str(level);
             let mut ps = StyledSpan::styled(prefix, Some(fg), bg);
             ps.bold = bold;
-            ps.dim = true;
             line.push(ps);
         }
 
@@ -1108,8 +1220,11 @@ impl<'t> RenderContext<'t> {
             line.push(span);
         }
 
-        // H1: pad background to full width
+        // H1: add trailing space + pad background to full width (glow suffix=" ")
         if bg.is_some() {
+            // Add the suffix space first
+            line.push(StyledSpan::styled(" ", Some(fg), bg));
+            // Then pad the rest of the line with background colour
             let used = line.content_width();
             let avail = self.width.saturating_sub(self.current_indent());
             if used < avail {
@@ -1120,19 +1235,8 @@ impl<'t> RenderContext<'t> {
         self.apply_block_decoration(&mut line);
         output.push(line);
 
-        // Decorative underlines
-        let avail = self.width.saturating_sub(self.current_indent());
-        if level == HeadingLevel::H1 {
-            let mut ul = MdLine::new();
-            ul.push(StyledSpan::styled("━".repeat(avail), Some(fg), None));
-            self.apply_block_decoration(&mut ul);
-            output.push(ul);
-        } else if level == HeadingLevel::H2 {
-            let mut ul = MdLine::new();
-            ul.push(StyledSpan::styled("─".repeat(avail), Some(fg), None));
-            self.apply_block_decoration(&mut ul);
-            output.push(ul);
-        }
+        // glow has NO decorative underlines for any heading level.
+        // H1 uses background colour for visual weight; H2-H6 use colour+bold.
 
         let mut blank = MdLine::empty();
         self.apply_block_decoration(&mut blank);
@@ -1337,72 +1441,161 @@ impl<'t> RenderContext<'t> {
 
 /// Word-wrap a sequence of styled spans to fit within `max_width` display columns.
 /// Returns a Vec of lines, each being a Vec of StyledSpan.
+/// A single styled character, used internally for word-wrap.
+#[derive(Clone)]
+struct StyledChar {
+    ch: char,
+    fg: Option<Color>,
+    bg: Option<Color>,
+    bold: bool,
+    italic: bool,
+    underline: bool,
+    strikethrough: bool,
+    dim: bool,
+}
+
+/// Word-wrap a sequence of styled spans to fit within `max_width` columns.
+///
+/// Breaks at word boundaries (spaces). Leading spaces on continuation lines
+/// are stripped, matching glow/glamour behaviour.
 fn wrap_styled_line(spans: &[StyledSpan], max_width: usize) -> Vec<Vec<StyledSpan>> {
     if max_width == 0 {
         return vec![spans.to_vec()];
     }
 
-    let mut lines: Vec<Vec<StyledSpan>> = Vec::new();
-    let mut current: Vec<StyledSpan> = Vec::new();
-    let mut current_width = 0usize;
-
+    // Flatten spans into a sequence of styled chars.
+    let mut chars: Vec<StyledChar> = Vec::new();
     for span in spans {
-        let span_width = span.display_width();
-
-        // If the entire span fits on the current line, just add it
-        if current_width + span_width <= max_width {
-            current.push(span.clone());
-            current_width += span_width;
-            continue;
+        for ch in span.text.chars() {
+            chars.push(StyledChar {
+                ch,
+                fg: span.fg,
+                bg: span.bg,
+                bold: span.bold,
+                italic: span.italic,
+                underline: span.underline,
+                strikethrough: span.strikethrough,
+                dim: span.dim,
+            });
         }
+    }
 
-        // Need to split the span across lines
-        let mut remaining = span.text.as_str();
-        let template = span.clone();
+    if chars.is_empty() {
+        return vec![Vec::new()];
+    }
 
-        while !remaining.is_empty() {
-            let avail = max_width.saturating_sub(current_width);
-            if avail == 0 {
-                lines.push(std::mem::take(&mut current));
-                current_width = 0;
-                continue;
-            }
+    // Split into "words" — sequences of non-space chars, plus spaces as their
+    // own tokens.  We keep spaces attached to the preceding word so that we
+    // can decide whether to include them at the end of a line or strip them
+    // from the start of the next line.
+    //
+    // Strategy: greedy line-fill.  Walk through chars, accumulate a line.
+    // When a word would overflow, break before it and start a new line,
+    // stripping any leading spaces on the new line.
 
-            // Take as many chars as fit
-            let mut take_bytes = 0;
-            let mut take_width = 0;
-            for ch in remaining.chars() {
-                let cw = UnicodeWidthChar::width(ch).unwrap_or(0);
-                if take_width + cw > avail && take_width > 0 {
-                    break;
+    let mut lines: Vec<Vec<StyledSpan>> = Vec::new();
+    let mut line_chars: Vec<StyledChar> = Vec::new();
+    let mut line_width: usize = 0;
+
+    // Collect chars into "tokens": each token is a run of spaces or a run of
+    // non-spaces.
+    let mut tokens: Vec<Vec<StyledChar>> = Vec::new();
+    let mut tok: Vec<StyledChar> = Vec::new();
+    let mut tok_is_space = false;
+    for sc in &chars {
+        let is_space = sc.ch == ' ';
+        if tok.is_empty() {
+            tok_is_space = is_space;
+        }
+        if is_space == tok_is_space {
+            tok.push(sc.clone());
+        } else {
+            tokens.push(std::mem::take(&mut tok));
+            tok_is_space = is_space;
+            tok.push(sc.clone());
+        }
+    }
+    if !tok.is_empty() {
+        tokens.push(tok);
+    }
+
+    let token_width = |t: &[StyledChar]| -> usize {
+        t.iter().map(|sc| UnicodeWidthChar::width(sc.ch).unwrap_or(0)).sum()
+    };
+
+    for token in &tokens {
+        let tw = token_width(token);
+        let is_space_tok = token.first().map_or(false, |sc| sc.ch == ' ');
+
+        if line_width + tw <= max_width {
+            // Fits on current line.
+            line_chars.extend_from_slice(token);
+            line_width += tw;
+        } else if is_space_tok {
+            // A space token that doesn't fit: flush the current line and
+            // discard the spaces (they become the "break").
+            let built = build_spans_from_chars(&line_chars);
+            lines.push(built);
+            line_chars.clear();
+            line_width = 0;
+        } else {
+            // A word token that doesn't fit.
+            if line_width == 0 {
+                // Nothing on the current line yet — force-fit the word,
+                // splitting at character boundaries if needed.
+                let mut remaining = token.as_slice();
+                while !remaining.is_empty() {
+                    let avail = max_width.saturating_sub(line_width);
+                    if avail == 0 {
+                        let built = build_spans_from_chars(&line_chars);
+                        lines.push(built);
+                        line_chars.clear();
+                        line_width = 0;
+                        continue;
+                    }
+                    let mut take = 0;
+                    let mut take_w = 0;
+                    for sc in remaining {
+                        let cw = UnicodeWidthChar::width(sc.ch).unwrap_or(0);
+                        if take_w + cw > avail && take_w > 0 {
+                            break;
+                        }
+                        take += 1;
+                        take_w += cw;
+                    }
+                    if take == 0 {
+                        take = 1;
+                        take_w = UnicodeWidthChar::width(remaining[0].ch).unwrap_or(0);
+                    }
+                    line_chars.extend_from_slice(&remaining[..take]);
+                    line_width += take_w;
+                    remaining = &remaining[take..];
+                    if !remaining.is_empty() {
+                        let built = build_spans_from_chars(&line_chars);
+                        lines.push(built);
+                        line_chars.clear();
+                        line_width = 0;
+                    }
                 }
-                take_bytes += ch.len_utf8();
-                take_width += cw;
-            }
-
-            if take_bytes == 0 {
-                // Can't fit even one char — force a line break
-                lines.push(std::mem::take(&mut current));
-                current_width = 0;
-                continue;
-            }
-
-            let chunk = &remaining[..take_bytes];
-            let mut new_span = template.clone();
-            new_span.text = chunk.to_string();
-            current.push(new_span);
-            current_width += take_width;
-            remaining = &remaining[take_bytes..];
-
-            if !remaining.is_empty() {
-                lines.push(std::mem::take(&mut current));
-                current_width = 0;
+            } else {
+                // Flush current line, then put this word on the new line.
+                // Strip trailing spaces from the flushed line.
+                while line_chars.last().map_or(false, |sc| sc.ch == ' ') {
+                    line_chars.pop();
+                }
+                let built = build_spans_from_chars(&line_chars);
+                lines.push(built);
+                line_chars.clear();
+                // Add the word to the new line (line_width reset to tw directly).
+                line_chars.extend_from_slice(token);
+                line_width = tw;
             }
         }
     }
 
-    if !current.is_empty() {
-        lines.push(current);
+    // Flush the last line.
+    if !line_chars.is_empty() {
+        lines.push(build_spans_from_chars(&line_chars));
     }
 
     if lines.is_empty() {
@@ -1410,6 +1603,35 @@ fn wrap_styled_line(spans: &[StyledSpan], max_width: usize) -> Vec<Vec<StyledSpa
     }
 
     lines
+}
+
+/// Reconstruct a Vec<StyledSpan> from a sequence of StyledChars, merging
+/// consecutive chars with identical style into a single span.
+fn build_spans_from_chars(chars: &[StyledChar]) -> Vec<StyledSpan> {
+    let mut spans: Vec<StyledSpan> = Vec::new();
+    for sc in chars {
+        let same_style = spans.last().map_or(false, |prev: &StyledSpan| {
+            prev.fg == sc.fg
+                && prev.bg == sc.bg
+                && prev.bold == sc.bold
+                && prev.italic == sc.italic
+                && prev.underline == sc.underline
+                && prev.strikethrough == sc.strikethrough
+                && prev.dim == sc.dim
+        });
+        if same_style {
+            spans.last_mut().unwrap().text.push(sc.ch);
+        } else {
+            let mut span = StyledSpan::styled(sc.ch.to_string(), sc.fg, sc.bg);
+            span.bold = sc.bold;
+            span.italic = sc.italic;
+            span.underline = sc.underline;
+            span.strikethrough = sc.strikethrough;
+            span.dim = sc.dim;
+            spans.push(span);
+        }
+    }
+    spans
 }
 
 /// Display width of a string.

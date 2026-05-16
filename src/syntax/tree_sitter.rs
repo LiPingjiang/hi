@@ -22,6 +22,7 @@
 //! For languages without a bundled query (or `FileType::Plain`) we fall back
 //! to returning empty spans (plain text).
 
+use std::cell::RefCell;
 use tree_sitter::{InputEdit, Language, Node, Parser, Point, Query, QueryCursor, StreamingIterator, Tree};
 use crate::syntax::highlight::{CodePalette, FileType, SemanticToken, SyntectSpan};
 
@@ -63,8 +64,17 @@ fn highlights_query(ft: FileType) -> Option<&'static str> {
         FileType::JavaScript => Some(tree_sitter_javascript::HIGHLIGHT_QUERY),
         FileType::TypeScript => Some(tree_sitter_typescript::HIGHLIGHTS_QUERY),
         FileType::Toml       => Some(tree_sitter_toml_ng::HIGHLIGHTS_QUERY),
-        // tree-sitter-md splits into block + inline grammars; concatenate both queries.
-        // The combined string is valid because highlights.scm files are independent.
+        // tree-sitter-md splits into two independent grammars:
+        //   • block grammar  (LANGUAGE)        — document structure
+        //   • inline grammar (LANGUAGE_INLINE) — emphasis, links, code spans, …
+        //
+        // The inline query uses node types that only exist in the inline grammar
+        // (e.g. `emphasis`, `strong_emphasis`, `inline_link`).  Concatenating it
+        // onto the block grammar compiles fine but matches nothing, which silently
+        // breaks ALL highlights.
+        //
+        // For now we use only the block query.  Inline elements (bold, italic,
+        // links) are handled by a second pass with the inline grammar below.
         FileType::Markdown   => Some(tree_sitter_md::HIGHLIGHT_QUERY_BLOCK),
         // xml crate doesn't expose a highlights query constant
         FileType::Xml => None,
@@ -139,17 +149,44 @@ fn capture_to_token(name: &str) -> SemanticToken {
 
         "structure" => SemanticToken::KeywordType,
 
-        "text.title" | "markup.heading" => SemanticToken::Keyword,
+        // Markup (Markdown / RST) — map to dedicated MarkupXxx tokens so that
+        // each theme's palette can colour them independently.
+        "text.title" | "markup.heading" => SemanticToken::MarkupHeading,
 
-        "text.uri" | "markup.link.url" => SemanticToken::LiteralString,
+        "text.uri" | "markup.link.url" => SemanticToken::MarkupLink,
 
-        "text.literal" | "markup.raw" | "markup.raw.inline" | "markup.raw.block" => SemanticToken::LiteralString,
+        "text.literal" | "markup.raw" | "markup.raw.inline" | "markup.raw.block"
+        | "text.reference" => SemanticToken::MarkupCode,
 
-        "text.strong" | "markup.bold" => SemanticToken::Keyword,
+        "text.strong" | "markup.bold" => SemanticToken::MarkupBold,
 
-        "text.emphasis" | "markup.italic" => SemanticToken::Comment,
+        "text.emphasis" | "markup.italic" => SemanticToken::MarkupItalic,
 
         _ => SemanticToken::Text,
+    }
+}
+
+/// Markdown-specific capture → token mapping.
+///
+/// tree-sitter-md uses `@punctuation.special` for heading markers (`##`),
+/// list markers (`-`, `*`, `1.`), blockquote markers (`>`), and thematic
+/// breaks (`---`).  We remap these to the appropriate Markup tokens so that
+/// the heading marker gets the same colour as the heading text.
+fn capture_to_token_md(name: &str) -> SemanticToken {
+    match name {
+        // Heading markers (##, ###, …) and heading text → same colour
+        "punctuation.special" => SemanticToken::MarkupHeading,
+        // Fenced code block delimiters
+        "punctuation.delimiter" => SemanticToken::MarkupCode,
+        // Link destination
+        "text.uri" => SemanticToken::MarkupLink,
+        // Link label / reference
+        "text.reference" => SemanticToken::MarkupLinkText,
+        // Inline code / code blocks
+        "text.literal" | "markup.raw" | "markup.raw.inline" | "markup.raw.block"
+        | "none" => SemanticToken::MarkupCode,
+        // Everything else falls through to the generic mapping
+        other => capture_to_token(other),
     }
 }
 
@@ -172,6 +209,12 @@ pub struct TsHighlighter {
     query: Option<Query>,
     /// Whether the tree needs a full re-parse (e.g. after `set_filetype`).
     needs_full_parse: bool,
+    /// Markdown inline grammar parser + query (None for non-Markdown files).
+    /// tree-sitter-md uses two independent grammars; inline elements (bold,
+    /// italic, links, code spans) live in the inline grammar only.
+    /// Wrapped in RefCell so we can call parse() from &self highlight methods.
+    inline_parser: Option<RefCell<Parser>>,
+    inline_query: Option<Query>,
 }
 
 // Parser is not Send by default because of the raw pointer inside, but we
@@ -183,6 +226,7 @@ impl TsHighlighter {
     /// `highlight_viewport()` call.
     pub fn new(filetype: FileType, palette: CodePalette) -> Self {
         let (parser, query) = Self::build_parser_and_query(filetype);
+        let (inline_parser, inline_query) = Self::build_inline_parser_and_query(filetype);
         Self {
             filetype,
             palette,
@@ -190,6 +234,8 @@ impl TsHighlighter {
             tree: None,
             query,
             needs_full_parse: true,
+            inline_parser: inline_parser.map(RefCell::new),
+            inline_query,
         }
     }
 
@@ -199,8 +245,11 @@ impl TsHighlighter {
         if self.filetype == ft { return; }
         self.filetype = ft;
         let (parser, query) = Self::build_parser_and_query(ft);
+        let (inline_parser, inline_query) = Self::build_inline_parser_and_query(ft);
         self.parser = parser;
         self.query = query;
+        self.inline_parser = inline_parser.map(RefCell::new);
+        self.inline_query = inline_query;
         self.tree = None;
         self.needs_full_parse = true;
     }
@@ -396,7 +445,11 @@ impl TsHighlighter {
 
                 // A node may span multiple lines — split it per line
                 let cap_name = query.capture_names()[cap.index as usize];
-                let token = capture_to_token(cap_name);
+                let token = if self.filetype == FileType::Markdown {
+                    capture_to_token_md(cap_name)
+                } else {
+                    capture_to_token(cap_name)
+                };
 
                 // Find which lines this node touches
                 let node_start_row = node.start_position().row;
@@ -417,6 +470,84 @@ impl TsHighlighter {
                     let local_start = span_start - line_start;
                     let local_end   = span_end   - line_start;
                     line_spans[li].push((local_start, local_end, token));
+                }
+            }
+        }
+
+        // ── Markdown inline pass ──────────────────────────────────────────────
+        // The block grammar treats each paragraph / heading body as an opaque
+        // `inline` node.  We re-parse those nodes with the inline grammar so
+        // that emphasis, links, code spans, etc. get coloured.
+        if self.filetype == FileType::Markdown {
+            if let (Some(ref inline_parser), Some(ref inline_query)) =
+                (&self.inline_parser, &self.inline_query)
+            {
+                // Walk the block tree looking for `inline` nodes in the viewport
+                let root = tree.root_node();
+                let mut walk = root.walk();
+                let mut stack = vec![root];
+                while let Some(node) = stack.pop() {
+                    // Push children
+                    for child in node.children(&mut walk) {
+                        let row = child.start_position().row;
+                        if row >= end_line { continue; }
+                        if child.end_position().row < start_line { continue; }
+                        stack.push(child);
+                    }
+
+                    if node.kind() != "inline" { continue; }
+
+                    let node_start_byte = node.start_byte();
+                    let node_end_byte   = node.end_byte();
+                    if node_start_byte >= node_end_byte { continue; }
+
+                    // Extract the inline text and parse it with the inline grammar
+                    let inline_text = &source[node_start_byte..node_end_byte];
+                    let Some(inline_tree) = inline_parser.borrow_mut().parse(inline_text, None) else { continue; };
+
+                    let inline_root = inline_tree.root_node();
+                    let mut icursor = QueryCursor::new();
+                    let inline_bytes = inline_text.as_bytes();
+
+                    let mut imatches = icursor.matches(inline_query, inline_root, inline_bytes);
+                    while let Some(im) = imatches.next() {
+                        for cap in im.captures {
+                            let inode: Node = cap.node;
+                            let istart = inode.start_byte(); // relative to inline_text
+                            let iend   = inode.end_byte();
+                            if istart >= iend { continue; }
+
+                            let cap_name = inline_query.capture_names()[cap.index as usize];
+                            let token = capture_to_token_md(cap_name);
+                            if token == SemanticToken::Text { continue; }
+
+                            // Convert to absolute byte offsets in source
+                            let abs_start = node_start_byte + istart;
+                            let abs_end   = node_start_byte + iend;
+
+                            // Split across lines
+                            let inode_start_row = node.start_position().row +
+                                inode.start_position().row;
+                            let inode_end_row   = node.start_position().row +
+                                inode.end_position().row;
+
+                            for row in inode_start_row..=inode_end_row {
+                                if row < start_line || row >= end_line { continue; }
+                                let li = row - start_line;
+                                let line_start = byte_offset_of_line(source, row);
+                                let line_text  = source_line(source, row);
+                                let line_end   = line_start + line_text.len();
+
+                                let span_start = abs_start.max(line_start);
+                                let span_end   = abs_end.min(line_end);
+                                if span_start >= span_end { continue; }
+
+                                let local_start = span_start - line_start;
+                                let local_end   = span_end   - line_start;
+                                line_spans[li].push((local_start, local_end, token));
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -472,6 +603,21 @@ impl TsHighlighter {
         };
         let query = Query::new(&lang, query_src).ok();
         (parser, query)
+    }
+
+    /// Build the Markdown inline grammar parser + query.
+    /// Returns `(None, None)` for all non-Markdown file types.
+    fn build_inline_parser_and_query(ft: FileType) -> (Option<Parser>, Option<Query>) {
+        if ft != FileType::Markdown {
+            return (None, None);
+        }
+        let lang: Language = tree_sitter_md::INLINE_LANGUAGE.into();
+        let mut parser = Parser::new();
+        if parser.set_language(&lang).is_err() {
+            return (None, None);
+        }
+        let query = Query::new(&lang, tree_sitter_md::HIGHLIGHT_QUERY_INLINE).ok();
+        (Some(parser), query)
     }
 }
 

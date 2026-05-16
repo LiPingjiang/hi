@@ -10,6 +10,8 @@ pub enum VisualAction {
     /// Enter block-insert mode: insert `text` at the start col of every selected line.
     EnterBlockInsert { start_line: usize, end_line: usize, col: usize },
     EnterAi(String), // selected text passed to AI
+    /// Copy selected text to system clipboard (handled by App layer via pbcopy/xclip).
+    CopyToClipboard(String),
 }
 
 impl Editor {
@@ -109,6 +111,25 @@ impl Editor {
                     }
                 }
                 VisualAction::ExitToNormal
+            }
+
+            // ── Copy to system clipboard (Ctrl+c) ─────────
+            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                let text = match kind {
+                    VisualKind::Block => {
+                        self.block_extract(block_start_line, block_end_line,
+                                           block_left_col, block_right_col)
+                    }
+                    _ => {
+                        self.buffer.rope
+                            .slice(sel_start..sel_end.min(self.buffer.len_chars()))
+                            .to_string()
+                    }
+                };
+                // Also sync to internal register so p/P still works
+                self.buffer.register = text.clone();
+                self.buffer.register_linewise = matches!(kind, VisualKind::Line);
+                VisualAction::CopyToClipboard(text)
             }
 
             // ── Delete ────────────────────────────────────

@@ -1,7 +1,7 @@
 //! Markdown preview: convert buffer content to styled HTML and open in browser.
 //!
-//! Uses `pulldown-cmark` for Markdown→HTML conversion and embeds a dark-themed
-//! CSS stylesheet (GitHub-dark inspired) for beautiful rendering.
+//! Uses `pulldown-cmark` for Markdown→HTML conversion and embeds a light-themed
+//! CSS stylesheet (GitHub-light inspired) for beautiful rendering.
 
 use std::io::Write;
 use std::path::Path;
@@ -116,18 +116,18 @@ fn sanitize_filename(name: &str) -> String {
 
 const CSS_THEME: &str = r#"
 :root {
-    --bg: #0d1117;
-    --fg: #e6edf3;
-    --fg-muted: #8b949e;
-    --border: #30363d;
-    --link: #58a6ff;
-    --code-bg: #161b22;
-    --code-border: #30363d;
-    --blockquote-border: #3b82f6;
-    --heading-color: #f0f6fc;
-    --table-border: #30363d;
-    --table-row-alt: #161b22;
-    --accent: #58a6ff;
+    --bg: #ffffff;
+    --fg: #1f2328;
+    --fg-muted: #656d76;
+    --border: #d0d7de;
+    --link: #0969da;
+    --code-bg: #f6f8fa;
+    --code-border: #d0d7de;
+    --blockquote-border: #d0d7de;
+    --heading-color: #1f2328;
+    --table-border: #d0d7de;
+    --table-row-alt: #f6f8fa;
+    --accent: #0969da;
 }
 
 * {
@@ -232,7 +232,7 @@ blockquote {
     padding: 0.5em 1em;
     margin: 0 0 1em 0;
     color: var(--fg-muted);
-    background: rgba(56, 130, 246, 0.05);
+    background: var(--code-bg);
     border-radius: 0 6px 6px 0;
 }
 

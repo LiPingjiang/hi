@@ -17,6 +17,7 @@ pub enum NormalAction {
     OpenFileAtCursor,
     ToggleFileTree,
     ToggleChatPanel,
+    ToggleTutorial,
     SwitchFocus,
     AiAction(AiSubAction),
     /// Replay last repeatable action
@@ -62,7 +63,8 @@ impl Editor {
         // Single-key dispatch
         match key.code {
             // ── Cursor movement ─────────────────────────
-            KeyCode::Char('h') | KeyCode::Left  => { self.move_left(count);  NormalAction::None }
+            KeyCode::Char('h') if !key.modifiers.contains(KeyModifiers::CONTROL) => { self.move_left(count);  NormalAction::None }
+            KeyCode::Left  => { self.move_left(count);  NormalAction::None }
             KeyCode::Char('l') if !key.modifiers.contains(KeyModifiers::CONTROL) => { self.move_right(count); NormalAction::None }
             KeyCode::Right => { self.move_right(count); NormalAction::None }
             KeyCode::Char('j') | KeyCode::Down  => { self.move_down(count);  NormalAction::None }
@@ -158,6 +160,9 @@ impl Editor {
             }
             KeyCode::Char('l') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 NormalAction::ToggleChatPanel
+            }
+            KeyCode::Char('h') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                NormalAction::ToggleTutorial
             }
             KeyCode::Char('w') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 NormalAction::SwitchFocus

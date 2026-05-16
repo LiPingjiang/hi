@@ -5,7 +5,7 @@ use crate::mode::Mode;
 use crate::syntax::highlight::FileType;
 
 impl Editor {
-    pub fn hint_line(&self, locale: &Locale) -> String {
+    pub fn hint_line(&self, locale: &Locale, filetype: FileType) -> String {
         let ui = &locale.ui;
 
         // File tree has focus — override all other hints
@@ -43,9 +43,12 @@ impl Editor {
                 }
 
                 // Comment line (// # -- /* )
-                if trimmed.starts_with("//") || trimmed.starts_with('#')
-                    || trimmed.starts_with("--") || trimmed.starts_with("/*")
-                {
+                // For Markdown, '#' is a heading, not a comment — skip comment hint
+                let is_comment = trimmed.starts_with("//")
+                    || trimmed.starts_with("--")
+                    || trimmed.starts_with("/*")
+                    || (trimmed.starts_with('#') && filetype != FileType::Markdown);
+                if is_comment {
                     return ui.hint_normal_comment.clone();
                 }
 

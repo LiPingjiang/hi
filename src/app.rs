@@ -50,6 +50,7 @@ use crate::ui::ghost::GhostText;
 use crate::ui::picker::FilePicker;
 use crate::ui::grep_panel::GrepPanel;
 use crate::ui::renderer::Renderer;
+use crate::ui::tutorial::TutorialBoard;
 
 /// Interactive theme picker overlay state.
 pub struct ThemePicker {
@@ -117,6 +118,10 @@ pub struct App {
     chat_input_cursor: usize,
     /// Whether the chat panel is in input mode (typing a message).
     chat_input_active: bool,
+
+    // Tutorial board (right side, left of chat when both visible)
+    tutorial_board: TutorialBoard,
+    tutorial_visible: bool,
 
     should_quit: bool,
     filepath: Option<PathBuf>,
@@ -205,6 +210,8 @@ impl App {
             chat_input: String::new(),
             chat_input_cursor: 0,
             chat_input_active: false,
+            tutorial_board: TutorialBoard::new(32),
+            tutorial_visible: false,
             should_quit: false,
             filepath: filepath.map(PathBuf::from),
             search_saved_pos: None,
@@ -244,6 +251,8 @@ impl App {
                     &self.theme_picker,
                     &self.cmd_completion,
                     &self.locale,
+                    &self.tutorial_board,
+                    self.tutorial_visible,
                 )?;
 
                 // Render file picker overlay on top if active
@@ -344,20 +353,31 @@ impl App {
             }
             Event::Mouse(me) => {
                 use crossterm::event::{MouseEventKind, MouseButton};
-                match me.kind {
-                    MouseEventKind::ScrollDown => {
-                        self.handle_mouse_scroll(me.column, me.row, false);
+                if self.renderer.mouse_enabled {
+                    // Mouse mode ON — process events normally
+                    match me.kind {
+                        MouseEventKind::ScrollDown => {
+                            self.handle_mouse_scroll(me.column, me.row, false);
+                        }
+                        MouseEventKind::ScrollUp => {
+                            self.handle_mouse_scroll(me.column, me.row, true);
+                        }
+                        MouseEventKind::Down(MouseButton::Left) => {
+                            self.handle_mouse_click(me.column, me.row);
+                        }
+                        MouseEventKind::Drag(MouseButton::Left) => {
+                            self.handle_mouse_drag(me.column, me.row);
+                        }
+                        _ => {}
                     }
-                    MouseEventKind::ScrollUp => {
-                        self.handle_mouse_scroll(me.column, me.row, true);
+                } else {
+                    // Mouse mode OFF — show "drop the mouse" reminder on clicks/scrolls
+                    match me.kind {
+                        MouseEventKind::Down(_) | MouseEventKind::ScrollDown | MouseEventKind::ScrollUp => {
+                            self.editor.set_msg(self.locale.messages.mouse_hint.clone());
+                        }
+                        _ => {} // ignore drag, move, etc. silently
                     }
-                    MouseEventKind::Down(MouseButton::Left) => {
-                        self.handle_mouse_click(me.column, me.row);
-                    }
-                    MouseEventKind::Drag(MouseButton::Left) => {
-                        self.handle_mouse_drag(me.column, me.row);
-                    }
-                    _ => {}
                 }
             }
             _ => {}
@@ -445,7 +465,16 @@ impl App {
         let q = query.trim();
         let lower = q.to_lowercase();
 
-        // Action verbs → Plan
+        // Question words → Advisor (checked FIRST so "为什么能修改" doesn't fall into Plan)
+        let advisor_triggers = [
+            "怎么", "如何", "什么是", "什么意思", "什么", "为什么", "解释", "说明", "介绍",
+            "what ", "how ", "why ", "explain", "describe", "what's", "whats",
+        ];
+        if advisor_triggers.iter().any(|t| lower.contains(t)) || q.ends_with('?') || q.ends_with('？') {
+            return (PromptKind::Advisor, q.to_string());
+        }
+
+        // Action verbs → Plan (only reached when no question words present)
         let plan_triggers = [
             "帮我改", "帮我修", "帮我删", "帮我加", "帮我添", "帮我替换", "帮我重构",
             "帮我格式", "帮我优化", "帮我补", "帮我写", "帮我生成", "帮我插入",
@@ -455,15 +484,6 @@ impl App {
         ];
         if plan_triggers.iter().any(|t| lower.contains(t)) {
             return (PromptKind::Plan, q.to_string());
-        }
-
-        // Question words → Advisor
-        let advisor_triggers = [
-            "怎么", "如何", "什么是", "什么意思", "什么", "为什么", "解释", "说明", "介绍",
-            "what ", "how ", "why ", "explain", "describe", "what's", "whats",
-        ];
-        if advisor_triggers.iter().any(|t| lower.contains(t)) || q.ends_with('?') || q.ends_with('？') {
-            return (PromptKind::Advisor, q.to_string());
         }
 
         // Short query with no clear signal → Advisor (not Completion)
@@ -800,6 +820,9 @@ impl App {
                     self.set_focus(FocusZone::Editor);
                 }
             }
+            NormalAction::ToggleTutorial => {
+                self.tutorial_visible = !self.tutorial_visible;
+            }
             NormalAction::SwitchFocus => {
                 self.cycle_focus();
             }
@@ -919,6 +942,21 @@ impl App {
             VisualAction::EnterAi(selected) => {
                 self.ai_query_msg = None;
                 self.editor.mode = Mode::Ai(selected);
+            }
+            VisualAction::CopyToClipboard(text) => {
+                // Write to system clipboard via pbcopy (macOS) or xclip/xsel (Linux)
+                let escaped = text.replace('\'', "'\\''");
+                let _ = std::process::Command::new("sh")
+                    .arg("-c")
+                    .arg(format!(
+                        "printf '%s' '{}' | pbcopy 2>/dev/null || \
+                         printf '%s' '{}' | xclip -selection clipboard 2>/dev/null || \
+                         printf '%s' '{}' | xsel --clipboard --input 2>/dev/null",
+                        escaped, escaped, escaped
+                    ))
+                    .status();
+                self.editor.mode = Mode::Normal;
+                self.editor.clamp_cursor();
             }
             VisualAction::None => {
                 // Mode stays Visual — refresh anchor in case kind changed
@@ -1057,11 +1095,17 @@ impl App {
                 }
             }
             CommandAction::SaveAndQuit => {
-                if let Err(e) = self.editor.buffer.save() {
-                    self.editor.set_msg(self.locale.messages.save_failed.replace("{err}", &e.to_string()));
-                    self.editor.mode = Mode::Normal;
-                } else {
-                    self.should_quit = true;
+                match self.editor.buffer.save() {
+                    Ok(_) => { self.should_quit = true; }
+                    Err(e) => {
+                        let msg = if e.to_string().contains("No file path") {
+                            self.locale.messages.no_file_name.clone()
+                        } else {
+                            self.locale.messages.save_failed.replace("{err}", &e.to_string())
+                        };
+                        self.editor.set_msg(msg);
+                        self.editor.mode = Mode::Normal;
+                    }
                 }
             }
             CommandAction::SetMsg(msg) => {
@@ -1157,6 +1201,31 @@ impl App {
             }
             CommandAction::Grep { pattern, is_regex } => {
                 self.open_grep_panel(pattern, is_regex);
+                self.editor.mode = Mode::Normal;
+            }
+            CommandAction::ToggleFileTree => {
+                self.editor.filetree_visible = !self.editor.filetree_visible;
+                if self.editor.filetree_visible && self.filetree.is_none() {
+                    let root = self.editor.buffer.filepath()
+                        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+                        .or_else(|| std::env::current_dir().ok())
+                        .unwrap_or_else(|| std::path::PathBuf::from("."));
+                    self.filetree = crate::ui::filetree::FileTree::new(&root, self.editor.config.filetree.show_hidden).ok();
+                }
+                self.editor.mode = Mode::Normal;
+            }
+            CommandAction::ToggleTutorial => {
+                self.tutorial_visible = !self.tutorial_visible;
+                self.editor.mode = Mode::Normal;
+            }
+            CommandAction::ToggleMouse => {
+                self.renderer.mouse_enabled = !self.renderer.mouse_enabled;
+                let msg = if self.renderer.mouse_enabled {
+                    "Mouse mode ON"
+                } else {
+                    "Mouse mode OFF — keyboard only"
+                };
+                self.editor.set_msg(msg.to_string());
                 self.editor.mode = Mode::Normal;
             }
         }
@@ -1752,6 +1821,17 @@ impl App {
                     let max = self.editor.buffer.line_count().saturating_sub(1);
                     self.editor.scroll_line = (self.editor.scroll_line + amount).min(max);
                 }
+                // Clamp cursor into the scroll_off safe zone so that the next
+                // keypress won't cause scroll_to_cursor() to re-adjust the viewport.
+                let (_, _, _, _, _, edit_h) = self.layout_regions();
+                let off = self.editor.config.general.scroll_off;
+                let buf_max = self.editor.buffer.line_count().saturating_sub(1);
+                // Top safe boundary: scroll_line + scroll_off (but not past buf_max)
+                let safe_top = (self.editor.scroll_line + off).min(buf_max);
+                // Bottom safe boundary: last visible line - scroll_off (but not below safe_top)
+                let last_visible = (self.editor.scroll_line + edit_h).saturating_sub(1).min(buf_max);
+                let safe_bot = last_visible.saturating_sub(off).max(safe_top);
+                self.editor.cursor_line = self.editor.cursor_line.clamp(safe_top, safe_bot);
             }
             FocusZone::Chat => {
                 if up {
@@ -1804,6 +1884,11 @@ impl App {
                         }
                         self.editor.cursor_col = char_col;
                         self.editor.clamp_cursor();
+                        // Exit any existing Visual mode so the next drag starts
+                        // a fresh selection anchored at this click position.
+                        if self.editor.mode.is_visual() {
+                            self.editor.mode = Mode::Normal;
+                        }
                     }
                 }
             }

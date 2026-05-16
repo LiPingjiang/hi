@@ -41,6 +41,12 @@ const CMD_REGISTRY: &[CmdEntry] = &[
     CmdEntry { trigger: "%s/",          desc: "Substitute all  %s/pat/rep/g",       has_arg: true  },
     CmdEntry { trigger: "!",            desc: "Run shell command",                  has_arg: true  },
     CmdEntry { trigger: "preview",      desc: "Preview Markdown in browser",        has_arg: false },
+    CmdEntry { trigger: "filetree",     desc: "Toggle file tree sidebar",            has_arg: false },
+    CmdEntry { trigger: "FT",           desc: "Toggle file tree sidebar",            has_arg: false },
+    CmdEntry { trigger: "grep",         desc: "Search in project",                  has_arg: true  },
+    CmdEntry { trigger: "tutorial",     desc: "Toggle tutorial board",              has_arg: false },
+    CmdEntry { trigger: "tut",          desc: "Toggle tutorial board",              has_arg: false },
+    CmdEntry { trigger: "mouse",        desc: "Toggle mouse mode",                 has_arg: false },
 ];
 
 /// Returns the locale-translated description for a command trigger.
@@ -67,6 +73,12 @@ fn localized_desc<'a>(trigger: &str, locale: &'a Locale) -> &'a str {
         "%s/"          => &c.cmd_percent_s,
         "!"            => &c.cmd_shell,
         "preview"      => &c.cmd_preview,
+        "filetree"     => &c.cmd_filetree,
+        "FT"           => &c.cmd_filetree,
+        "grep"         => &c.cmd_grep,
+        "tutorial"     => &c.cmd_tutorial,
+        "tut"          => &c.cmd_tutorial,
+        "mouse"        => &c.cmd_mouse,
         _              => "",
     }
 }

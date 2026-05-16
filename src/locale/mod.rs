@@ -65,6 +65,8 @@ pub struct UiStrings {
     pub hint_search:          String,
     pub hint_ai:              String,
     pub hint_filetree:        String,
+    /// Appended to any hint when multiple panels are visible simultaneously.
+    pub hint_switch_zone:     String,
     // Overlays
     pub theme_picker_title:   String,
 }
@@ -76,6 +78,8 @@ pub struct MessageStrings {
     pub saved:                 String,
     /// `{err}` — error description
     pub save_failed:           String,
+    /// Shown when :w / :wq is used but the buffer has no associated file path.
+    pub no_file_name:          String,
     pub unsaved_changes:       String,
     /// `{path}` — file path
     pub file_not_found:        String,
@@ -108,6 +112,7 @@ pub struct MessageStrings {
     /// `{err}`
     pub shell_error:           String,
     pub chat_cleared:          String,
+    pub mouse_hint:            String,
 }
 
 /// Command-mode completion descriptions (one per `:command`).
@@ -134,6 +139,10 @@ pub struct CommandStrings {
     pub cmd_percent_s:   String,
     pub cmd_shell:       String,
     pub cmd_preview:     String,
+    pub cmd_filetree:    String,
+    pub cmd_grep:        String,
+    pub cmd_tutorial:    String,
+    pub cmd_mouse:       String,
 }
 
 /// AI system prompt strings.
@@ -172,7 +181,7 @@ impl Default for UiStrings {
         Self {
             hint_normal:          "[i]insert  [v]select  [dd]del line  [yy]yank  [p]paste  [.]repeat  [u]undo  [?]AI  [Ctrl+l]chat".into(),
             hint_normal_empty:    "[i]insert here  [o]new line below  [O]new line above  [dd]delete  [?]AI".into(),
-            hint_normal_comment:  "[gcc]toggle comment  [yy]yank  [dd]delete  [A]append  [?]AI".into(),
+            hint_normal_comment:  "[yy]yank line  [dd]delete line  [A]append  [I]insert at start  [?]AI".into(),
             hint_normal_tag:      "[cit]change tag  [dit]delete tag  [vat]select tag  [?]AI".into(),
             hint_normal_url:      "[gf]open file  [yiw]yank path  [ciw]replace path  [?]AI".into(),
             hint_normal_number:   "[Ctrl+a]increment  [Ctrl+x]decrement  [ciw]change  [?]AI".into(),
@@ -183,10 +192,11 @@ impl Default for UiStrings {
             hint_normal_search:   "Search active  [n]next  [N]prev  [:noh]clear".into(),
             hint_insert:          "Typing...  [Esc]normal mode  [Ctrl+w]del word".into(),
             hint_visual:          "[y]yank  [d]delete  [c]change  [>]indent  [?]AI  [Esc]exit".into(),
-            hint_command:         ":w save  :q quit  :wq save+quit  [Esc]cancel".into(),
+            hint_command:         ":w save  :q quit  :wq save+quit  :filetree toggle tree  :tut tutorial  [Esc]cancel".into(),
             hint_search:          "Type pattern, Enter to search  [Esc]cancel".into(),
             hint_ai:              "Describe your intent, Enter to send  [Esc]cancel".into(),
             hint_filetree:        "[j/k]navigate  [l/Enter]open  [h]collapse  [Ctrl+w/Esc]back".into(),
+            hint_switch_zone:     "[Ctrl+w]switch panel".into(),
             theme_picker_title:   "Theme  j/k Enter Esc".into(),
         }
     }
@@ -197,6 +207,7 @@ impl Default for MessageStrings {
         Self {
             saved:                 "Saved".into(),
             save_failed:           "Save failed: {err}".into(),
+            no_file_name:          "No file name \u{2014} use :w <filename> to save".into(),
             unsaved_changes:       "Unsaved changes! Use :q! to force quit or :wq to save".into(),
             file_not_found:        "File not found: {path}".into(),
             theme_saved:           "Theme: {name} (saved)".into(),
@@ -216,6 +227,7 @@ impl Default for MessageStrings {
             preview_open_failed:   "Failed to open browser: {err}".into(),
             shell_error:           "Shell error: {err}".into(),
             chat_cleared:          "Chat history cleared".into(),
+            mouse_hint:            "Drop the mouse! Use :mouse to enter mouse mode".into(),
         }
     }
 }
@@ -243,6 +255,10 @@ impl Default for CommandStrings {
             cmd_percent_s:   "Substitute all  %s/pat/rep/g".into(),
             cmd_shell:       "Run shell command".into(),
             cmd_preview:     "Preview Markdown in browser".into(),
+            cmd_filetree:    "Toggle file tree sidebar".into(),
+            cmd_grep:        "Search in project".into(),
+            cmd_tutorial:    "Toggle tutorial board".into(),
+            cmd_mouse:       "Toggle mouse mode".into(),
         }
     }
 }

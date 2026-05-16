@@ -1498,6 +1498,8 @@ pub enum OverlayKind {
     SearchMatch,
     SearchMatchCurrent,
     VisualBlock,
+    VisualChar,
+    VisualLine,
 }
 
 impl OverlayKind {
@@ -1506,6 +1508,8 @@ impl OverlayKind {
             OverlayKind::SearchMatch        => Color::DarkGrey,
             OverlayKind::SearchMatchCurrent => Color::Yellow,
             OverlayKind::VisualBlock        => Color::DarkGrey,
+            OverlayKind::VisualChar         => Color::Rgb { r: 68, g: 68, b: 120 },
+            OverlayKind::VisualLine         => Color::Rgb { r: 68, g: 68, b: 120 },
         }
     }
     pub fn fg_color(self) -> Option<Color> {

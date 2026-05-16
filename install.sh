@@ -118,9 +118,21 @@ archive_suffix() {
     esac
 }
 
+# ── Query a GitHub releases/latest API endpoint and extract tag_name ──────────
+# Top-level helper (POSIX sh does not support nested function definitions).
+# Usage: _query_api <url>
+# Prints the tag_name string (e.g. "v0.1.4") or nothing on failure.
+
+_query_api() {
+    curl -fsSL --connect-timeout 10 --max-time 20 "$1" 2>/dev/null \
+        | grep '"tag_name"' \
+        | sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' \
+        | tr -d '[:space:]'
+}
+
 # ── Resolve version ────────────────────────────────────────────────────────────
-# Try GitHub API first; if it fails or returns empty, fall back to the
-# ghfast mirror API (which is accessible from mainland China).
+# Try GitHub API first; if it fails or returns empty, fall back to
+# CN-accessible mirror APIs.
 
 resolve_version() {
     if [ -n "${HI_VERSION:-}" ]; then
@@ -129,27 +141,20 @@ resolve_version() {
     fi
     need_cmd curl
 
-    # Helper: query a releases/latest API endpoint and extract tag_name
-    _query_api() {
-        curl -fsSL --connect-timeout 10 --max-time 20 "$1" 2>/dev/null \
-            | grep '"tag_name"' \
-            | sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' \
-            | tr -d '[:space:]'
-    }
-
     # 1st attempt: direct GitHub API
+    # NOTE: info/warn must be called OUTSIDE $(...) to avoid polluting the result.
     info "Querying GitHub API for latest release..."
     LATEST=$(_query_api "https://api.github.com/repos/${REPO}/releases/latest" || true)
 
     # 2nd attempt: ghfast mirror API (CN-friendly)
     if [ -z "$LATEST" ]; then
-        warn "GitHub API unreachable, trying mirror API..."
+        warn "GitHub API unreachable, trying ghfast mirror..."
         LATEST=$(_query_api "https://ghfast.top/https://api.github.com/repos/${REPO}/releases/latest" || true)
     fi
 
     # 3rd attempt: gitmirror API
     if [ -z "$LATEST" ]; then
-        warn "Mirror API also failed, trying gitmirror..."
+        warn "ghfast mirror failed, trying gitmirror..."
         LATEST=$(_query_api "https://hub.gitmirror.com/https://api.github.com/repos/${REPO}/releases/latest" || true)
     fi
 
@@ -157,7 +162,7 @@ resolve_version() {
         err "Could not determine latest version from any source.
   GitHub API may be rate-limited or blocked.
   Fix: set HI_VERSION=vX.Y.Z and retry, e.g.:
-    HI_VERSION=v0.1.3 curl -fsSL https://raw.githubusercontent.com/LiPingjiang/hi/main/install.sh | sh"
+    HI_VERSION=v0.1.4 curl -fsSL https://raw.githubusercontent.com/LiPingjiang/hi/main/install.sh | sh"
     fi
 
     echo "$LATEST"

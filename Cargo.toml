@@ -1,6 +1,6 @@
 [package]
 name = "hi"
-version = "0.1.2-fix1"
+version = "0.1.4"
 edition = "2021"
 description = "A modal text editor with native AI assistance"
 license = "Apache-2.0"

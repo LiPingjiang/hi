@@ -58,15 +58,15 @@ STEP_TOTAL=7
 
 step() {
     STEP_CURRENT=$((STEP_CURRENT + 1))
-    printf '\033[1;36m[%d/%d]\033[0m \033[1m%s\033[0m\n' "$STEP_CURRENT" "$STEP_TOTAL" "$*"
+    printf '\033[1;36m[%d/%d]\033[0m \033[1m%s\033[0m\n' "$STEP_CURRENT" "$STEP_TOTAL" "$*" >&2
 }
 
 say() {
-    printf '\033[1;32m  ✓ \033[0m%s\n' "$*"
+    printf '\033[1;32m  ✓ \033[0m%s\n' "$*" >&2
 }
 
 info() {
-    printf '\033[0;37m    %s\033[0m\n' "$*"
+    printf '\033[0;37m    %s\033[0m\n' "$*" >&2
 }
 
 warn() {

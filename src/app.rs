@@ -255,6 +255,10 @@ impl App {
 
     /// Main run loop.
     pub fn run(&mut self) -> Result<()> {
+        // Switch to ASCII input method on startup so Normal-mode keys work
+        // immediately without the user having to dismiss a CJK IME.
+        crate::ime::switch_to_ascii();
+
         self.renderer.init()?;
         let mut needs_redraw = true; // first frame always renders
 

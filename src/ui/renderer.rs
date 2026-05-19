@@ -13,6 +13,7 @@ use crossterm::{
 };
 use unicode_width::UnicodeWidthChar;
 use std::io::{self, Write, Stdout, BufWriter};
+use std::path::Path;
 use std::time::Instant;
 
 use crate::ui::perf_log::FrameTimer;
@@ -511,36 +512,40 @@ impl Renderer {
         }
 
         // ── File tree prompt overlay ──────────────────────
+        // Search prompt is rendered inside the file tree panel itself, skip it here.
         if let Some(prompt) = filetree_prompt {
-            let label = prompt.label();
-            let input = match prompt {
-                crate::app::FileTreePrompt::NewFile  { input } => input.as_str(),
-                crate::app::FileTreePrompt::NewDir   { input } => input.as_str(),
-                crate::app::FileTreePrompt::Rename   { input, .. } => input.as_str(),
-                crate::app::FileTreePrompt::Delete   { path, .. } => {
-                    // Show path in hint line
-                    let path_str = path.to_string_lossy();
-                    queue!(self.stdout, cursor::MoveTo(0, hint_row))?;
-                    queue!(self.stdout, SetForegroundColor(Color::Yellow))?;
-                    write!(self.stdout, "{}{}  {:<width$}", label, path_str, "", width = w.saturating_sub(label.len() + path_str.len() + 2))?;
-                    queue!(self.stdout, ResetColor)?;
-                    // Overwrite info row with prompt
-                    queue!(self.stdout, cursor::MoveTo(0, info_row))?;
-                    queue!(self.stdout, SetBackgroundColor(Color::DarkYellow), SetForegroundColor(Color::Black))?;
-                    write!(self.stdout, "{:<width$}", "按 y 确认删除，n 取消", width = w)?;
-                    queue!(self.stdout, ResetColor)?;
-                    // Flush before early return
-                    self.stdout.flush()?;
-                    return Ok(());
-                }
-            };
-            queue!(self.stdout, cursor::MoveTo(0, info_row))?;
-            queue!(self.stdout, SetBackgroundColor(Color::DarkGreen), SetForegroundColor(Color::Black))?;
-            write!(self.stdout, "{}{:<width$}", label, input, width = w.saturating_sub(label.len()))?;
-            queue!(self.stdout, ResetColor)?;
-            // Show cursor at end of input
-            let cursor_x = (display_width_str(label) + display_width_str(input)).min(w.saturating_sub(1));
-            queue!(self.stdout, cursor::MoveTo(cursor_x as u16, info_row), cursor::Show)?;
+            if !matches!(prompt, crate::app::FileTreePrompt::Search { .. }) {
+                let label = prompt.label();
+                let input = match prompt {
+                    crate::app::FileTreePrompt::NewFile  { input } => input.as_str(),
+                    crate::app::FileTreePrompt::NewDir   { input } => input.as_str(),
+                    crate::app::FileTreePrompt::Rename   { input, .. } => input.as_str(),
+                    crate::app::FileTreePrompt::Delete   { path, .. } => {
+                        // Show path in hint line
+                        let path_str = path.to_string_lossy();
+                        queue!(self.stdout, cursor::MoveTo(0, hint_row))?;
+                        queue!(self.stdout, SetForegroundColor(Color::Yellow))?;
+                        write!(self.stdout, "{}{}  {:<width$}", label, path_str, "", width = w.saturating_sub(label.len() + path_str.len() + 2))?;
+                        queue!(self.stdout, ResetColor)?;
+                        // Overwrite info row with prompt
+                        queue!(self.stdout, cursor::MoveTo(0, info_row))?;
+                        queue!(self.stdout, SetBackgroundColor(Color::DarkYellow), SetForegroundColor(Color::Black))?;
+                        write!(self.stdout, "{:<width$}", "按 y 确认删除，n 取消", width = w)?;
+                        queue!(self.stdout, ResetColor)?;
+                        // Flush before early return
+                        self.stdout.flush()?;
+                        return Ok(());
+                    }
+                    crate::app::FileTreePrompt::Search { .. } => unreachable!(),
+                };
+                queue!(self.stdout, cursor::MoveTo(0, info_row))?;
+                queue!(self.stdout, SetBackgroundColor(Color::DarkGreen), SetForegroundColor(Color::Black))?;
+                write!(self.stdout, "{}{:<width$}", label, input, width = w.saturating_sub(label.len()))?;
+                queue!(self.stdout, ResetColor)?;
+                // Show cursor at end of input
+                let cursor_x = (display_width_str(label) + display_width_str(input)).min(w.saturating_sub(1));
+                queue!(self.stdout, cursor::MoveTo(cursor_x as u16, info_row), cursor::Show)?;
+            }
         }
 
         if let Some(ref mut p) = perf {
@@ -780,24 +785,118 @@ impl Renderer {
         height: usize,
         focused: bool,
     ) -> io::Result<()> {
-        let lines = ft.render_lines();
-        for row in 0..height {
+        // Reserve bottom row for search input if search is active
+        let is_searching = ft.filter.is_some();
+        let tree_height = if is_searching { height.saturating_sub(1) } else { height };
+
+        // Scroll offset: keep cursor visible within tree_height
+        let scroll = if ft.cursor >= tree_height {
+            ft.cursor - tree_height + 1
+        } else {
+            0
+        };
+
+        // Get the filter query for highlighting
+        let filter_query = ft.filter.as_deref().unwrap_or("");
+
+        for row in 0..tree_height {
             queue!(self.stdout, cursor::MoveTo(0, row as u16))?;
-            if let Some(line) = lines.get(row) {
-                let is_cursor = row == ft.cursor;
+            let vis_idx = row + scroll; // index into visible_indices
+            if let Some(&real_idx) = ft.visible_indices.get(vis_idx) {
+                let node = &ft.nodes[real_idx];
+                let is_cursor = vis_idx == ft.cursor;
                 if is_cursor && focused {
-                    queue!(self.stdout, SetBackgroundColor(Color::DarkBlue))?;
+                    queue!(self.stdout, SetBackgroundColor(Color::Rgb { r: 30, g: 60, b: 90 }))?;
                 }
-                let ft_trunc = truncate(line, width);
-                let ft_dw = display_width_str(&ft_trunc);
-                write!(self.stdout, "{}", ft_trunc)?;
-                if ft_dw < width {
-                    write!(self.stdout, "{:padding$}", "", padding = width - ft_dw)?;
+
+                // Indent
+                let indent = "  ".repeat(node.depth);
+                let indent_dw = node.depth * 2;
+
+                // Icon + color based on type
+                let (icon, fg) = if node.is_dir {
+                    let ic = if node.expanded { "▾ " } else { "▸ " };
+                    (ic, Color::Rgb { r: 80, g: 180, b: 255 }) // blue for dirs
+                } else {
+                    filetree_file_style(&node.path)
+                };
+
+                // Write indent + icon with base color
+                queue!(self.stdout, SetForegroundColor(fg))?;
+                if node.is_dir {
+                    queue!(self.stdout, SetAttribute(Attribute::Bold))?;
                 }
-                queue!(self.stdout, ResetColor)?;
+                write!(self.stdout, "{}{}", indent, icon)?;
+
+                // Write name with match highlighting
+                let name_budget = width.saturating_sub(indent_dw + display_width_str(icon));
+                let name_trunc = truncate(&node.name, name_budget);
+
+                if !filter_query.is_empty() && !node.is_dir {
+                    // Highlight matching substring
+                    self.write_highlighted_name(&name_trunc, filter_query, fg)?;
+                } else {
+                    write!(self.stdout, "{}", name_trunc)?;
+                }
+
+                // Pad remaining width
+                let used = indent_dw + display_width_str(icon) + display_width_str(&name_trunc);
+                if used < width {
+                    write!(self.stdout, "{:padding$}", "", padding = width - used)?;
+                }
+
+                queue!(self.stdout, SetAttribute(Attribute::Reset), ResetColor)?;
             } else {
                 write!(self.stdout, "{:width$}", "", width = width)?;
             }
+        }
+
+        // Render search input bar at bottom
+        if is_searching {
+            let search_row = tree_height;
+            queue!(self.stdout, cursor::MoveTo(0, search_row as u16))?;
+            queue!(self.stdout, SetBackgroundColor(Color::Rgb { r: 40, g: 40, b: 50 }), SetForegroundColor(Color::Rgb { r: 255, g: 200, b: 80 }))?;
+            let prompt_str = format!("/{}", filter_query);
+            let prompt_trunc = truncate(&prompt_str, width);
+            let prompt_dw = display_width_str(&prompt_trunc);
+            write!(self.stdout, "{}", prompt_trunc)?;
+            if prompt_dw < width {
+                write!(self.stdout, "{:padding$}", "", padding = width - prompt_dw)?;
+            }
+            queue!(self.stdout, ResetColor)?;
+        }
+
+        Ok(())
+    }
+
+    /// Write a file name with the matching substring highlighted.
+    fn write_highlighted_name(&mut self, name: &str, query: &str, base_fg: Color) -> io::Result<()> {
+        let name_lower = name.to_lowercase();
+        let query_lower = query.to_lowercase();
+        let highlight_fg = Color::Rgb { r: 255, g: 100, b: 100 }; // bright red for match
+
+        if let Some(start) = name_lower.find(&query_lower) {
+            let end = start + query.len();
+            // Ensure we split at char boundaries
+            let (before, rest) = name.split_at(
+                name.char_indices().nth(start).map(|(i, _)| i).unwrap_or(name.len())
+            );
+            let match_end_byte = rest.char_indices()
+                .nth(end - start)
+                .map(|(i, _)| i)
+                .unwrap_or(rest.len());
+            let (matched, after) = rest.split_at(match_end_byte);
+
+            // Before match
+            write!(self.stdout, "{}", before)?;
+            // Matched part — highlighted
+            queue!(self.stdout, SetForegroundColor(highlight_fg), SetAttribute(Attribute::Bold))?;
+            write!(self.stdout, "{}", matched)?;
+            // After match — restore base color
+            queue!(self.stdout, SetAttribute(Attribute::NoBold), SetForegroundColor(base_fg))?;
+            write!(self.stdout, "{}", after)?;
+        } else {
+            write!(self.stdout, "{}", name)?;
         }
         Ok(())
     }
@@ -1760,6 +1859,74 @@ fn pad_to_dw(s: &str, target_dw: usize) -> String {
     }
 }
 
+/// Truncate a string to fit within `max_cols` display-width columns.
+/// Safe for multi-byte UTF-8 — never splits a character.
+fn truncate_to_width(s: &str, max_cols: usize) -> &str {
+    let mut col = 0;
+    for (i, c) in s.char_indices() {
+        let cw = UnicodeWidthChar::width(c).unwrap_or(0);
+        if col + cw > max_cols {
+            return &s[..i];
+        }
+        col += cw;
+    }
+    s
+}
+
+/// Returns (icon, foreground_color) for a file based on its extension.
+fn filetree_file_style(path: &Path) -> (&'static str, Color) {
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    match ext {
+        // Rust
+        "rs" => ("  ", Color::Rgb { r: 255, g: 140, b: 60 }),   // orange
+        // Config / data
+        "toml" | "yaml" | "yml" | "json" | "ini" | "cfg" =>
+            ("  ", Color::Rgb { r: 220, g: 200, b: 80 }),        // yellow
+        // Documentation
+        "md" | "txt" | "rst" | "adoc" =>
+            ("  ", Color::Rgb { r: 100, g: 200, b: 120 }),       // green
+        // Shell / scripts
+        "sh" | "bash" | "zsh" | "fish" =>
+            ("  ", Color::Rgb { r: 180, g: 130, b: 255 }),       // purple
+        // Python
+        "py" | "pyi" =>
+            ("  ", Color::Rgb { r: 80, g: 200, b: 180 }),        // teal
+        // JavaScript / TypeScript / Web
+        "js" | "mjs" | "cjs" =>
+            ("  ", Color::Rgb { r: 240, g: 220, b: 80 }),        // JS yellow
+        "ts" | "mts" | "cts" =>
+            ("  ", Color::Rgb { r: 60, g: 160, b: 255 }),        // TS blue
+        "jsx" | "tsx" =>
+            ("  ", Color::Rgb { r: 100, g: 220, b: 240 }),       // React cyan
+        "html" | "htm" =>
+            ("  ", Color::Rgb { r: 255, g: 120, b: 60 }),        // HTML orange
+        "css" | "scss" | "less" =>
+            ("  ", Color::Rgb { r: 120, g: 140, b: 255 }),       // CSS blue-purple
+        // Go
+        "go" => ("  ", Color::Rgb { r: 80, g: 200, b: 220 }),   // Go cyan
+        // Java / Kotlin
+        "java" => ("  ", Color::Rgb { r: 255, g: 100, b: 80 }), // red
+        "kt" | "kts" =>
+            ("  ", Color::Rgb { r: 180, g: 120, b: 255 }),       // Kotlin purple
+        // C / C++
+        "c" | "h" =>
+            ("  ", Color::Rgb { r: 100, g: 160, b: 255 }),       // C blue
+        "cpp" | "cc" | "cxx" | "hpp" =>
+            ("  ", Color::Rgb { r: 120, g: 140, b: 220 }),       // C++ blue
+        // Lock / generated
+        "lock" | "sum" =>
+            ("  ", Color::Rgb { r: 120, g: 120, b: 120 }),       // dim gray
+        // Images
+        "png" | "jpg" | "jpeg" | "gif" | "svg" | "ico" | "webp" =>
+            ("  ", Color::Rgb { r: 200, g: 160, b: 255 }),       // light purple
+        // Binary / archive
+        "zip" | "tar" | "gz" | "bz2" | "xz" | "7z" =>
+            ("  ", Color::Rgb { r: 180, g: 140, b: 100 }),       // brown
+        // Default
+        _ => ("  ", Color::Rgb { r: 190, g: 190, b: 190 }),      // light gray
+    }
+}
+
 /// Center `s` within `target_dw` columns using display-width-aware padding.
 fn center_to_dw(s: &str, target_dw: usize) -> String {
     let dw = display_width_str(s);
@@ -1770,4 +1937,199 @@ fn center_to_dw(s: &str, target_dw: usize) -> String {
     let left = total_pad / 2;
     let right = total_pad - left;
     format!("{}{}{}", " ".repeat(left), s, " ".repeat(right))
+}
+
+// ── LeetCode "古法时代" full-screen overlay renderer ─────────────────────────
+#[cfg(feature = "leetcode")]
+impl Renderer {
+    /// Render the LeetCode panel as a full-screen overlay.
+    pub fn render_leetcode_panel(
+        &mut self,
+        panel: &crate::leetcode::LeetCodePanel,
+        w: usize,
+        h: usize,
+    ) -> io::Result<()> {
+        use crate::leetcode::panel::{LeetCodeView, RetroColors};
+
+        let bg = Color::Rgb { r: RetroColors::BG.0, g: RetroColors::BG.1, b: RetroColors::BG.2 };
+        let green = Color::Rgb { r: RetroColors::GREEN.0, g: RetroColors::GREEN.1, b: RetroColors::GREEN.2 };
+        let dim_green = Color::Rgb { r: RetroColors::DIM_GREEN.0, g: RetroColors::DIM_GREEN.1, b: RetroColors::DIM_GREEN.2 };
+        let amber = Color::Rgb { r: RetroColors::AMBER.0, g: RetroColors::AMBER.1, b: RetroColors::AMBER.2 };
+        let highlight_bg = Color::Rgb { r: RetroColors::HIGHLIGHT.0, g: RetroColors::HIGHLIGHT.1, b: RetroColors::HIGHLIGHT.2 };
+
+        // Clear entire screen with retro background
+        queue!(self.stdout, cursor::Hide, cursor::MoveTo(0, 0))?;
+        for row in 0..h {
+            queue!(self.stdout, cursor::MoveTo(0, row as u16), SetBackgroundColor(bg), SetForegroundColor(dim_green))?;
+            write!(self.stdout, "{:width$}", "", width = w)?;
+        }
+
+        match panel.view {
+            LeetCodeView::Splash => {
+                // Draw ASCII logo centered vertically
+                // Logo + 2 blank lines + status = total block height
+                let logo_lines: Vec<&str> = panel.logo_lines();
+                let block_height = logo_lines.len() + 3; // logo + 2 gap + 1 status
+                let start_y = h.saturating_sub(block_height) / 2;
+
+                // Find max display width across all logo lines so they align as a block
+                let max_logo_dw = logo_lines.iter()
+                    .map(|l| display_width_str(l))
+                    .max()
+                    .unwrap_or(0);
+
+                for (i, line) in logo_lines.iter().enumerate() {
+                    let y = start_y + i;
+                    if y >= h { break; }
+                    queue!(self.stdout, cursor::MoveTo(0, y as u16), SetBackgroundColor(bg), SetForegroundColor(green))?;
+                    // Pad each line to max_logo_dw (right-pad) so they form a uniform block
+                    let line_dw = display_width_str(line);
+                    let padded_line = if line_dw < max_logo_dw {
+                        format!("{}{}", line, " ".repeat(max_logo_dw - line_dw))
+                    } else {
+                        line.to_string()
+                    };
+                    // Now center the uniform-width block within terminal width
+                    let centered = center_to_dw(&padded_line, w);
+                    let truncated = truncate_to_width(&centered, w);
+                    write!(self.stdout, "{}", truncated)?;
+                }
+
+                // Status message: 2 lines below logo, also centered
+                let status_y = start_y + logo_lines.len() + 2;
+                if status_y < h {
+                    queue!(self.stdout, cursor::MoveTo(0, status_y as u16), SetBackgroundColor(bg), SetForegroundColor(amber))?;
+                    let status = center_to_dw(&panel.status_msg, w);
+                    let truncated = truncate_to_width(&status, w);
+                    write!(self.stdout, "{}", truncated)?;
+                }
+            }
+            LeetCodeView::ProblemList => {
+                // Header
+                queue!(self.stdout, cursor::MoveTo(0, 0), SetBackgroundColor(highlight_bg), SetForegroundColor(green))?;
+                let header = format!(" ╔═ LeetCode 古法时代 ═╗  [{} problems]  [1]Easy [2]Med [3]Hard [0]All ", panel.filtered.len());
+                write!(self.stdout, "{:width$}", header, width = w)?;
+
+                // Separator
+                queue!(self.stdout, cursor::MoveTo(0, 1), SetBackgroundColor(bg), SetForegroundColor(dim_green))?;
+                let sep: String = "═".repeat(w);
+                let truncated = truncate_to_width(&sep, w);
+                write!(self.stdout, "{}", truncated)?;
+
+                // Problem rows
+                let list_h = h.saturating_sub(4); // header(2) + footer(2)
+                let visible = panel.visible_problems(h);
+                let cursor_in_view = panel.cursor_in_view(h);
+
+                for (i, problem) in visible.iter().enumerate() {
+                    let y = i + 2;
+                    if y >= h.saturating_sub(2) { break; }
+
+                    let is_selected = i == cursor_in_view;
+                    let row_bg = if is_selected { highlight_bg } else { bg };
+                    let diff_color = match problem.difficulty {
+                        crate::leetcode::Difficulty::Easy => Color::Rgb { r: RetroColors::EASY.0, g: RetroColors::EASY.1, b: RetroColors::EASY.2 },
+                        crate::leetcode::Difficulty::Medium => Color::Rgb { r: RetroColors::MEDIUM.0, g: RetroColors::MEDIUM.1, b: RetroColors::MEDIUM.2 },
+                        crate::leetcode::Difficulty::Hard => Color::Rgb { r: RetroColors::HARD.0, g: RetroColors::HARD.1, b: RetroColors::HARD.2 },
+                    };
+
+                    queue!(self.stdout, cursor::MoveTo(0, y as u16), SetBackgroundColor(row_bg), SetForegroundColor(green))?;
+                    let status_icon = problem.status.icon();
+                    let pointer = if is_selected { "▸" } else { " " };
+                    write!(self.stdout, " {} {} {:>4}. ", pointer, status_icon, problem.frontend_id)?;
+
+                    // Title in green
+                    let title_w = w.saturating_sub(30);
+                    let title: String = problem.title.chars().take(title_w).collect();
+                    write!(self.stdout, "{:<width$}", title, width = title_w)?;
+
+                    // Difficulty in color
+                    queue!(self.stdout, SetForegroundColor(diff_color))?;
+                    write!(self.stdout, " {:>6} ", problem.difficulty.label())?;
+
+                    // Acceptance
+                    queue!(self.stdout, SetForegroundColor(dim_green))?;
+                    write!(self.stdout, "{:>5.1}%", problem.acceptance)?;
+
+                    // Fill rest of line
+                    queue!(self.stdout, SetForegroundColor(green))?;
+                }
+
+                // Footer separator + status
+                let footer_y = h.saturating_sub(2);
+                queue!(self.stdout, cursor::MoveTo(0, footer_y as u16), SetBackgroundColor(bg), SetForegroundColor(dim_green))?;
+                write!(self.stdout, "{:width$}", "═".repeat(w), width = w)?;
+
+                queue!(self.stdout, cursor::MoveTo(0, h.saturating_sub(1) as u16), SetBackgroundColor(highlight_bg), SetForegroundColor(amber))?;
+                let footer = format!(" {} │ j/k:↑↓  Enter:open  r:refresh  Esc:quit", &panel.status_msg);
+                write!(self.stdout, "{:width$}", footer, width = w)?;
+            }
+            LeetCodeView::ProblemDetail => {
+                if let Some(ref detail) = panel.detail {
+                    // Title bar
+                    queue!(self.stdout, cursor::MoveTo(0, 0), SetBackgroundColor(highlight_bg), SetForegroundColor(green))?;
+                    let title_bar = format!(" ╔═ #{} {} ═╗", detail.summary.frontend_id, detail.summary.title);
+                    write!(self.stdout, "{:width$}", title_bar, width = w)?;
+
+                    // Content
+                    let content_lines: Vec<&str> = detail.content_text.lines().collect();
+                    for (i, line) in content_lines.iter().enumerate().take(h.saturating_sub(3)) {
+                        let y = i + 1;
+                        queue!(self.stdout, cursor::MoveTo(0, y as u16), SetBackgroundColor(bg), SetForegroundColor(green))?;
+                        let display_line: String = line.chars().take(w).collect();
+                        write!(self.stdout, "{:width$}", display_line, width = w)?;
+                    }
+
+                    // Footer
+                    queue!(self.stdout, cursor::MoveTo(0, h.saturating_sub(1) as u16), SetBackgroundColor(highlight_bg), SetForegroundColor(amber))?;
+                    write!(self.stdout, "{:width$}", " Esc/q: back to list", width = w)?;
+                }
+            }
+            LeetCodeView::Login => {
+                // Login instructions — vertically centered block
+                let lines: &[(&str, bool)] = &[
+                    ("╔══════════════════════════════════════╗", true),
+                    ("║        LeetCode Login                ║", true),
+                    ("╚══════════════════════════════════════╝", true),
+                    ("", false),
+                    ("How to get your cookie:", false),
+                    ("", false),
+                    ("  1. Open https://leetcode.cn (or leetcode.com)", false),
+                    ("  2. Log in to your account", false),
+                    ("  3. Press F12 → Application → Cookies", false),
+                    ("  4. Copy values of LEETCODE_SESSION and csrftoken", false),
+                    ("  5. Paste below in format:", false),
+                    ("     LEETCODE_SESSION=xxx;csrftoken=yyy", false),
+                    ("", false),
+                    ("Paste cookie (Esc to cancel):", false),
+                ];
+                let total_lines = lines.len() + 2; // +2 for input line + blank
+                let start_y = h.saturating_sub(total_lines) / 2;
+
+                for (i, (text, is_amber)) in lines.iter().enumerate() {
+                    let y = start_y + i;
+                    if y >= h { break; }
+                    let fg = if *is_amber { amber } else { green };
+                    queue!(self.stdout, cursor::MoveTo(0, y as u16), SetBackgroundColor(bg), SetForegroundColor(fg))?;
+                    let centered = center_to_dw(text, w);
+                    let truncated = truncate_to_width(&centered, w);
+                    write!(self.stdout, "{}", truncated)?;
+                }
+
+                // Input line
+                let input_y = start_y + lines.len() + 1;
+                if input_y < h {
+                    queue!(self.stdout, cursor::MoveTo(0, input_y as u16), SetBackgroundColor(bg), SetForegroundColor(green))?;
+                    let input_display = format!("  > {}_", &panel.login_input);
+                    let centered = center_to_dw(&input_display, w);
+                    let truncated = truncate_to_width(&centered, w);
+                    write!(self.stdout, "{}", truncated)?;
+                }
+            }
+        }
+
+        queue!(self.stdout, ResetColor)?;
+        self.stdout.flush()?;
+        Ok(())
+    }
 }

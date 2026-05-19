@@ -1,6 +1,6 @@
 [package]
 name = "hi"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 description = "A modal text editor with native AI assistance"
 license = "Apache-2.0"
@@ -68,6 +68,8 @@ ropey = "1.6"
 crossterm = "0.28"
 
 [features]
+default = ["leetcode"]
+leetcode = []
 pty_tests = []
 
 [profile.release]

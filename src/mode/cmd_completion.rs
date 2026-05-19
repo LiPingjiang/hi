@@ -47,6 +47,9 @@ const CMD_REGISTRY: &[CmdEntry] = &[
     CmdEntry { trigger: "tutorial",     desc: "Toggle tutorial board",              has_arg: false },
     CmdEntry { trigger: "tut",          desc: "Toggle tutorial board",              has_arg: false },
     CmdEntry { trigger: "mouse",        desc: "Toggle mouse mode",                 has_arg: false },
+    CmdEntry { trigger: "ai",           desc: "AI agent-edit session",             has_arg: true  },
+    CmdEntry { trigger: "leetcode",     desc: "LeetCode 古法时代",                 has_arg: false },
+    CmdEntry { trigger: "lc",           desc: "LeetCode 古法时代 (short)",         has_arg: false },
 ];
 
 /// Returns the locale-translated description for a command trigger.
@@ -79,6 +82,9 @@ fn localized_desc<'a>(trigger: &str, locale: &'a Locale) -> &'a str {
         "tutorial"     => &c.cmd_tutorial,
         "tut"          => &c.cmd_tutorial,
         "mouse"        => &c.cmd_mouse,
+        "ai"           => "AI agent-edit session",
+        "leetcode"     => "LeetCode 古法时代",
+        "lc"           => "LeetCode 古法时代",
         _              => "",
     }
 }

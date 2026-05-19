@@ -8,5 +8,8 @@ pub mod mode;
 pub mod syntax;
 pub mod ui;
 
+#[cfg(feature = "leetcode")]
+pub mod leetcode;
+
 #[cfg(test)]
 mod tests;

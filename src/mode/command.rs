@@ -37,6 +37,9 @@ pub enum CommandAction {
     ToggleMouse,
     /// :ai <instruction> — start AI agent-edit session on the whole file
     AiEdit(String),
+    /// :leetcode / :lc — open LeetCode "古法时代" panel
+    #[cfg(feature = "leetcode")]
+    OpenLeetCode,
 }
 
 #[derive(Debug, Clone)]
@@ -218,6 +221,12 @@ impl Editor {
         }
         if cmd == "ai" {
             return CommandAction::SetMsg(":ai <instruction>  — describe what you want the AI to do".to_string());
+        }
+
+        // :leetcode / :lc — open LeetCode panel
+        #[cfg(feature = "leetcode")]
+        if cmd == "leetcode" || cmd == "lc" {
+            return CommandAction::OpenLeetCode;
         }
 
         // :grep {pattern}  or  :grep /{pattern}/  (regex)

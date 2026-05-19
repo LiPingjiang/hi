@@ -13,6 +13,8 @@ use crate::ai::{AiEditSession, AiEditStepResult, AiTool, ToolResult, DiffHunk, H
 use crate::ai::parser::{parse_tool_call, extract_thought};
 use crate::ui::chatpanel::ChatPanel;
 use crate::ui::diff_panel::DiffPanel;
+#[cfg(feature = "leetcode")]
+use crate::leetcode::{LeetCodePanel, panel::LeetCodeAction};
 
 /// Which panel currently has keyboard focus.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -63,13 +65,14 @@ pub struct ThemePicker {
     pub original_theme: String,
 }
 
-/// Pending file-tree prompt (new file / new dir / rename / delete confirm).
+/// Pending file-tree prompt (new file / new dir / rename / delete confirm / search).
 #[derive(Debug, Clone)]
 pub enum FileTreePrompt {
     NewFile  { input: String },
     NewDir   { input: String },
     Rename   { original: std::path::PathBuf, input: String },
     Delete   { path: std::path::PathBuf, confirmed: bool },
+    Search   { input: String },
 }
 
 impl FileTreePrompt {
@@ -79,11 +82,12 @@ impl FileTreePrompt {
             Self::NewDir   { .. } => "新建目录: ",
             Self::Rename   { .. } => "重命名: ",
             Self::Delete   { .. } => "删除? [y/n]: ",
+            Self::Search   { .. } => "/",
         }
     }
     pub fn input_mut(&mut self) -> Option<&mut String> {
         match self {
-            Self::NewFile  { input } | Self::NewDir { input } | Self::Rename { input, .. } => Some(input),
+            Self::NewFile  { input } | Self::NewDir { input } | Self::Rename { input, .. } | Self::Search { input } => Some(input),
             Self::Delete   { .. } => None,
         }
     }
@@ -160,6 +164,10 @@ pub struct App {
     ai_edit_session_id: u64,
     /// Pending selection for ga-triggered agent-edit (start_line, end_line, text).
     ai_edit_pending_selection: Option<(usize, usize, String)>,
+
+    // LeetCode "古法时代" panel
+    #[cfg(feature = "leetcode")]
+    leetcode_panel: Option<LeetCodePanel>,
 }
 
 impl App {
@@ -240,6 +248,8 @@ impl App {
             diff_panel: None,
             ai_edit_session_id: 0,
             ai_edit_pending_selection: None,
+            #[cfg(feature = "leetcode")]
+            leetcode_panel: None,
         })
     }
 
@@ -250,7 +260,21 @@ impl App {
 
         loop {
             if needs_redraw {
-                // Render
+                // LeetCode panel: full-screen overlay, skip normal render
+                #[cfg(feature = "leetcode")]
+                let leetcode_rendered = if let Some(ref panel) = self.leetcode_panel {
+                    let w = self.editor.term_width as usize;
+                    let h = self.editor.term_height as usize;
+                    self.renderer.render_leetcode_panel(panel, w, h)?;
+                    true
+                } else {
+                    false
+                };
+                #[cfg(not(feature = "leetcode"))]
+                let leetcode_rendered = false;
+
+                if !leetcode_rendered {
+                // Normal render
                 self.renderer.render(
                     &mut self.editor,
                     &self.filetree,
@@ -297,6 +321,7 @@ impl App {
 
                 // Clear one-shot status message after render
                 self.editor.status_msg = None;
+                } // end if !leetcode_rendered
                 needs_redraw = false;
             }
 
@@ -361,6 +386,17 @@ impl App {
     fn dispatch_event(&mut self, ev: Event) -> Result<()> {
         match ev {
             Event::Key(key) => {
+                // LeetCode panel takes priority when open
+                #[cfg(feature = "leetcode")]
+                if self.leetcode_panel.is_some() {
+                    let panel = self.leetcode_panel.as_mut().unwrap();
+                    match panel.handle_key(key) {
+                        LeetCodeAction::Close => { self.leetcode_panel = None; }
+                        LeetCodeAction::Redraw | LeetCodeAction::None => {}
+                    }
+                    return Ok(());
+                }
+
                 if self.diff_panel.is_some() {
                     self.handle_diff_panel_key(key)?;
                 } else if self.grep_panel.is_some() {
@@ -1121,14 +1157,6 @@ impl App {
                 }
                 self.editor.mode = Mode::Normal;
             }
-            AiInputAction::ConfirmPlan => {
-                self.apply_plan();
-            }
-            AiInputAction::CancelPlan => {
-                self.plan_lines = None;
-                self.ai_query_msg = None;
-                self.editor.mode = Mode::Normal;
-            }
             AiInputAction::None => {
                 self.editor.mode = Mode::Ai(input.clone());
             }
@@ -1288,6 +1316,11 @@ impl App {
             CommandAction::AiEdit(instruction) => {
                 self.editor.mode = Mode::Normal;
                 self.start_ai_edit_session_command(instruction);
+            }
+            #[cfg(feature = "leetcode")]
+            CommandAction::OpenLeetCode => {
+                self.editor.mode = Mode::Normal;
+                self.leetcode_panel = Some(LeetCodePanel::new());
             }
         }
         Ok(())
@@ -1988,6 +2021,13 @@ impl App {
                     ft.refresh();
                 }
             }
+            // / — search in file tree
+            KeyCode::Char('/') => {
+                if let Some(ft) = &mut self.filetree {
+                    ft.start_search();
+                }
+                self.filetree_prompt = Some(FileTreePrompt::Search { input: String::new() });
+            }
             _ => {}
         }
         Ok(())
@@ -2129,6 +2169,57 @@ impl App {
     /// Handle key input while a file-tree prompt is active.
     fn handle_filetree_prompt_key(&mut self, key: KeyEvent) -> Result<()> {
         use std::fs;
+
+        // ── Search prompt has special real-time behavior ──
+        let is_search = matches!(&self.filetree_prompt, Some(FileTreePrompt::Search { .. }));
+
+        if is_search {
+            match key.code {
+                KeyCode::Esc => {
+                    // Cancel search, restore full tree
+                    if let Some(ft) = &mut self.filetree {
+                        ft.cancel_search();
+                    }
+                    self.filetree_prompt = None;
+                }
+                KeyCode::Enter => {
+                    // Confirm search: keep cursor position, exit search mode
+                    if let Some(ft) = &mut self.filetree {
+                        ft.end_search();
+                    }
+                    self.filetree_prompt = None;
+                }
+                KeyCode::Backspace => {
+                    if let Some(FileTreePrompt::Search { input }) = &mut self.filetree_prompt {
+                        input.pop();
+                        let query = input.clone();
+                        if let Some(ft) = &mut self.filetree {
+                            ft.update_filter(&query);
+                        }
+                    }
+                }
+                KeyCode::Char(c) => {
+                    if let Some(FileTreePrompt::Search { input }) = &mut self.filetree_prompt {
+                        input.push(c);
+                        let query = input.clone();
+                        if let Some(ft) = &mut self.filetree {
+                            ft.update_filter(&query);
+                        }
+                    }
+                }
+                // Allow j/k navigation while searching
+                KeyCode::Down => {
+                    if let Some(ft) = &mut self.filetree { ft.move_down(); }
+                }
+                KeyCode::Up => {
+                    if let Some(ft) = &mut self.filetree { ft.move_up(); }
+                }
+                _ => {}
+            }
+            return Ok(());
+        }
+
+        // ── Non-search prompts (NewFile, NewDir, Rename, Delete) ──
         match key.code {
             KeyCode::Esc => {
                 self.filetree_prompt = None;
@@ -2174,6 +2265,7 @@ impl App {
                         // Enter without y/n — treat as cancel
                         self.editor.set_msg(format!("已取消删除: {}", path.display()));
                     }
+                    Some(FileTreePrompt::Search { .. }) => { /* handled above */ }
                     None => {}
                 }
             }

@@ -6,8 +6,6 @@ pub enum AiInputAction {
     Submit(String),
     Cancel,
     ConfirmGhost,  // Tab pressed while ghost is showing
-    ConfirmPlan,   // y pressed while plan is showing
-    CancelPlan,    // n pressed while plan is showing
 }
 
 pub fn handle_ai_input_key(input: &mut String, key: KeyEvent) -> AiInputAction {
@@ -30,12 +28,6 @@ pub fn handle_ai_input_key(input: &mut String, key: KeyEvent) -> AiInputAction {
             AiInputAction::None
         }
         KeyCode::Tab => AiInputAction::ConfirmGhost,
-        KeyCode::Char('y') => {
-            // Ambiguous: could be typing or confirming plan.
-            // The caller (app.rs) checks whether a plan is showing.
-            AiInputAction::ConfirmPlan
-        }
-        KeyCode::Char('n') => AiInputAction::CancelPlan,
         KeyCode::Char(c) => {
             input.push(c);
             AiInputAction::None

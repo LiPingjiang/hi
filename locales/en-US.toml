@@ -102,6 +102,22 @@ The UI has three focus zones, cycled with Tab or Ctrl+w:
 - FileTree (left sidebar, toggle with Ctrl+t)
 - Chat (right AI panel, toggle with Ctrl+l)
 
+## FileTree Keybindings (when FileTree is focused)
+
+j/k or arrow keys — move cursor up/down
+Enter/l — expand directory or open file
+h — collapse directory or go to parent
+a — create new file
+A — create new directory
+d — delete selected item
+r — rename selected item
+y — copy path to clipboard
+R — refresh file tree
+H — toggle hidden files
+g/G — jump to top/bottom
+/ — search/filter (real-time filename filter, Enter to confirm, Esc to cancel)
+Esc/q — return focus to editor
+
 ## Normal Mode Keybindings
 
 Movement:
@@ -159,7 +175,8 @@ role_advisor = """
 
 You are answering the user's question about their code or the editor.
 Be concise and precise. Prefer code examples over lengthy prose.
-When the user asks about editor usage, refer to the keybindings above.
+When the user asks about editor usage, refer STRICTLY to the keybindings documented above. Only describe features that are explicitly listed.
+If a feature is NOT mentioned in the documentation above, clearly tell the user "this feature is not currently supported" — do NOT guess or fabricate capabilities.
 Never include markdown fences unless the user asks for formatted output.
 Respond in the same language the user uses (Chinese if they write Chinese, English if English).
 """

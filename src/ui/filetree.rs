@@ -19,6 +19,10 @@ pub struct FileTree {
     pub show_hidden: bool,
     /// Paths that are currently expanded (persists across refresh)
     expanded_paths: HashSet<PathBuf>,
+    /// Active search filter (None = show all, Some("") = search mode but no filter yet)
+    pub filter: Option<String>,
+    /// Indices into `nodes` that match the current filter
+    pub visible_indices: Vec<usize>,
 }
 
 impl FileTree {
@@ -31,6 +35,8 @@ impl FileTree {
             cursor: 0,
             show_hidden,
             expanded_paths: HashSet::new(),
+            filter: None,
+            visible_indices: vec![],
         };
         ft.refresh();
         Ok(ft)
@@ -43,6 +49,8 @@ impl FileTree {
             cursor: 0,
             show_hidden,
             expanded_paths: HashSet::new(),
+            filter: None,
+            visible_indices: vec![],
         };
         ft.refresh();
         ft
@@ -52,6 +60,94 @@ impl FileTree {
     pub fn refresh(&mut self) {
         self.nodes.clear();
         self.build_nodes(&self.root.clone(), 0);
+        self.rebuild_visible();
+    }
+
+    /// Rebuild the visible_indices based on current filter.
+    pub fn rebuild_visible(&mut self) {
+        match &self.filter {
+            None => {
+                // No filter — all nodes visible
+                self.visible_indices = (0..self.nodes.len()).collect();
+            }
+            Some(query) if query.is_empty() => {
+                // Search mode active but empty query — show all
+                self.visible_indices = (0..self.nodes.len()).collect();
+            }
+            Some(query) => {
+                let q_lower = query.to_lowercase();
+                // Find all nodes whose name matches the query
+                let mut matched: HashSet<usize> = HashSet::new();
+                for (i, node) in self.nodes.iter().enumerate() {
+                    if node.name.to_lowercase().contains(&q_lower) {
+                        matched.insert(i);
+                        // Also include all ancestor directories to preserve tree structure
+                        self.add_ancestors(i, &mut matched);
+                    }
+                }
+                self.visible_indices = (0..self.nodes.len())
+                    .filter(|i| matched.contains(i))
+                    .collect();
+            }
+        }
+        // Clamp cursor to visible range
+        if !self.visible_indices.is_empty() {
+            if self.cursor >= self.visible_indices.len() {
+                self.cursor = self.visible_indices.len() - 1;
+            }
+        } else {
+            self.cursor = 0;
+        }
+    }
+
+    /// Walk backwards to find ancestor directories of node at `idx`.
+    fn add_ancestors(&self, idx: usize, set: &mut HashSet<usize>) {
+        let target_depth = self.nodes[idx].depth;
+        if target_depth == 0 { return; }
+        let mut looking_for_depth = target_depth - 1;
+        let mut i = idx;
+        while i > 0 && looking_for_depth < target_depth {
+            i -= 1;
+            let node = &self.nodes[i];
+            if node.is_dir && node.depth == looking_for_depth {
+                set.insert(i);
+                if looking_for_depth == 0 { break; }
+                looking_for_depth -= 1;
+            }
+        }
+    }
+
+    /// Start search mode.
+    pub fn start_search(&mut self) {
+        self.filter = Some(String::new());
+        self.rebuild_visible();
+    }
+
+    /// Update the search query (called on each keystroke).
+    pub fn update_filter(&mut self, query: &str) {
+        self.filter = Some(query.to_string());
+        self.rebuild_visible();
+    }
+
+    /// End search mode, keeping cursor at current position.
+    pub fn end_search(&mut self) {
+        // Translate visible cursor back to real node index
+        let real_idx = self.visible_indices.get(self.cursor).copied().unwrap_or(0);
+        self.filter = None;
+        self.rebuild_visible();
+        // Find the position of real_idx in the full visible list
+        self.cursor = self.visible_indices.iter().position(|&i| i == real_idx).unwrap_or(0);
+    }
+
+    /// Cancel search mode, restore original view.
+    pub fn cancel_search(&mut self) {
+        self.filter = None;
+        self.rebuild_visible();
+    }
+
+    /// Get the real node index for the current visible cursor position.
+    pub fn real_cursor_idx(&self) -> Option<usize> {
+        self.visible_indices.get(self.cursor).copied()
     }
 
     fn build_nodes(&mut self, dir: &Path, depth: usize) {
@@ -92,7 +188,7 @@ impl FileTree {
     }
 
     pub fn move_down(&mut self) {
-        if self.cursor + 1 < self.nodes.len() {
+        if self.cursor + 1 < self.visible_indices.len() {
             self.cursor += 1;
         }
     }
@@ -103,7 +199,8 @@ impl FileTree {
 
     /// Enter / expand; returns Some(path) if a file was selected.
     pub fn enter(&mut self) -> Option<PathBuf> {
-        let Some(node) = self.nodes.get(self.cursor) else { return None };
+        let real_idx = self.real_cursor_idx()?;
+        let node = self.nodes.get(real_idx)?;
         if node.is_dir {
             let path = node.path.clone();
             // Toggle the persistent expanded set first, then rebuild
@@ -121,30 +218,33 @@ impl FileTree {
 
     /// Collapse current dir / go to parent.
     pub fn collapse_or_parent(&mut self) {
-        let node_depth = self.nodes.get(self.cursor).map(|n| n.depth).unwrap_or(0);
+        let real_idx = match self.real_cursor_idx() {
+            Some(i) => i,
+            None => return,
+        };
+        let node_depth = self.nodes[real_idx].depth;
         // If current node is an expanded dir, collapse it
-        if let Some(node) = self.nodes.get(self.cursor) {
-            if node.is_dir && node.expanded {
-                let path = node.path.clone();
-                self.expanded_paths.remove(&path);
-                self.refresh();
-                return;
-            }
+        if self.nodes[real_idx].is_dir && self.nodes[real_idx].expanded {
+            let path = self.nodes[real_idx].path.clone();
+            self.expanded_paths.remove(&path);
+            self.refresh();
+            return;
         }
         if node_depth == 0 { return; }
-        // Otherwise walk back to find parent dir and collapse it
-        let mut i = self.cursor;
+        // Walk back in the full nodes list to find parent dir
+        let mut i = real_idx;
         loop {
             if i == 0 { break; }
             i -= 1;
-            if let Some(n) = self.nodes.get(i) {
-                if n.is_dir && n.depth < node_depth {
-                    let path = n.path.clone();
-                    self.expanded_paths.remove(&path);
-                    self.cursor = i;
-                    self.refresh();
-                    break;
+            if self.nodes[i].is_dir && self.nodes[i].depth < node_depth {
+                let path = self.nodes[i].path.clone();
+                self.expanded_paths.remove(&path);
+                self.refresh();
+                // Try to place cursor at the parent in visible list
+                if let Some(pos) = self.visible_indices.iter().position(|&vi| vi == i) {
+                    self.cursor = pos;
                 }
+                break;
             }
         }
     }
@@ -175,7 +275,8 @@ impl FileTree {
     }
 
     pub fn selected_path(&self) -> Option<&Path> {
-        self.nodes.get(self.cursor).map(|n| n.path.as_path())
+        let real_idx = self.real_cursor_idx()?;
+        self.nodes.get(real_idx).map(|n| n.path.as_path())
     }
 
     pub fn toggle_hidden(&mut self) {

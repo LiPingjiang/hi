@@ -36,11 +36,20 @@ pub enum AiSubAction {
 impl Editor {
     /// Handle one key event in Normal mode. Returns an action for the caller.
     pub fn handle_normal_key(&mut self, key: KeyEvent) -> NormalAction {
-        // Collect digit prefix
-        if let KeyCode::Char(c) = key.code {
-            if c.is_ascii_digit() && (c != '0' || !self.pending_count.is_empty()) {
-                self.pending_count.push(c);
-                return NormalAction::None;
+        // Collect digit prefix — but NOT when pending_key expects a literal char argument
+        // (e.g. r{char}, f{char}, F{char}, t{char}, T{char}, m{char}, "{char}, etc.)
+        let pending_expects_char = matches!(
+            self.pending_key,
+            Some('r') | Some('f') | Some('F') | Some('t') | Some('T')
+                | Some('m') | Some('`') | Some('\'') | Some('"')
+                | Some('q') | Some('@')
+        );
+        if !pending_expects_char {
+            if let KeyCode::Char(c) = key.code {
+                if c.is_ascii_digit() && (c != '0' || !self.pending_count.is_empty()) {
+                    self.pending_count.push(c);
+                    return NormalAction::None;
+                }
             }
         }
 

@@ -103,6 +103,131 @@ impl Renderer {
         )
     }
 
+    /// Render the welcome/splash screen when no file is opened.
+    pub fn render_welcome(&mut self, w: usize, h: usize) -> io::Result<()> {
+        let bg = Color::Rgb { r: 24, g: 24, b: 30 };
+        let logo_color = Color::Rgb { r: 120, g: 180, b: 255 };
+        let accent = Color::Rgb { r: 80, g: 140, b: 220 };
+        let dim = Color::Rgb { r: 90, g: 90, b: 110 };
+        let hint_color = Color::Rgb { r: 140, g: 140, b: 160 };
+        let version_color = Color::Rgb { r: 100, g: 200, b: 160 };
+
+        // ASCII art logo
+        let logo: &[&str] = &[
+            r"  ██╗  ██╗ ██╗",
+            r"  ██║  ██║ ██║",
+            r"  ███████║ ██║",
+            r"  ██╔══██║ ██║",
+            r"  ██║  ██║ ██║",
+            r"  ╚═╝  ╚═╝ ╚═╝",
+        ];
+
+        let tagline = "A terminal editor for the AI era.";
+        let version = concat!("v", env!("CARGO_PKG_VERSION"));
+        let hints: &[&str] = &[
+            "",
+            "Press : to enter command mode",
+            "Press q to quit",
+            "",
+            "hi <file>       Open a file",
+            "hi .            Open file tree",
+            ":e <file>       Open file from command mode",
+            "Ctrl+P          Fuzzy file picker",
+            "?               Ask AI anything",
+        ];
+
+        // Clear entire screen
+        for row in 0..h {
+            queue!(self.stdout, cursor::MoveTo(0, row as u16), SetBackgroundColor(bg))?;
+            write!(self.stdout, "{:width$}", "", width = w)?;
+        }
+
+        // Calculate vertical center
+        let total_block = logo.len() + 2 + hints.len() + 2; // logo + gap + tagline + gap + hints
+        let start_y = h.saturating_sub(total_block) / 2;
+
+        // Draw logo centered
+        for (i, line) in logo.iter().enumerate() {
+            let y = start_y + i;
+            if y >= h { break; }
+            let dw = display_width_str(line);
+            let pad = w.saturating_sub(dw) / 2;
+            queue!(self.stdout,
+                cursor::MoveTo(0, y as u16),
+                SetBackgroundColor(bg),
+                SetForegroundColor(logo_color),
+            )?;
+            write!(self.stdout, "{:pad$}{}", "", line, pad = pad)?;
+            // Fill rest of line
+            let used = pad + dw;
+            if used < w {
+                write!(self.stdout, "{:width$}", "", width = w - used)?;
+            }
+        }
+
+        // Tagline + version
+        let tag_y = start_y + logo.len() + 1;
+        if tag_y < h {
+            let tag_with_ver = format!("{}  {}", tagline, version);
+            let dw = display_width_str(&tag_with_ver);
+            let pad = w.saturating_sub(dw) / 2;
+            queue!(self.stdout,
+                cursor::MoveTo(0, tag_y as u16),
+                SetBackgroundColor(bg),
+                SetForegroundColor(accent),
+            )?;
+            write!(self.stdout, "{:pad$}{}", "", tagline, pad = pad)?;
+            queue!(self.stdout, SetForegroundColor(version_color))?;
+            write!(self.stdout, "  {}", version)?;
+            let used = pad + dw;
+            if used < w {
+                write!(self.stdout, "{:width$}", "", width = w - used)?;
+            }
+        }
+
+        // Separator
+        let sep_y = tag_y + 1;
+        if sep_y < h {
+            let sep = "─".repeat(36.min(w));
+            let dw = display_width_str(&sep);
+            let pad = w.saturating_sub(dw) / 2;
+            queue!(self.stdout,
+                cursor::MoveTo(0, sep_y as u16),
+                SetBackgroundColor(bg),
+                SetForegroundColor(dim),
+            )?;
+            write!(self.stdout, "{:pad$}{}", "", sep, pad = pad)?;
+            let used = pad + dw;
+            if used < w {
+                write!(self.stdout, "{:width$}", "", width = w - used)?;
+            }
+        }
+
+        // Hints
+        let hints_start = sep_y + 1;
+        for (i, line) in hints.iter().enumerate() {
+            let y = hints_start + i;
+            if y >= h { break; }
+            let dw = display_width_str(line);
+            let pad = w.saturating_sub(dw) / 2;
+            queue!(self.stdout,
+                cursor::MoveTo(0, y as u16),
+                SetBackgroundColor(bg),
+                SetForegroundColor(hint_color),
+            )?;
+            write!(self.stdout, "{:pad$}{}", "", line, pad = pad)?;
+            let used = pad + dw;
+            if used < w {
+                write!(self.stdout, "{:width$}", "", width = w - used)?;
+            }
+        }
+
+        // Hide cursor on welcome screen
+        queue!(self.stdout, cursor::Hide)?;
+        self.stdout.flush()?;
+        Ok(())
+    }
+
     pub fn render(
         &mut self,
         editor: &mut Editor,

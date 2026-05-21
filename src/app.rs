@@ -191,6 +191,9 @@ pub struct App {
     // LeetCode "古法时代" panel
     #[cfg(feature = "leetcode")]
     leetcode_panel: Option<LeetCodePanel>,
+
+    /// Show the welcome/splash screen (no file opened).
+    show_welcome: bool,
 }
 
 impl App {
@@ -275,6 +278,7 @@ impl App {
             ai_edit_pending_selection: None,
             #[cfg(feature = "leetcode")]
             leetcode_panel: None,
+            show_welcome: filepath.is_none(),
         })
     }
 
@@ -310,6 +314,12 @@ impl App {
                 let leetcode_rendered = false;
 
                 if !leetcode_rendered {
+                if self.show_welcome {
+                    // Welcome screen — full-screen logo
+                    let w = self.editor.term_width as usize;
+                    let h = self.editor.term_height as usize;
+                    self.renderer.render_welcome(w, h)?;
+                } else {
                 // Normal render
                 self.renderer.render(
                     &mut self.editor,
@@ -357,6 +367,7 @@ impl App {
 
                 // Clear one-shot status message after render
                 self.editor.status_msg = None;
+                } // end else (normal render, not welcome)
                 } // end if !leetcode_rendered
                 needs_redraw = false;
             }
@@ -461,6 +472,21 @@ impl App {
                         LeetCodeAction::Redraw | LeetCodeAction::None => {}
                     }
                     return Ok(());
+                }
+
+                // Dismiss welcome screen on any key
+                if self.show_welcome {
+                    self.show_welcome = false;
+                    // If user pressed :, pass through to open command mode
+                    // For q, quit immediately
+                    match key.code {
+                        KeyCode::Char('q') => { self.should_quit = true; return Ok(()); }
+                        KeyCode::Char(':') => { /* fall through to normal handling */ }
+                        #[cfg(feature = "leetcode")]
+                        KeyCode::Char('l') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            /* fall through */ }
+                        _ => { return Ok(()); } // just dismiss, consume the key
+                    }
                 }
 
                 if self.diff_panel.is_some() {

@@ -4,13 +4,21 @@
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/LiPingjiang/hi/main/install.sh | sh
 #
+# 国内加速（推荐）:
+#   curl -fsSL https://ghproxy.com/https://raw.githubusercontent.com/LiPingjiang/hi/main/install.sh | sh
+#   curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/LiPingjiang/hi/main/install.sh | sh
+#
 # Options (via environment variables):
 #   HI_VERSION   — install a specific version, e.g. HI_VERSION=v0.1.0
 #   HI_INSTALL   — install directory, default: /usr/local/bin (falls back to ~/.local/bin)
 #   HI_MIRROR    — force a specific download mirror:
-#                    "github"   — direct GitHub (default, tries mirrors on failure)
-#                    "ghproxy"  — https://ghfast.top
-#                    "mirror"   — https://hub.gitmirror.com
+#                    "github"      — direct GitHub (default, tries mirrors on failure)
+#                    "ghproxy"     — https://ghproxy.com  (推荐，稳定)
+#                    "ghfast"      — https://ghfast.top   (简洁快速)
+#                    "ghproxy_net" — https://ghproxy.net  (支持断点续传)
+#                    "homeboyc"    — https://ghproxy.homeboyc.cn (大文件友好)
+#                    "gitmirror"   — https://hub.gitmirror.com
+#                    "gitclone"    — https://gitclone.com
 #
 # The script:
 #   1. Detects OS and CPU architecture
@@ -27,29 +35,29 @@ REPO="LiPingjiang/hi"
 BINARY="hi"
 
 # ── Mirror configuration ────────────────────────────────────────────────────────
-# Each mirror wraps a GitHub Release URL.
-# Usage: mirror_url <mirror_name> <original_github_url>
+# Mirror priority (auto mode, CN-optimized):
+#   ghproxy → ghfast → ghproxy_net → homeboyc → gitmirror → gitclone → github
 #
-# Supported mirrors (in priority order when auto-detecting):
-#   ghfast     https://ghfast.top/           — fast, reliable CN proxy
-#   gitmirror  https://hub.gitmirror.com/    — gitmirror.com proxy
-#   github     https://github.com/           — direct (last resort in CN)
+# All mirrors wrap the original GitHub URL as a prefix.
+# ghproxy.com and ghfast.top are the most reliable for CN users.
 
-MIRROR_GHFAST="ghfast"
-MIRROR_GITMIRROR="gitmirror"
-MIRROR_DIRECT="github"
-
-# Build a download URL for a given mirror and original GitHub release URL
 mirror_url() {
     _MIRROR="$1"
     _ORIG="$2"   # full https://github.com/... URL
     case "$_MIRROR" in
-        ghfast)     echo "https://ghfast.top/${_ORIG}" ;;
-        gitmirror)  echo "https://hub.gitmirror.com/${_ORIG}" ;;
-        github)     echo "${_ORIG}" ;;
-        *)          echo "${_ORIG}" ;;
+        ghproxy)     echo "https://ghproxy.com/${_ORIG}" ;;
+        ghfast)      echo "https://ghfast.top/${_ORIG}" ;;
+        ghproxy_net) echo "https://ghproxy.net/${_ORIG}" ;;
+        homeboyc)    echo "https://ghproxy.homeboyc.cn/${_ORIG}" ;;
+        gitmirror)   echo "https://hub.gitmirror.com/${_ORIG}" ;;
+        gitclone)    echo "https://gitclone.com/${_ORIG}" ;;
+        github)      echo "${_ORIG}" ;;
+        *)           echo "${_ORIG}" ;;
     esac
 }
+
+# Default mirror order: CN-friendly first, direct GitHub last
+DEFAULT_MIRRORS="ghproxy ghfast ghproxy_net homeboyc gitmirror gitclone github"
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -119,9 +127,6 @@ archive_suffix() {
 }
 
 # ── Query a GitHub releases/latest API endpoint and extract tag_name ──────────
-# Top-level helper (POSIX sh does not support nested function definitions).
-# Usage: _query_api <url>
-# Prints the tag_name string (e.g. "v0.1.4") or nothing on failure.
 
 _query_api() {
     curl -fsSL --connect-timeout 10 --max-time 20 "$1" 2>/dev/null \
@@ -131,8 +136,6 @@ _query_api() {
 }
 
 # ── Resolve version ────────────────────────────────────────────────────────────
-# Try GitHub API first; if it fails or returns empty, fall back to
-# CN-accessible mirror APIs.
 
 resolve_version() {
     if [ -n "${HI_VERSION:-}" ]; then
@@ -141,28 +144,26 @@ resolve_version() {
     fi
     need_cmd curl
 
-    # 1st attempt: direct GitHub API
-    # NOTE: info/warn must be called OUTSIDE $(...) to avoid polluting the result.
+    API_PATH="https://api.github.com/repos/${REPO}/releases/latest"
+
+    # Try direct GitHub API first
     info "Querying GitHub API for latest release..."
-    LATEST=$(_query_api "https://api.github.com/repos/${REPO}/releases/latest" || true)
+    LATEST=$(_query_api "$API_PATH" || true)
 
-    # 2nd attempt: ghfast mirror API (CN-friendly)
+    # Fallback: try each CN mirror for the API
     if [ -z "$LATEST" ]; then
-        warn "GitHub API unreachable, trying ghfast mirror..."
-        LATEST=$(_query_api "https://ghfast.top/https://api.github.com/repos/${REPO}/releases/latest" || true)
-    fi
-
-    # 3rd attempt: gitmirror API
-    if [ -z "$LATEST" ]; then
-        warn "ghfast mirror failed, trying gitmirror..."
-        LATEST=$(_query_api "https://hub.gitmirror.com/https://api.github.com/repos/${REPO}/releases/latest" || true)
+        for _M in ghproxy ghfast ghproxy_net gitmirror; do
+            warn "GitHub API unreachable, trying mirror [${_M}]..."
+            LATEST=$(_query_api "$(mirror_url "$_M" "$API_PATH")" || true)
+            [ -n "$LATEST" ] && break
+        done
     fi
 
     if [ -z "$LATEST" ]; then
         err "Could not determine latest version from any source.
   GitHub API may be rate-limited or blocked.
   Fix: set HI_VERSION=vX.Y.Z and retry, e.g.:
-    HI_VERSION=v0.1.4 curl -fsSL https://raw.githubusercontent.com/LiPingjiang/hi/main/install.sh | sh"
+    HI_VERSION=v0.1.4 curl -fsSL https://ghproxy.com/https://raw.githubusercontent.com/LiPingjiang/hi/main/install.sh | sh"
     fi
 
     echo "$LATEST"
@@ -184,29 +185,22 @@ resolve_install_dir() {
 
 # ── Download with mirror fallback ─────────────────────────────────────────────
 # download_with_fallback <output_file> <github_url>
-#
-# Mirror priority:
-#   If HI_MIRROR is set → only try that mirror (no fallback)
-#   Otherwise           → ghfast → gitmirror → direct GitHub
-#
-# Each attempt uses a 30-second timeout; on failure we move to the next mirror.
 
 download_with_fallback() {
     _OUT="$1"
-    _GITHUB_URL="$2"   # original https://github.com/... URL
+    _GITHUB_URL="$2"
 
-    # Build the ordered list of mirrors to try
     if [ -n "${HI_MIRROR:-}" ]; then
         _MIRRORS="$HI_MIRROR"
     else
-        _MIRRORS="${MIRROR_GHFAST} ${MIRROR_GITMIRROR} ${MIRROR_DIRECT}"
+        _MIRRORS="$DEFAULT_MIRRORS"
     fi
 
     for _M in $_MIRRORS; do
         _URL=$(mirror_url "$_M" "$_GITHUB_URL")
         info "Trying [${_M}]: ${_URL}"
         if curl -fL --progress-bar \
-                --connect-timeout 15 --max-time 120 \
+                --connect-timeout 15 --max-time 180 \
                 --retry 2 --retry-delay 3 \
                 "$_URL" -o "$_OUT" 2>/dev/null; then
             say "Downloaded via [${_M}]"
@@ -230,7 +224,7 @@ download_silent_with_fallback() {
     if [ -n "${HI_MIRROR:-}" ]; then
         _MIRRORS="$HI_MIRROR"
     else
-        _MIRRORS="${MIRROR_GHFAST} ${MIRROR_GITMIRROR} ${MIRROR_DIRECT}"
+        _MIRRORS="$DEFAULT_MIRRORS"
     fi
 
     for _M in $_MIRRORS; do
@@ -378,7 +372,7 @@ main() {
     if [ -n "${HI_MIRROR:-}" ]; then
         info "Mirror: ${HI_MIRROR} (forced via HI_MIRROR)"
     else
-        info "Mirror: auto (ghfast → gitmirror → github)"
+        info "Mirror: auto (ghproxy → ghfast → ghproxy_net → homeboyc → gitmirror → gitclone → github)"
     fi
 
     TMP_DIR=$(mktemp -d)

@@ -81,6 +81,9 @@ Built-in LeetCode environment with retro phosphor-green CRT aesthetic. Browse pr
 # Install (macOS / Linux)
 curl -fsSL https://raw.githubusercontent.com/LiPingjiang/hi/main/install.sh | sh
 
+# 国内加速（推荐）
+curl -fsSL https://ghproxy.com/https://raw.githubusercontent.com/LiPingjiang/hi/main/install.sh | sh
+
 # Or via Homebrew
 brew tap LiPingjiang/tap && brew install hi
 

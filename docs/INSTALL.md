@@ -8,7 +8,30 @@ curl -fsSL https://raw.githubusercontent.com/LiPingjiang/hi/main/install.sh | sh
 
 Detects your OS and architecture, downloads the matching pre-built binary from GitHub Releases, verifies the SHA256 checksum, and installs to `/usr/local/bin` (or `~/.local/bin` if you don't have write access).
 
-**Options:**
+### 国内加速
+
+脚本会自动按优先级尝试多个镜像（ghproxy → ghfast → ghproxy.net → homeboyc → gitmirror → gitclone → 直连），无需手动配置。也可以直接用镜像拉取脚本本身：
+
+```bash
+# 推荐：ghproxy.com（稳定，支持大文件）
+curl -fsSL https://ghproxy.com/https://raw.githubusercontent.com/LiPingjiang/hi/main/install.sh | sh
+
+# 备选：ghfast.top（简洁快速）
+curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/LiPingjiang/hi/main/install.sh | sh
+
+# 备选：ghproxy.net（支持断点续传）
+curl -fsSL https://ghproxy.net/https://raw.githubusercontent.com/LiPingjiang/hi/main/install.sh | sh
+```
+
+强制指定某个镜像下载二进制：
+
+```bash
+HI_MIRROR=ghproxy curl -fsSL https://ghproxy.com/https://raw.githubusercontent.com/LiPingjiang/hi/main/install.sh | sh
+```
+
+可用镜像名：`ghproxy` · `ghfast` · `ghproxy_net` · `homeboyc` · `gitmirror` · `gitclone` · `github`
+
+### Options
 
 ```bash
 # Install a specific version
@@ -16,6 +39,9 @@ HI_VERSION=v0.1.2 curl -fsSL .../install.sh | sh
 
 # Install to a custom directory
 HI_INSTALL=~/.bin curl -fsSL .../install.sh | sh
+
+# Force a specific mirror
+HI_MIRROR=ghproxy curl -fsSL .../install.sh | sh
 ```
 
 ## Homebrew (macOS)

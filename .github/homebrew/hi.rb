@@ -1,14 +1,14 @@
-# This formula is auto-generated. Copy it to your homebrew-tap repo:
+# This file is a template used by .github/workflows/release.yml
+# to auto-update the Homebrew tap at:
 #   https://github.com/LiPingjiang/homebrew-tap/blob/main/Formula/hi.rb
 #
-# After GitHub Actions builds v0.1.0, update the sha256 values with:
-#   curl -sL <url> | shasum -a 256
+# PLACEHOLDER_* values are replaced by the release workflow with real sha256 hashes.
 
 class Hi < Formula
-  desc "A modal text editor with native AI assistance"
+  desc "A modern, fast terminal text editor written in Rust"
   homepage "https://github.com/LiPingjiang/hi"
   version "0.1.0"
-  license "Apache-2.0"
+  license "MIT"
 
   on_macos do
     on_arm do

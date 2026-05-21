@@ -46,10 +46,20 @@ HI_MIRROR=ghproxy curl -fsSL .../install.sh | sh
 
 ## Homebrew (macOS)
 
+The easiest way to install and keep `hi` up to date on macOS.
+
 ```bash
 brew tap LiPingjiang/tap
 brew install hi
 ```
+
+To upgrade to the latest version later:
+
+```bash
+brew upgrade hi
+```
+
+Supports both Apple Silicon (arm64) and Intel (x86_64) — Homebrew picks the right binary automatically.
 
 ## cargo install (requires Rust toolchain)
 

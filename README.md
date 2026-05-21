@@ -77,17 +77,28 @@ Built-in LeetCode environment with retro phosphor-green CRT aesthetic. Browse pr
 
 ## Quick Start
 
+**macOS — Homebrew (recommended)**
+
 ```bash
-# Install (macOS / Linux)
+brew tap LiPingjiang/tap
+brew install hi
+```
+
+**macOS / Linux — one-line installer**
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/LiPingjiang/hi/main/install.sh | sh
+```
 
-# 国内加速（推荐）
+**国内加速**
+
+```bash
 curl -fsSL https://ghproxy.com/https://raw.githubusercontent.com/LiPingjiang/hi/main/install.sh | sh
+```
 
-# Or via Homebrew
-brew tap LiPingjiang/tap && brew install hi
+**cargo**
 
-# Or via cargo
+```bash
 cargo install hi
 ```
 
@@ -137,4 +148,4 @@ Contributions are welcome. Before submitting a pull request, please read the [Co
 
 ## License
 
-Apache-2.0 — see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE) for details.

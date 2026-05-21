@@ -1,0 +1,1078 @@
+[
+  {
+    "id": 2401,
+    "title": "Longest Nice Subarray",
+    "slug": "longest-nice-subarray",
+    "category": "数组",
+    "subcategory": "位运算与滑动窗口",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Nice subarray means pairwise AND of all elements is 0, which means the OR of window elements has no overlapping bits. Use sliding window with bitmask.",
+    "approach": "Sliding Window + Bitmask",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "滑动窗口",
+      "位运算"
+    ],
+    "code_python3": "def longestNiceSubarray(self, nums):\n    used = 0\n    l = 0\n    res = 0\n    for r in range(len(nums)):\n        while used & nums[r]:\n            used ^= nums[l]\n            l += 1\n        used |= nums[r]\n        res = max(res, r - l + 1)\n    return res"
+  },
+  {
+    "id": 2402,
+    "title": "Meeting Rooms III",
+    "slug": "meeting-rooms-iii",
+    "category": "堆",
+    "subcategory": "模拟与优先队列",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Use two heaps: one for available rooms (min-heap by room number) and one for busy rooms (min-heap by end time, then room number). Assign meetings in order.",
+    "approach": "Two Heaps Simulation",
+    "time_complexity": "O(m log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "堆",
+      "排序"
+    ],
+    "code_python3": "def mostBooked(self, n, meetings):\n    import heapq\n    meetings.sort()\n    available = list(range(n))\n    busy = []\n    count = [0] * n\n    for start, end in meetings:\n        while busy and busy[0][0] <= start:\n            _, room = heapq.heappop(busy)\n            heapq.heappush(available, room)\n        if available:\n            room = heapq.heappop(available)\n            heapq.heappush(busy, (end, room))\n        else:\n            end_time, room = heapq.heappop(busy)\n            heapq.heappush(busy, (end_time + end - start, room))\n        count[room] += 1\n    return count.index(max(count))"
+  },
+  {
+    "id": 2403,
+    "title": "Minimum Time to Kill All Monsters",
+    "slug": "minimum-time-to-kill-all-monsters",
+    "category": "动态规划",
+    "subcategory": "状态压缩DP",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Bitmask DP where state represents which monsters are killed. The gain increases with number of monsters killed.",
+    "approach": "Bitmask DP",
+    "time_complexity": "O(n * 2^n)",
+    "space_complexity": "O(2^n)",
+    "tags": [
+      "动态规划",
+      "位运算"
+    ],
+    "code_python3": "def minimumTime(self, power):\n    n = len(power)\n    dp = [float('inf')] * (1 << n)\n    dp[0] = 0\n    for mask in range(1 << n):\n        gain = bin(mask).count('1') + 1\n        for i in range(n):\n            if not (mask >> i & 1):\n                new_mask = mask | (1 << i)\n                days = (power[i] + gain - 1) // gain\n                dp[new_mask] = min(dp[new_mask], dp[mask] + days)\n    return dp[(1 << n) - 1]"
+  },
+  {
+    "id": 2404,
+    "title": "Most Frequent Even Element",
+    "slug": "most-frequent-even-element",
+    "category": "哈希表",
+    "subcategory": "计数",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Count even elements and return the one with highest frequency (smallest if tie).",
+    "approach": "HashMap Counting",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "哈希表",
+      "数组"
+    ],
+    "code_python3": "def mostFrequentEven(self, nums):\n    from collections import Counter\n    cnt = Counter(x for x in nums if x % 2 == 0)\n    if not cnt:\n        return -1\n    max_freq = max(cnt.values())\n    return min(x for x, c in cnt.items() if c == max_freq)"
+  },
+  {
+    "id": 2405,
+    "title": "Optimal Partition of String",
+    "slug": "optimal-partition-of-string",
+    "category": "贪心",
+    "subcategory": "字符串分割",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Greedily extend current partition until a duplicate character is seen, then start a new partition.",
+    "approach": "Greedy with Set",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(26)",
+    "tags": [
+      "贪心",
+      "哈希表"
+    ],
+    "code_python3": "def partitionString(self, s):\n    seen = set()\n    res = 1\n    for c in s:\n        if c in seen:\n            res += 1\n            seen.clear()\n        seen.add(c)\n    return res"
+  },
+  {
+    "id": 2406,
+    "title": "Divide Intervals Into Minimum Number of Groups",
+    "slug": "divide-intervals-into-minimum-number-of-groups",
+    "category": "贪心",
+    "subcategory": "区间调度",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "This is equivalent to finding the maximum number of overlapping intervals. Use a sweep line or sort start/end events.",
+    "approach": "Sweep Line / Difference Array",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "贪心",
+      "排序"
+    ],
+    "code_python3": "def minGroups(self, intervals):\n    events = []\n    for l, r in intervals:\n        events.append((l, 1))\n        events.append((r + 1, -1))\n    events.sort()\n    res = cur = 0\n    for _, delta in events:\n        cur += delta\n        res = max(res, cur)\n    return res"
+  },
+  {
+    "id": 2407,
+    "title": "Longest Increasing Subsequence II",
+    "slug": "longest-increasing-subsequence-ii",
+    "category": "动态规划",
+    "subcategory": "线段树优化DP",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Use segment tree to query max dp value in range [nums[i]-k, nums[i]-1] efficiently.",
+    "approach": "Segment Tree + DP",
+    "time_complexity": "O(n log M)",
+    "space_complexity": "O(M)",
+    "tags": [
+      "动态规划",
+      "单调栈"
+    ],
+    "code_python3": "def lengthOfLIS(self, nums, k):\n    MAX_VAL = max(nums)\n    tree = [0] * (4 * (MAX_VAL + 1))\n    def update(node, start, end, idx, val):\n        if start == end:\n            tree[node] = val\n            return\n        mid = (start + end) // 2\n        if idx <= mid:\n            update(2*node, start, mid, idx, val)\n        else:\n            update(2*node+1, mid+1, end, idx, val)\n        tree[node] = max(tree[2*node], tree[2*node+1])\n    def query(node, start, end, l, r):\n        if r < start or end < l:\n            return 0\n        if l <= start and end <= r:\n            return tree[node]\n        mid = (start + end) // 2\n        return max(query(2*node, start, mid, l, r), query(2*node+1, mid+1, end, l, r))\n    res = 0\n    for x in nums:\n        best = query(1, 0, MAX_VAL, max(0, x-k), x-1)\n        update(1, 0, MAX_VAL, x, best + 1)\n        res = max(res, best + 1)\n    return res"
+  },
+  {
+    "id": 2408,
+    "title": "Design SQL",
+    "slug": "design-sql",
+    "category": "设计",
+    "subcategory": "模拟",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Simulate a simple SQL database with insert, delete, and select on rows by auto-increment id.",
+    "approach": "HashMap Simulation",
+    "time_complexity": "O(1) per operation",
+    "space_complexity": "O(n)",
+    "tags": [
+      "设计",
+      "哈希表"
+    ],
+    "code_python3": "class SQL:\n    def __init__(self, names, columns):\n        self.tables = {name: {} for name in names}\n        self.ids = {name: 0 for name in names}\n    def insertRow(self, name, row):\n        self.ids[name] += 1\n        self.tables[name][self.ids[name]] = row\n    def deleteRow(self, name, rowId):\n        if rowId in self.tables[name]:\n            del self.tables[name][rowId]\n    def selectCell(self, name, rowId, columnId):\n        return self.tables[name][rowId][columnId - 1]"
+  },
+  {
+    "id": 2409,
+    "title": "Count Days Spent Together",
+    "slug": "count-days-spent-together",
+    "category": "数学",
+    "subcategory": "日期计算",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Convert dates to day-of-year numbers and find the overlap of two intervals.",
+    "approach": "Date to Day Number + Interval Overlap",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学"
+    ],
+    "code_python3": "def countDaysTogether(self, arriveAlice, leaveAlice, arriveBob, leaveBob):\n    days = [31,28,31,30,31,30,31,31,30,31,30,31]\n    def to_day(s):\n        m, d = int(s[:2]), int(s[3:])\n        return sum(days[:m-1]) + d\n    a1, a2 = to_day(arriveAlice), to_day(leaveAlice)\n    b1, b2 = to_day(arriveBob), to_day(leaveBob)\n    overlap = min(a2, b2) - max(a1, b1) + 1\n    return max(0, overlap)"
+  },
+  {
+    "id": 2410,
+    "title": "Maximum Matching of Players With Trainers",
+    "slug": "maximum-matching-of-players-with-trainers",
+    "category": "贪心",
+    "subcategory": "双指针排序",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Sort both arrays and greedily match the smallest available trainer to the smallest player it can serve.",
+    "approach": "Sort + Two Pointers",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "贪心",
+      "双指针",
+      "排序"
+    ],
+    "code_python3": "def matchPlayersAndTrainers(self, players, trainers):\n    players.sort()\n    trainers.sort()\n    i = j = 0\n    res = 0\n    while i < len(players) and j < len(trainers):\n        if trainers[j] >= players[i]:\n            res += 1\n            i += 1\n        j += 1\n    return res"
+  },
+  {
+    "id": 2411,
+    "title": "Smallest Subarrays With Maximum Bitwise OR",
+    "slug": "smallest-subarrays-with-maximum-bitwise-or",
+    "category": "位运算",
+    "subcategory": "滑动窗口",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "For each position, track the last occurrence of each bit being set. The answer for position i is determined by the farthest last-set bit position.",
+    "approach": "Track Last Bit Position (Reverse Traversal)",
+    "time_complexity": "O(30n)",
+    "space_complexity": "O(30)",
+    "tags": [
+      "位运算",
+      "数组"
+    ],
+    "code_python3": "def smallestSubarrays(self, nums):\n    n = len(nums)\n    last = [0] * 30\n    res = [0] * n\n    for i in range(n - 1, -1, -1):\n        for bit in range(30):\n            if nums[i] >> bit & 1:\n                last[bit] = i\n        res[i] = max(1, max(last[bit] - i + 1 for bit in range(30)))\n    return res"
+  },
+  {
+    "id": 2412,
+    "title": "Minimum Money Required Before Transactions",
+    "slug": "minimum-money-required-before-transactions",
+    "category": "贪心",
+    "subcategory": "数学分析",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Consider worst case ordering. Total loss from losing transactions + max(cashback of losing, cost of gaining).",
+    "approach": "Greedy Analysis",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "贪心",
+      "数学"
+    ],
+    "code_python3": "def minimumMoney(self, transactions):\n    total_loss = 0\n    max_extra = 0\n    for cost, cashback in transactions:\n        if cost > cashback:\n            total_loss += cost - cashback\n            max_extra = max(max_extra, cashback)\n        else:\n            max_extra = max(max_extra, cost)\n    return total_loss + max_extra"
+  },
+  {
+    "id": 2413,
+    "title": "Smallest Even Multiple",
+    "slug": "smallest-even-multiple",
+    "category": "数学",
+    "subcategory": "LCM",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "The smallest even multiple of n is n if n is even, else 2*n (LCM of n and 2).",
+    "approach": "Math LCM",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学"
+    ],
+    "code_python3": "def smallestEvenMultiple(self, n):\n    return n if n % 2 == 0 else 2 * n"
+  },
+  {
+    "id": 2414,
+    "title": "Length of the Longest Alphabetical Continuous Substring",
+    "slug": "length-of-the-longest-alphabetical-continuous-substring",
+    "category": "数组",
+    "subcategory": "连续子串",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Track current streak of consecutive characters (ord difference is 1).",
+    "approach": "Linear Scan",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组",
+      "双指针"
+    ],
+    "code_python3": "def longestContinuousSubstring(self, s):\n    res = cur = 1\n    for i in range(1, len(s)):\n        if ord(s[i]) == ord(s[i-1]) + 1:\n            cur += 1\n            res = max(res, cur)\n        else:\n            cur = 1\n    return res"
+  },
+  {
+    "id": 2415,
+    "title": "Reverse Odd Levels of Binary Tree",
+    "slug": "reverse-odd-levels-of-binary-tree",
+    "category": "树",
+    "subcategory": "BFS层序遍历",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "BFS level by level; on odd levels, reverse the values of nodes.",
+    "approach": "BFS + Level Reversal",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "树"
+    ],
+    "code_python3": "def reverseOddLevels(self, root):\n    from collections import deque\n    q = deque([root])\n    level = 0\n    while q:\n        size = len(q)\n        nodes = []\n        for _ in range(size):\n            node = q.popleft()\n            nodes.append(node)\n            if node.left:\n                q.append(node.left)\n                q.append(node.right)\n        if level % 2 == 1:\n            vals = [n.val for n in nodes]\n            for i, n in enumerate(nodes):\n                n.val = vals[~i]\n        level += 1\n    return root"
+  },
+  {
+    "id": 2416,
+    "title": "Sum of Prefix Scores of Strings",
+    "slug": "sum-of-prefix-scores-of-strings",
+    "category": "设计",
+    "subcategory": "Trie前缀树",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Build a Trie counting how many words pass through each node. For each word, sum up counts along its path.",
+    "approach": "Trie with Count",
+    "time_complexity": "O(n * L)",
+    "space_complexity": "O(n * L)",
+    "tags": [
+      "设计",
+      "哈希表"
+    ],
+    "code_python3": "def sumPrefixScores(self, words):\n    trie = {}\n    for w in words:\n        node = trie\n        for c in w:\n            if c not in node:\n                node[c] = {'#': 0}\n            node = node[c]\n            node['#'] += 1\n    res = []\n    for w in words:\n        node = trie\n        s = 0\n        for c in w:\n            node = node[c]\n            s += node['#']\n        res.append(s)\n    return res"
+  },
+  {
+    "id": 2417,
+    "title": "Closest Fair Integer",
+    "slug": "closest-fair-integer",
+    "category": "数学",
+    "subcategory": "枚举",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "A fair integer has equal number of odd and even digits. Find the smallest fair integer >= n.",
+    "approach": "Digit Construction / Brute Force",
+    "time_complexity": "O(d)",
+    "space_complexity": "O(d)",
+    "tags": [
+      "数学"
+    ],
+    "code_python3": "def closestFair(self, n):\n    def is_fair(x):\n        s = str(x)\n        odd = sum(1 for c in s if int(c) % 2 == 1)\n        return odd * 2 == len(s)\n    while not is_fair(n):\n        n += 1\n    return n"
+  },
+  {
+    "id": 2418,
+    "title": "Sort the People",
+    "slug": "sort-the-people",
+    "category": "排序",
+    "subcategory": "基础排序",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Sort people by height in descending order.",
+    "approach": "Sort by Key",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "排序"
+    ],
+    "code_python3": "def sortPeople(self, names, heights):\n    return [n for _, n in sorted(zip(heights, names), reverse=True)]"
+  },
+  {
+    "id": 2419,
+    "title": "Longest Subarray With Maximum Bitwise AND",
+    "slug": "longest-subarray-with-maximum-bitwise-and",
+    "category": "位运算",
+    "subcategory": "连续子数组",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "AND of subarray <= min element. Max AND is achieved only when all elements equal the maximum. Find longest streak of max element.",
+    "approach": "Find Max + Longest Streak",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "位运算",
+      "数组"
+    ],
+    "code_python3": "def longestSubarray(self, nums):\n    mx = max(nums)\n    res = cur = 0\n    for x in nums:\n        if x == mx:\n            cur += 1\n            res = max(res, cur)\n        else:\n            cur = 0\n    return res"
+  },
+  {
+    "id": 2420,
+    "title": "Find All Good Indices",
+    "slug": "find-all-good-indices",
+    "category": "前缀和",
+    "subcategory": "预计算",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Precompute non-increasing prefix lengths and non-decreasing suffix lengths, then check for each index.",
+    "approach": "Prefix/Suffix Arrays",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "前缀和",
+      "数组"
+    ],
+    "code_python3": "def goodIndices(self, nums, k):\n    n = len(nums)\n    dec = [1] * n\n    inc = [1] * n\n    for i in range(1, n):\n        if nums[i] <= nums[i-1]:\n            dec[i] = dec[i-1] + 1\n    for i in range(n-2, -1, -1):\n        if nums[i] <= nums[i+1]:\n            inc[i] = inc[i+1] + 1\n    return [i for i in range(k, n-k) if dec[i-1] >= k and inc[i+1] >= k]"
+  },
+  {
+    "id": 2421,
+    "title": "Number of Good Paths",
+    "slug": "number-of-good-paths",
+    "category": "图",
+    "subcategory": "并查集",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Sort nodes by value. Process in increasing order, union edges where both endpoints have value <= current. Count pairs with same value in same component.",
+    "approach": "Union Find + Sort by Value",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "图",
+      "排序"
+    ],
+    "code_python3": "def numberOfGoodPaths(self, vals, edges):\n    from collections import defaultdict\n    n = len(vals)\n    parent = list(range(n))\n    def find(x):\n        while parent[x] != x:\n            parent[x] = parent[parent[x]]\n            x = parent[x]\n        return x\n    adj = defaultdict(list)\n    for u, v in edges:\n        adj[u].append(v)\n        adj[v].append(u)\n    val_to_nodes = defaultdict(list)\n    for i, v in enumerate(vals):\n        val_to_nodes[v].append(i)\n    res = n\n    for val in sorted(val_to_nodes):\n        for node in val_to_nodes[val]:\n            for nei in adj[node]:\n                if vals[nei] <= val:\n                    parent[find(nei)] = find(node)\n        cnt = defaultdict(int)\n        for node in val_to_nodes[val]:\n            cnt[find(node)] += 1\n        for c in cnt.values():\n            res += c * (c - 1) // 2\n    return res"
+  },
+  {
+    "id": 2422,
+    "title": "Merge Operations to Turn Array Into a Palindrome",
+    "slug": "merge-operations-to-turn-array-into-a-palindrome",
+    "category": "贪心",
+    "subcategory": "双指针",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Use two pointers from both ends. If left sum < right sum, merge left; if right sum < left sum, merge right; if equal, move both inward.",
+    "approach": "Two Pointers Greedy",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "贪心",
+      "双指针"
+    ],
+    "code_python3": "def minimumOperations(self, nums):\n    l, r = 0, len(nums) - 1\n    left, right = nums[l], nums[r]\n    ops = 0\n    while l < r:\n        if left == right:\n            l += 1\n            r -= 1\n            if l < r:\n                left, right = nums[l], nums[r]\n        elif left < right:\n            l += 1\n            left += nums[l]\n            ops += 1\n        else:\n            r -= 1\n            right += nums[r]\n            ops += 1\n    return ops"
+  },
+  {
+    "id": 2423,
+    "title": "Remove Letter To Equalize Frequency",
+    "slug": "remove-letter-to-equalize-frequency",
+    "category": "哈希表",
+    "subcategory": "计数枚举",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Try removing each character and check if all remaining frequencies are equal.",
+    "approach": "Brute Force Enumeration",
+    "time_complexity": "O(26n)",
+    "space_complexity": "O(26)",
+    "tags": [
+      "哈希表"
+    ],
+    "code_python3": "def equalFrequency(self, word):\n    from collections import Counter\n    cnt = Counter(word)\n    for c in word:\n        cnt[c] -= 1\n        if cnt[c] == 0:\n            del cnt[c]\n        if len(set(cnt.values())) <= 1:\n            return True\n        cnt[c] = cnt.get(c, 0) + 1\n    return False"
+  },
+  {
+    "id": 2424,
+    "title": "Longest Uploaded Prefix",
+    "slug": "longest-uploaded-prefix",
+    "category": "设计",
+    "subcategory": "有序集合",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Track uploaded videos in a set and maintain a pointer to the longest consecutive prefix.",
+    "approach": "Set + Pointer",
+    "time_complexity": "O(1) amortized per operation",
+    "space_complexity": "O(n)",
+    "tags": [
+      "设计",
+      "哈希表"
+    ],
+    "code_python3": "class LUPrefix:\n    def __init__(self, n):\n        self.uploaded = set()\n        self.prefix = 0\n    def upload(self, video):\n        self.uploaded.add(video)\n        while self.prefix + 1 in self.uploaded:\n            self.prefix += 1\n    def longest(self):\n        return self.prefix"
+  },
+  {
+    "id": 2425,
+    "title": "Bitwise XOR of All Pairings",
+    "slug": "bitwise-xor-of-all-pairings",
+    "category": "位运算",
+    "subcategory": "数学",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Each element in nums1 is XORed len(nums2) times, and vice versa. If count is even, contribution is 0.",
+    "approach": "Math XOR Properties",
+    "time_complexity": "O(n + m)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "位运算",
+      "数学"
+    ],
+    "code_python3": "def xorAllNums(self, nums1, nums2):\n    res = 0\n    if len(nums2) % 2:\n        for x in nums1:\n            res ^= x\n    if len(nums1) % 2:\n        for x in nums2:\n            res ^= x\n    return res"
+  },
+  {
+    "id": 2426,
+    "title": "Number of Pairs Satisfying Inequality",
+    "slug": "number-of-pairs-satisfying-inequality",
+    "category": "分治",
+    "subcategory": "归并排序",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Transform to diff[i] - diff[j] <= diff where diff[i] = nums1[i] - nums2[i]. Count pairs using merge sort or BIT.",
+    "approach": "Merge Sort / BIT",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "分治",
+      "排序"
+    ],
+    "code_python3": "def numberOfPairs(self, nums1, nums2, diff):\n    arr = [a - b for a, b in zip(nums1, nums2)]\n    self.count = 0\n    def merge_sort(a):\n        if len(a) <= 1:\n            return a\n        mid = len(a) // 2\n        left = merge_sort(a[:mid])\n        right = merge_sort(a[mid:])\n        j = 0\n        for l in left:\n            while j < len(right) and l - right[j] > diff:\n                j += 1\n            self.count += len(right) - j\n        return sorted(left + right)\n    merge_sort(arr)\n    return self.count"
+  },
+  {
+    "id": 2427,
+    "title": "Number of Common Factors",
+    "slug": "number-of-common-factors",
+    "category": "数学",
+    "subcategory": "GCD",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Count numbers from 1 to min(a,b) that divide both a and b. Optimize by iterating to gcd(a,b).",
+    "approach": "GCD + Enumeration",
+    "time_complexity": "O(min(a,b))",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学"
+    ],
+    "code_python3": "def commonFactors(self, a, b):\n    from math import gcd\n    g = gcd(a, b)\n    return sum(1 for i in range(1, g+1) if g % i == 0)"
+  },
+  {
+    "id": 2428,
+    "title": "Maximum Sum of an Hourglass",
+    "slug": "maximum-sum-of-an-hourglass",
+    "category": "数组",
+    "subcategory": "矩阵遍历",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Iterate all possible hourglass top-left positions and compute sum.",
+    "approach": "Brute Force Enumeration",
+    "time_complexity": "O(m*n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "def maxSum(self, grid):\n    m, n = len(grid), len(grid[0])\n    res = 0\n    for i in range(m - 2):\n        for j in range(n - 2):\n            s = sum(grid[i][j:j+3]) + grid[i+1][j+1] + sum(grid[i+2][j:j+3])\n            res = max(res, s)\n    return res"
+  },
+  {
+    "id": 2429,
+    "title": "Minimize XOR",
+    "slug": "minimize-xor",
+    "category": "位运算",
+    "subcategory": "贪心构造",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Construct x with same number of set bits as num2 that minimizes XOR with num1. Greedily match high bits of num1.",
+    "approach": "Greedy Bit Construction",
+    "time_complexity": "O(30)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "位运算",
+      "贪心"
+    ],
+    "code_python3": "def minimizeXor(self, num1, num2):\n    bits_needed = bin(num2).count('1')\n    res = 0\n    for i in range(29, -1, -1):\n        if bits_needed == 0:\n            break\n        if num1 >> i & 1:\n            res |= 1 << i\n            bits_needed -= 1\n    for i in range(30):\n        if bits_needed == 0:\n            break\n        if not (res >> i & 1):\n            res |= 1 << i\n            bits_needed -= 1\n    return res"
+  },
+  {
+    "id": 2430,
+    "title": "Maximum Deletions on a String",
+    "slug": "maximum-deletions-on-a-string",
+    "category": "动态规划",
+    "subcategory": "字符串DP",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "dp[i] = max deletions starting from index i. Use LCP (longest common prefix) array to check if s[i:i+l] == s[i+l:i+2l].",
+    "approach": "DP + LCP",
+    "time_complexity": "O(n^2)",
+    "space_complexity": "O(n^2)",
+    "tags": [
+      "动态规划"
+    ],
+    "code_python3": "def deleteString(self, s):\n    n = len(s)\n    lcp = [[0] * (n + 1) for _ in range(n + 1)]\n    for i in range(n - 1, -1, -1):\n        for j in range(n - 1, -1, -1):\n            if s[i] == s[j]:\n                lcp[i][j] = lcp[i+1][j+1] + 1\n    dp = [1] * n\n    for i in range(n - 1, -1, -1):\n        for l in range(1, (n - i) // 2 + 1):\n            if lcp[i][i+l] >= l:\n                dp[i] = max(dp[i], dp[i+l] + 1)\n    return dp[0]"
+  },
+  {
+    "id": 2431,
+    "title": "Maximize Total Tastiness of Purchased Fruits",
+    "slug": "maximize-total-tastiness-of-purchased-fruits",
+    "category": "动态规划",
+    "subcategory": "背包问题",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "0/1 knapsack with two constraints: max cost and max coupons. Track tastiness with coupon dimension.",
+    "approach": "3D Knapsack DP",
+    "time_complexity": "O(n * maxAmount * maxCoupons)",
+    "space_complexity": "O(maxAmount * maxCoupons)",
+    "tags": [
+      "动态规划"
+    ],
+    "code_python3": "def maxTastiness(self, price, tastiness, maxAmount, maxCoupons):\n    n = len(price)\n    dp = [[-1] * (maxCoupons + 1) for _ in range(maxAmount + 1)]\n    dp[0][0] = 0\n    for i in range(n):\n        for j in range(maxAmount, -1, -1):\n            for k in range(maxCoupons, -1, -1):\n                if dp[j][k] < 0:\n                    continue\n                if j + price[i] <= maxAmount:\n                    dp[j + price[i]][k] = max(dp[j + price[i]][k], dp[j][k] + tastiness[i])\n                half = price[i] // 2\n                if k + 1 <= maxCoupons and j + half <= maxAmount:\n                    dp[j + half][k + 1] = max(dp[j + half][k + 1], dp[j][k] + tastiness[i])\n    return max(dp[j][k] for j in range(maxAmount + 1) for k in range(maxCoupons + 1) if dp[j][k] >= 0)"
+  },
+  {
+    "id": 2432,
+    "title": "The Employee That Worked on the Longest Task",
+    "slug": "the-employee-that-worked-on-the-longest-task",
+    "category": "数组",
+    "subcategory": "线性遍历",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Compute task durations and find the employee with longest task (smallest id if tie).",
+    "approach": "Linear Scan",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "def hardestWorker(self, n, logs):\n    longest = logs[0][1]\n    ans = logs[0][0]\n    for i in range(1, len(logs)):\n        duration = logs[i][1] - logs[i-1][1]\n        if duration > longest or (duration == longest and logs[i][0] < ans):\n            longest = duration\n            ans = logs[i][0]\n    return ans"
+  },
+  {
+    "id": 2433,
+    "title": "Find The Original Array of Prefix Xor",
+    "slug": "find-the-original-array-of-prefix-xor",
+    "category": "位运算",
+    "subcategory": "前缀异或",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "pref[i] = arr[0]^...^arr[i], so arr[i] = pref[i]^pref[i-1] for i>0.",
+    "approach": "XOR Property",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "位运算",
+      "数组"
+    ],
+    "code_python3": "def findArray(self, pref):\n    arr = [pref[0]]\n    for i in range(1, len(pref)):\n        arr.append(pref[i] ^ pref[i-1])\n    return arr"
+  },
+  {
+    "id": 2434,
+    "title": "Using a Robot to Print the Lexicographically Smallest String",
+    "slug": "using-a-robot-to-print-the-lexicographically-smallest-string",
+    "category": "贪心",
+    "subcategory": "栈模拟",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Use a stack as intermediate; greedily pop when stack top <= smallest remaining char.",
+    "approach": "Greedy + Stack",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "贪心",
+      "栈",
+      "哈希表"
+    ],
+    "code_python3": "def robotWithString(self, s):\n    from collections import Counter\n    cnt = Counter(s)\n    stack = []\n    res = []\n    min_char = 'a'\n    for c in s:\n        stack.append(c)\n        cnt[c] -= 1\n        while min_char <= 'z' and cnt[min_char] == 0:\n            min_char = chr(ord(min_char)+1)\n        while stack and stack[-1] <= min_char:\n            res.append(stack.pop())\n    return ''.join(res)"
+  },
+  {
+    "id": 2435,
+    "title": "Paths in Matrix Whose Sum Is Divisible by K",
+    "slug": "paths-in-matrix-whose-sum-is-divisible-by-k",
+    "category": "动态规划",
+    "subcategory": "网格DP",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "dp[i][j][r] = number of paths to (i,j) with sum % k == r.",
+    "approach": "DP with Modular State",
+    "time_complexity": "O(m*n*k)",
+    "space_complexity": "O(m*n*k)",
+    "tags": [
+      "动态规划",
+      "数组",
+      "数学"
+    ],
+    "code_python3": "def numberOfPaths(self, grid, k):\n    MOD = 10**9+7\n    m, n = len(grid), len(grid[0])\n    dp = [[[0]*k for _ in range(n)] for _ in range(m)]\n    dp[0][0][grid[0][0]%k] = 1\n    for i in range(m):\n        for j in range(n):\n            if i==0 and j==0: continue\n            for r in range(k):\n                nr = (r + grid[i][j]) % k\n                if i>0: dp[i][j][nr] = (dp[i][j][nr]+dp[i-1][j][r])%MOD\n                if j>0: dp[i][j][nr] = (dp[i][j][nr]+dp[i][j-1][r])%MOD\n    return dp[m-1][n-1][0]"
+  },
+  {
+    "id": 2436,
+    "title": "Minimum Split Into Subarrays With GCD Greater Than One",
+    "slug": "minimum-split-into-subarrays-with-gcd-greater-than-one",
+    "category": "贪心",
+    "subcategory": "GCD贪心",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Greedily extend current subarray while GCD > 1; start new subarray when GCD becomes 1.",
+    "approach": "Greedy GCD",
+    "time_complexity": "O(n log M)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "贪心",
+      "数学",
+      "数组"
+    ],
+    "code_python3": "def minimumSplits(self, nums):\n    from math import gcd\n    splits = 0\n    cur = nums[0]\n    for i in range(1, len(nums)):\n        g = gcd(cur, nums[i])\n        if g > 1:\n            cur = g\n        else:\n            splits += 1\n            cur = nums[i]\n    return splits"
+  },
+  {
+    "id": 2437,
+    "title": "Number of Valid Clock Times",
+    "slug": "number-of-valid-clock-times",
+    "category": "数学",
+    "subcategory": "枚举",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Count valid hours * valid minutes by checking each position independently.",
+    "approach": "Enumeration",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学"
+    ],
+    "code_python3": "def countTime(self, time):\n    count = 0\n    for h in range(24):\n        for m in range(60):\n            t = f'{h:02d}:{m:02d}'\n            if all(time[i]=='?' or time[i]==t[i] for i in range(5)):\n                count += 1\n    return count"
+  },
+  {
+    "id": 2438,
+    "title": "Range Product Queries of Powers",
+    "slug": "range-product-queries-of-powers",
+    "category": "位运算",
+    "subcategory": "前缀和",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Decompose n into powers of 2, then answer range product queries using prefix sums of exponents.",
+    "approach": "Bit Decomposition + Prefix Sum",
+    "time_complexity": "O(logn + q*logn)",
+    "space_complexity": "O(logn)",
+    "tags": [
+      "位运算",
+      "前缀和",
+      "数组"
+    ],
+    "code_python3": "def productQueries(self, n, queries):\n    MOD = 10**9+7\n    powers = []\n    bit = 0\n    while n:\n        if n & 1:\n            powers.append(1 << bit)\n        n >>= 1\n        bit += 1\n    res = []\n    for l, r in queries:\n        prod = 1\n        for i in range(l, r+1):\n            prod = prod * powers[i] % MOD\n        res.append(prod)\n    return res"
+  },
+  {
+    "id": 2439,
+    "title": "Minimize Maximum of Array",
+    "slug": "minimize-maximum-of-array",
+    "category": "贪心",
+    "subcategory": "前缀和",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "The answer is max of ceil(prefix_sum[i+1]/(i+1)) for all i, since we can only move values left.",
+    "approach": "Prefix Average Greedy",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "贪心",
+      "前缀和",
+      "数组"
+    ],
+    "code_python3": "def minimizeArrayValue(self, nums):\n    ans = 0\n    prefix = 0\n    for i, x in enumerate(nums):\n        prefix += x\n        ans = max(ans, (prefix + i) // (i + 1))\n    return ans"
+  },
+  {
+    "id": 2440,
+    "title": "Create Components With Same Value",
+    "slug": "create-components-with-same-value",
+    "category": "树",
+    "subcategory": "DFS贪心",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Try each possible component count k (divisor of total sum); DFS to check if tree can be split into k equal parts.",
+    "approach": "Enumerate + DFS Validation",
+    "time_complexity": "O(n * sqrt(sum))",
+    "space_complexity": "O(n)",
+    "tags": [
+      "树",
+      "贪心",
+      "数组"
+    ],
+    "code_python3": "def componentValue(self, nums, edges):\n    from collections import defaultdict\n    n = len(nums)\n    total = sum(nums)\n    adj = defaultdict(list)\n    for u, v in edges:\n        adj[u].append(v)\n        adj[v].append(u)\n    def dfs(node, parent, target):\n        cur = nums[node]\n        for nei in adj[node]:\n            if nei == parent:\n                continue\n            sub = dfs(nei, node, target)\n            if sub < 0:\n                return -1\n            cur += sub\n        if cur == target:\n            return 0\n        if cur > target:\n            return -1\n        return cur\n    for k in range(n, 0, -1):\n        if total % k == 0:\n            target = total // k\n            if dfs(0, -1, target) == 0:\n                return k - 1\n    return 0"
+  },
+  {
+    "id": 2441,
+    "title": "Largest Positive Integer That Exists With Its Negative",
+    "slug": "largest-positive-integer-that-exists-with-its-negative",
+    "category": "哈希表",
+    "subcategory": "集合查找",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Use a set; for each positive number check if its negative exists.",
+    "approach": "HashSet",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "哈希表",
+      "数组"
+    ],
+    "code_python3": "def findMaxK(self, nums):\n    s = set(nums)\n    ans = -1\n    for x in nums:\n        if x > 0 and -x in s:\n            ans = max(ans, x)\n    return ans"
+  },
+  {
+    "id": 2442,
+    "title": "Count Number of Distinct Integers After Reverse Operations",
+    "slug": "count-number-of-distinct-integers-after-reverse-operations",
+    "category": "哈希表",
+    "subcategory": "集合",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Add each number and its reverse to a set, return set size.",
+    "approach": "HashSet",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "哈希表",
+      "数组"
+    ],
+    "code_python3": "def countDistinctIntegers(self, nums):\n    s = set(nums)\n    for x in nums:\n        s.add(int(str(x)[::-1]))\n    return len(s)"
+  },
+  {
+    "id": 2443,
+    "title": "Sum of Number and Its Reverse",
+    "slug": "sum-of-number-and-its-reverse",
+    "category": "数学",
+    "subcategory": "枚举",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "For each x in [0, num], check if x + reverse(x) == num.",
+    "approach": "Brute Force Enumeration",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学"
+    ],
+    "code_python3": "def sumOfNumberAndReverse(self, num):\n    for x in range(num+1):\n        if x + int(str(x)[::-1]) == num:\n            return True\n    return False"
+  },
+  {
+    "id": 2444,
+    "title": "Count Subarrays With Fixed Bounds",
+    "slug": "count-subarrays-with-fixed-bounds",
+    "category": "滑动窗口",
+    "subcategory": "双指针",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Track last positions of minK, maxK, and last bad element; contribution = max(0, min(lastMin, lastMax) - lastBad).",
+    "approach": "Sliding Window with Positions",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "滑动窗口",
+      "数组"
+    ],
+    "code_python3": "def countSubarrays(self, nums, minK, maxK):\n    ans = 0\n    lastBad = lastMin = lastMax = -1\n    for i, x in enumerate(nums):\n        if x < minK or x > maxK:\n            lastBad = i\n        if x == minK:\n            lastMin = i\n        if x == maxK:\n            lastMax = i\n        ans += max(0, min(lastMin, lastMax) - lastBad)\n    return ans"
+  },
+  {
+    "id": 2445,
+    "title": "Number of Nodes With Value One",
+    "slug": "number-of-nodes-with-value-one",
+    "category": "树",
+    "subcategory": "BFS模拟",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Flipping a subtree rooted at node toggles all descendants; count parity of flips for each node using BFS propagation.",
+    "approach": "Simulation with Flip Parity",
+    "time_complexity": "O(n + q)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "树",
+      "数组"
+    ],
+    "code_python3": "def numberOfNodes(self, n, queries):\n    from collections import Counter\n    cnt = Counter(queries)\n    result = [0] * (n + 1)\n    for i in range(1, n + 1):\n        result[i] = result[i // 2] ^ (cnt.get(i, 0) % 2)\n    return sum(1 for i in range(1, n + 1) if result[i])"
+  },
+  {
+    "id": 2446,
+    "title": "Determine if Two Events Have Conflict",
+    "slug": "determine-if-two-events-have-conflict",
+    "category": "数组",
+    "subcategory": "区间重叠",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Two intervals overlap if start1 <= end2 and start2 <= end1.",
+    "approach": "Interval Overlap Check",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组",
+      "数学"
+    ],
+    "code_python3": "def haveConflict(self, event1, event2):\n    return event1[0] <= event2[1] and event2[0] <= event1[1]"
+  },
+  {
+    "id": 2447,
+    "title": "Number of Subarrays With GCD Equal to K",
+    "slug": "number-of-subarrays-with-gcd-equal-to-k",
+    "category": "数学",
+    "subcategory": "枚举GCD",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Enumerate all subarrays, maintain running GCD, count when GCD equals k.",
+    "approach": "Brute Force GCD",
+    "time_complexity": "O(n^2 log M)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学",
+      "数组"
+    ],
+    "code_python3": "def subarrayGCD(self, nums, k):\n    from math import gcd\n    count = 0\n    n = len(nums)\n    for i in range(n):\n        g = 0\n        for j in range(i, n):\n            g = gcd(g, nums[j])\n            if g == k:\n                count += 1\n            elif g < k:\n                break\n    return count"
+  },
+  {
+    "id": 2448,
+    "title": "Minimum Cost to Make Array Equal",
+    "slug": "minimum-cost-to-make-array-equal",
+    "category": "二分查找",
+    "subcategory": "三分搜索",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Cost function is convex; use ternary search or weighted median to find optimal target value.",
+    "approach": "Ternary Search / Weighted Median",
+    "time_complexity": "O(n log M)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "二分查找",
+      "前缀和",
+      "排序"
+    ],
+    "code_python3": "def minCost(self, nums, cost):\n    pairs = sorted(zip(nums, cost))\n    total_cost = sum(cost)\n    acc = 0\n    for val, c in pairs:\n        acc += c\n        if acc >= (total_cost + 1) // 2:\n            target = val\n            break\n    return sum(abs(x - target) * c for x, c in zip(nums, cost))"
+  },
+  {
+    "id": 2449,
+    "title": "Minimum Number of Operations to Make Arrays Similar",
+    "slug": "minimum-number-of-operations-to-make-arrays-similar",
+    "category": "贪心",
+    "subcategory": "排序匹配",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Separate odds and evens, sort both arrays by parity groups, match greedily.",
+    "approach": "Parity Separation + Greedy",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "贪心",
+      "排序",
+      "数组"
+    ],
+    "code_python3": "def makeSimilar(self, nums, target):\n    nums_odd = sorted(x for x in nums if x%2==1)\n    nums_even = sorted(x for x in nums if x%2==0)\n    target_odd = sorted(x for x in target if x%2==1)\n    target_even = sorted(x for x in target if x%2==0)\n    ops = 0\n    for a, b in zip(nums_odd, target_odd):\n        ops += abs(a-b)\n    for a, b in zip(nums_even, target_even):\n        ops += abs(a-b)\n    return ops // 4"
+  },
+  {
+    "id": 2450,
+    "title": "Number of Distinct Binary Strings After Applying Operations",
+    "slug": "number-of-distinct-binary-strings-after-applying-operations",
+    "category": "数学",
+    "subcategory": "组合计数",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Each window of size k can be flipped independently; result is 2^(n-k+1) if n>=k, else 1 (mod 10^9+7).",
+    "approach": "Combinatorics",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学"
+    ],
+    "code_python3": "def countDistinctStrings(self, s, k):\n    MOD = 10**9+7\n    n = len(s)\n    return pow(2, n-k+1, MOD)"
+  },
+  {
+    "id": 2451,
+    "title": "Odd String Difference",
+    "slug": "odd-string-difference",
+    "category": "哈希表",
+    "subcategory": "差分数组",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Compute difference array for each word; the unique one is the answer.",
+    "approach": "Hashing Difference Arrays",
+    "time_complexity": "O(n*m)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "哈希表",
+      "数组"
+    ],
+    "code_python3": "def oddString(self, words):\n    def diff(w):\n        return tuple(ord(w[i+1])-ord(w[i]) for i in range(len(w)-1))\n    diffs = [diff(w) for w in words]\n    if diffs[0] == diffs[1]:\n        common = diffs[0]\n    elif diffs[0] == diffs[2]:\n        common = diffs[0]\n    else:\n        common = diffs[1]\n    for i, d in enumerate(diffs):\n        if d != common:\n            return words[i]"
+  },
+  {
+    "id": 2452,
+    "title": "Words Within Two Edits of Dictionary",
+    "slug": "words-within-two-edits-of-dictionary",
+    "category": "数组",
+    "subcategory": "暴力匹配",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "For each query word, check against all dictionary words if they differ in at most 2 positions.",
+    "approach": "Brute Force Character Comparison",
+    "time_complexity": "O(q*d*m)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组",
+      "哈希表"
+    ],
+    "code_python3": "def twoEditWords(self, queries, dictionary):\n    res = []\n    for q in queries:\n        for d in dictionary:\n            if sum(a!=b for a,b in zip(q,d)) <= 2:\n                res.append(q)\n                break\n    return res"
+  },
+  {
+    "id": 2453,
+    "title": "Destroy Sequential Targets",
+    "slug": "destroy-sequential-targets",
+    "category": "哈希表",
+    "subcategory": "模运算分组",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Group numbers by nums[i] % space; answer is smallest number in the largest group.",
+    "approach": "Modular Grouping",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "哈希表",
+      "数组"
+    ],
+    "code_python3": "def destroyTargets(self, nums, space):\n    from collections import Counter\n    cnt = Counter(x % space for x in nums)\n    max_count = max(cnt.values())\n    ans = float('inf')\n    for x in nums:\n        if cnt[x % space] == max_count:\n            ans = min(ans, x)\n    return ans"
+  },
+  {
+    "id": 2454,
+    "title": "Next Greater Element IV",
+    "slug": "next-greater-element-iv",
+    "category": "单调栈",
+    "subcategory": "双栈",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Use two monotonic stacks: first stack finds first greater, second stack finds second greater.",
+    "approach": "Double Monotonic Stack",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "单调栈",
+      "数组"
+    ],
+    "code_python3": "def secondGreaterElement(self, nums):\n    n = len(nums)\n    ans = [-1] * n\n    stack1 = []\n    stack2 = []\n    for i, x in enumerate(nums):\n        while stack2 and nums[stack2[-1]] < x:\n            ans[stack2.pop()] = x\n        tmp = []\n        while stack1 and nums[stack1[-1]] < x:\n            tmp.append(stack1.pop())\n        stack2.extend(reversed(tmp))\n        stack1.append(i)\n    return ans"
+  },
+  {
+    "id": 2455,
+    "title": "Average Value of Even Numbers That Are Divisible by Three",
+    "slug": "average-value-of-even-numbers-that-are-divisible-by-three",
+    "category": "数组",
+    "subcategory": "线性遍历",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Filter numbers divisible by 6 (even and divisible by 3), compute average.",
+    "approach": "Linear Scan",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组",
+      "数学"
+    ],
+    "code_python3": "def averageValue(self, nums):\n    vals = [x for x in nums if x % 6 == 0]\n    return sum(vals) // len(vals) if vals else 0"
+  },
+  {
+    "id": 2456,
+    "title": "Most Popular Video Creator",
+    "slug": "most-popular-video-creator",
+    "category": "哈希表",
+    "subcategory": "分组统计",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Sum views per creator; among top creators find their most viewed video (lexicographically smallest id for tie).",
+    "approach": "HashMap Aggregation",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "哈希表",
+      "数组",
+      "排序"
+    ],
+    "code_python3": "def mostPopularCreator(self, creators, ids, views):\n    from collections import defaultdict\n    total = defaultdict(int)\n    best = {}\n    for i in range(len(creators)):\n        c = creators[i]\n        total[c] += views[i]\n        if c not in best or views[i] > best[c][1] or (views[i] == best[c][1] and ids[i] < best[c][0]):\n            best[c] = (ids[i], views[i])\n    max_views = max(total.values())\n    return [[c, best[c][0]] for c in total if total[c] == max_views]"
+  },
+  {
+    "id": 2457,
+    "title": "Minimum Addition to Make Integer Beautiful",
+    "slug": "minimum-addition-to-make-integer-beautiful",
+    "category": "贪心",
+    "subcategory": "数位贪心",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Greedily round up from lowest digit to reduce digit sum below target.",
+    "approach": "Digit-by-Digit Greedy",
+    "time_complexity": "O(log n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "贪心",
+      "数学"
+    ],
+    "code_python3": "def makeIntegerBeautiful(self, n, target):\n    def digit_sum(x):\n        s = 0\n        while x:\n            s += x % 10\n            x //= 10\n        return s\n    add = 0\n    base = 1\n    while digit_sum(n) > target:\n        remainder = n % (base * 10)\n        if remainder > 0:\n            add_val = base * 10 - remainder\n            n += add_val\n            add += add_val\n        base *= 10\n    return add"
+  },
+  {
+    "id": 2458,
+    "title": "Height of Binary Tree After Subtree Removal Queries",
+    "slug": "height-of-binary-tree-after-subtree-removal-queries",
+    "category": "树",
+    "subcategory": "DFS预处理",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Precompute height of each node; for each level track top 2 heights; removing a node uses the other max at that level.",
+    "approach": "DFS + Level Max Heights",
+    "time_complexity": "O(n + q)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "树",
+      "动态规划"
+    ],
+    "code_python3": "def treeQueries(self, root, queries):\n    height = {}\n    depth = {}\n    level_max = {}\n    def get_height(node):\n        if not node:\n            return -1\n        h = 1 + max(get_height(node.left), get_height(node.right))\n        height[node.val] = h\n        return h\n    def get_depth(node, d):\n        if not node:\n            return\n        depth[node.val] = d\n        h = height[node.val]\n        if d not in level_max:\n            level_max[d] = (h, -1)\n        else:\n            m1, m2 = level_max[d]\n            if h >= m1:\n                level_max[d] = (h, m1)\n            elif h > m2:\n                level_max[d] = (m1, h)\n        get_depth(node.left, d + 1)\n        get_depth(node.right, d + 1)\n    get_height(root)\n    get_depth(root, 0)\n    ans = []\n    for q in queries:\n        d = depth[q]\n        h = height[q]\n        m1, m2 = level_max[d]\n        other = m1 if h != m1 else m2\n        ans.append(d + other if other >= 0 else d - 1)\n    return ans"
+  },
+  {
+    "id": 2459,
+    "title": "Sort Array by Moving Items to Empty Space",
+    "slug": "sort-array-by-moving-items-to-empty-space",
+    "category": "数组",
+    "subcategory": "置换环",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Count cycles in permutation for target sorted as 0..n-1 and 1..n-1,0; answer is min operations.",
+    "approach": "Permutation Cycles",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数组",
+      "贪心"
+    ],
+    "code_python3": "def sortArray(self, nums):\n    n = len(nums)\n    def count_ops(target):\n        pos = {v: i for i, v in enumerate(nums)}\n        visited = [False] * n\n        ops = 0\n        for i in range(n):\n            if visited[i] or nums[i] == target[i]:\n                continue\n            cycle_len = 0\n            has_zero = False\n            j = i\n            while not visited[j]:\n                visited[j] = True\n                if target[j] == 0:\n                    has_zero = True\n                j = pos[target[j]]\n                cycle_len += 1\n            ops += cycle_len - 1 if has_zero else cycle_len + 1\n        return ops\n    t1 = list(range(n))\n    t2 = list(range(1, n)) + [0]\n    return min(count_ops(t1), count_ops(t2))"
+  },
+  {
+    "id": 2460,
+    "title": "Apply Operations to an Array",
+    "slug": "apply-operations-to-an-array",
+    "category": "数组",
+    "subcategory": "模拟",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Apply doubling operations, then move all zeros to end.",
+    "approach": "Simulation + Move Zeros",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数组",
+      "双指针"
+    ],
+    "code_python3": "def applyOperations(self, nums):\n    n = len(nums)\n    for i in range(n - 1):\n        if nums[i] == nums[i + 1]:\n            nums[i] *= 2\n            nums[i + 1] = 0\n    res = [x for x in nums if x != 0]\n    res.extend([0] * (n - len(res)))\n    return res"
+  }
+]

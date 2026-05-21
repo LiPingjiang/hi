@@ -3,9 +3,29 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+use std::io::Write as _IoWrite;
 
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
+
+/// Debug log for LeetCode panel troubleshooting.
+/// Writes to ~/.hi/leetcode_debug.log
+#[cfg(feature = "leetcode")]
+macro_rules! lc_debug {
+    ($($arg:tt)*) => {{
+        if let Some(mut home) = dirs::home_dir() {
+            home.push(".hi");
+            let _ = std::fs::create_dir_all(&home);
+            home.push("leetcode_debug.log");
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&home) {
+                use std::time::SystemTime;
+                let elapsed = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default();
+                let secs = elapsed.as_secs() % 86400; // time of day in seconds
+                let _ = writeln!(f, "[{:02}:{:02}:{:02}] {}", secs/3600, (secs%3600)/60, secs%60, format_args!($($arg)*));
+            }
+        }
+    }};
+}
 
 use crate::ai::{AiClient, AiContext, HintKind};
 use crate::ai::log as ai_log;
@@ -114,6 +134,9 @@ pub struct App {
     plan_lines: Option<Vec<String>>,    // plan overlay content
     ai_status: AiStatus,
     ai_tick: u64,                       // incremented every poll cycle (~100ms), drives spinner animation
+    /// Counts 100ms ticks; every 2 ticks (~200ms) we advance the surf animation frame.
+    #[cfg(feature = "leetcode")]
+    surf_tick: u8,
 
     // Chat panel (right side)
     chat_panel: ChatPanel,
@@ -222,8 +245,10 @@ impl App {
                     AiStatus::Idle
                 }
             },
-            ai_tick: 0,
-            chat_panel: ChatPanel::new(
+        ai_tick: 0,
+        #[cfg(feature = "leetcode")]
+        surf_tick: 0,
+        chat_panel: ChatPanel::new(
                 config.chat.width as usize,
                 config.chat.max_messages,
             ),
@@ -266,10 +291,17 @@ impl App {
             if needs_redraw {
                 // LeetCode panel: full-screen overlay, skip normal render
                 #[cfg(feature = "leetcode")]
-                let leetcode_rendered = if let Some(ref panel) = self.leetcode_panel {
+                let leetcode_rendered = if let Some(ref mut panel) = self.leetcode_panel {
                     let w = self.editor.term_width as usize;
                     let h = self.editor.term_height as usize;
-                    self.renderer.render_leetcode_panel(panel, w, h)?;
+                    lc_debug!("render_leetcode_panel: view={:?}, w={}, h={}", panel.view, w, h);
+                    match self.renderer.render_leetcode_panel(panel, w, h) {
+                        Ok(()) => {}
+                        Err(e) => {
+                            lc_debug!("render_leetcode_panel ERROR: {:?}", e);
+                            return Err(e.into());
+                        }
+                    }
                     true
                 } else {
                     false
@@ -341,7 +373,21 @@ impl App {
                 needs_redraw = true;
             }
 
+            // LeetCode auto-save (periodic, every 5s when dirty)
+            #[cfg(feature = "leetcode")]
+            if let Some(ref mut panel) = self.leetcode_panel {
+                panel.auto_save();
+                panel.poll_ai_response();
+                if panel.poll_submit() {
+                    needs_redraw = true;
+                }
+            }
+
             if self.should_quit {
+                #[cfg(feature = "leetcode")]
+                if self.leetcode_panel.is_some() {
+                    lc_debug!("should_quit=true while leetcode panel is open!");
+                }
                 break;
             }
 
@@ -349,6 +395,16 @@ impl App {
             if self.ai_pending {
                 self.ai_tick = self.ai_tick.wrapping_add(1);
                 needs_redraw = true;
+            }
+
+            // Tick surf animation when the LeetCode splash is showing the surf theme.
+            #[cfg(feature = "leetcode")]
+            {
+                self.surf_tick = self.surf_tick.wrapping_add(1);
+                if self.surf_tick >= 2 {
+                    self.surf_tick = 0;
+                    // tick_surf is now a no-op (surf theme removed)
+                }
             }
 
             // Wait for input (100ms timeout so AI poll runs regularly).
@@ -393,9 +449,15 @@ impl App {
                 // LeetCode panel takes priority when open
                 #[cfg(feature = "leetcode")]
                 if self.leetcode_panel.is_some() {
+                    lc_debug!("dispatch key: code={:?} mods={:?}", key.code, key.modifiers);
                     let panel = self.leetcode_panel.as_mut().unwrap();
-                    match panel.handle_key(key) {
-                        LeetCodeAction::Close => { self.leetcode_panel = None; }
+                    let action = panel.handle_key(key);
+                    lc_debug!("  -> action={:?}, view={:?}", action, panel.view);
+                    match action {
+                        LeetCodeAction::Close => {
+                            lc_debug!("  -> CLOSING leetcode panel");
+                            self.leetcode_panel = None;
+                        }
                         LeetCodeAction::Redraw | LeetCodeAction::None => {}
                     }
                     return Ok(());
@@ -844,8 +906,11 @@ impl App {
                 self.editor.mode = Mode::Search(String::new());
             }
             NormalAction::EnterAi => {
-                self.ai_query_msg = None;
-                self.editor.mode = Mode::Ai(String::new());
+                // Open chat panel and focus it (same as ToggleChatPanel but always opens)
+                if !self.chat_visible {
+                    self.chat_visible = true;
+                }
+                self.set_focus(FocusZone::Chat);
             }
             NormalAction::ExecuteCommand(cmd) => {
                 let mut input = cmd;

@@ -680,14 +680,30 @@ impl Editor {
     /// Execute operator (d/y/c) + text object / motion from a KeyEvent.
     pub(crate) fn execute_operator_key(&mut self, op: char, key: KeyEvent, count: usize) {
         match key.code {
-            // ── word text objects ────────────────────────────────────────
+            // ── word motion: dw/cw/yw → delete/change/yank to next word start
             KeyCode::Char('w') => {
-                let (start, end) = self.text_obj_word(false);
-                self.apply_operator(op, start, end, false);
+                let start = self.buffer.pos_to_char(self.cursor_line, self.cursor_col);
+                let saved_line = self.cursor_line;
+                let saved_col  = self.cursor_col;
+                self.move_word_forward(count);
+                let end = self.buffer.pos_to_char(self.cursor_line, self.cursor_col);
+                self.cursor_line = saved_line;
+                self.cursor_col  = saved_col;
+                if start < end {
+                    self.apply_operator(op, start, end, false);
+                }
             }
             KeyCode::Char('W') => {
-                let (start, end) = self.text_obj_word(true);
-                self.apply_operator(op, start, end, false);
+                let start = self.buffer.pos_to_char(self.cursor_line, self.cursor_col);
+                let saved_line = self.cursor_line;
+                let saved_col  = self.cursor_col;
+                for _ in 0..count { self.move_word_forward_big(); }
+                let end = self.buffer.pos_to_char(self.cursor_line, self.cursor_col);
+                self.cursor_line = saved_line;
+                self.cursor_col  = saved_col;
+                if start < end {
+                    self.apply_operator(op, start, end, false);
+                }
             }
             KeyCode::Char('p') => {
                 let (start, end) = self.text_obj_paragraph();

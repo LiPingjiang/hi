@@ -1249,6 +1249,186 @@ impl CodePalette {
         }
     }
 
+    /// Catppuccin Mocha — pastel dark palette.
+    pub fn catppuccin_mocha() -> Self {
+        Self {
+            keyword:              (203, 166, 247), // #CBA6F7  mauve
+            keyword_reserved:     (203, 166, 247), // #CBA6F7
+            keyword_type:         (250, 179, 135), // #FAB387  peach
+            name_function:        (137, 180, 250), // #89B4FA  blue
+            name_builtin:         (245, 194, 231), // #F5C2E7  pink
+            name_tag:             (137, 180, 250), // #89B4FA
+            name_attribute:       (249, 226, 175), // #F9E2AF  yellow
+            name_decorator:       (245, 194, 231), // #F5C2E7
+            literal_string:       (166, 227, 161), // #A6E3A1  green
+            literal_string_escape:(250, 179, 135), // #FAB387
+            literal_number:       (250, 179, 135), // #FAB387
+            literal_const:        (250, 179, 135), // #FAB387
+            comment:              (108, 112, 134), // #6C7086  overlay0
+            operator:             (137, 220, 235), // #89DCEB  sky
+            punctuation:          (166, 173, 200), // #A6ADC8  subtext0
+            variable:             (205, 214, 244), // #CDD6F4  text
+            generic_inserted:     (166, 227, 161), // #A6E3A1
+            generic_deleted:      (243, 139, 168), // #F38BA8  red
+            markup_heading:       (137, 180, 250), // #89B4FA
+            markup_bold:          (250, 179, 135), // #FAB387
+            markup_italic:        (245, 194, 231), // #F5C2E7
+            markup_code:          (166, 227, 161), // #A6E3A1
+            markup_link:          (137, 180, 250), // #89B4FA
+            markup_link_text:     (116, 199, 236), // #74C7EC  sapphire
+            markup_list:          (203, 166, 247), // #CBA6F7
+            markup_quote:         (108, 112, 134), // #6C7086
+            markup_raw:           (166, 227, 161), // #A6E3A1
+            markup_section:       (205, 214, 244), // #CDD6F4
+            shell_builtin:        (245, 194, 231), // #F5C2E7
+            text:                 (205, 214, 244), // #CDD6F4
+        }
+    }
+
+    /// Tokyo Night — cool blue-purple palette.
+    pub fn tokyo_night() -> Self {
+        Self {
+            keyword:              (187, 154, 247), // #BB9AF7  purple
+            keyword_reserved:     (187, 154, 247), // #BB9AF7
+            keyword_type:         ( 42, 195, 222), // #2AC3DE  cyan
+            name_function:        (122, 162, 247), // #7AA2F7  blue
+            name_builtin:         (125, 207, 255), // #7DCFFF  light blue
+            name_tag:             (247, 118, 142), // #F7768E  red
+            name_attribute:       (115, 218, 202), // #73DACA  teal
+            name_decorator:       (255, 158,  99), // #FF9E63  orange
+            literal_string:       (158, 206, 106), // #9ECE6A  green
+            literal_string_escape:(224, 175, 104), // #E0AF68  yellow
+            literal_number:       (255, 158,  99), // #FF9E63
+            literal_const:        (255, 158,  99), // #FF9E63
+            comment:              ( 86,  95, 137), // #565F89  comment
+            operator:             (137, 221, 255), // #89DDFF  cyan-bright
+            punctuation:          (169, 177, 214), // #A9B1D6  fg
+            variable:             (192, 202, 245), // #C0CAF5  fg-bright
+            generic_inserted:     (158, 206, 106), // #9ECE6A
+            generic_deleted:      (247, 118, 142), // #F7768E
+            markup_heading:       (122, 162, 247), // #7AA2F7
+            markup_bold:          (224, 175, 104), // #E0AF68
+            markup_italic:        (187, 154, 247), // #BB9AF7
+            markup_code:          (158, 206, 106), // #9ECE6A
+            markup_link:          (122, 162, 247), // #7AA2F7
+            markup_link_text:     (125, 207, 255), // #7DCFFF
+            markup_list:          (187, 154, 247), // #BB9AF7
+            markup_quote:         ( 86,  95, 137), // #565F89
+            markup_raw:           (158, 206, 106), // #9ECE6A
+            markup_section:       (192, 202, 245), // #C0CAF5
+            shell_builtin:        (125, 207, 255), // #7DCFFF
+            text:                 (192, 202, 245), // #C0CAF5
+        }
+    }
+
+    /// Gruvbox Dark — earthy warm palette.
+    pub fn gruvbox() -> Self {
+        Self {
+            keyword:              (251,  73,  52), // #FB4934  red
+            keyword_reserved:     (251,  73,  52), // #FB4934
+            keyword_type:         (250, 189,  47), // #FABD2F  yellow
+            name_function:        (131, 165, 152), // #83A598  aqua
+            name_builtin:         (211, 134, 155), // #D3869B  purple
+            name_tag:             (254, 128,  25), // #FE8019  orange
+            name_attribute:       (250, 189,  47), // #FABD2F
+            name_decorator:       (211, 134, 155), // #D3869B
+            literal_string:       (184, 187,  38), // #B8BB26  green
+            literal_string_escape:(254, 128,  25), // #FE8019
+            literal_number:       (211, 134, 155), // #D3869B
+            literal_const:        (211, 134, 155), // #D3869B
+            comment:              (146, 131, 116), // #928374  gray
+            operator:             (142, 192, 124), // #8EC07C  bright-aqua
+            punctuation:          (189, 174, 147), // #BDAE93  fg3
+            variable:             (235, 219, 178), // #EBDBB2  fg
+            generic_inserted:     (184, 187,  38), // #B8BB26
+            generic_deleted:      (251,  73,  52), // #FB4934
+            markup_heading:       (254, 128,  25), // #FE8019
+            markup_bold:          (250, 189,  47), // #FABD2F
+            markup_italic:        (211, 134, 155), // #D3869B
+            markup_code:          (184, 187,  38), // #B8BB26
+            markup_link:          (131, 165, 152), // #83A598
+            markup_link_text:     (142, 192, 124), // #8EC07C
+            markup_list:          (251,  73,  52), // #FB4934
+            markup_quote:         (146, 131, 116), // #928374
+            markup_raw:           (184, 187,  38), // #B8BB26
+            markup_section:       (235, 219, 178), // #EBDBB2
+            shell_builtin:        (211, 134, 155), // #D3869B
+            text:                 (235, 219, 178), // #EBDBB2
+        }
+    }
+
+    /// Night Owl — deep blue elegant palette.
+    pub fn night_owl() -> Self {
+        Self {
+            keyword:              (199, 146, 234), // #C792EA  purple
+            keyword_reserved:     (199, 146, 234), // #C792EA
+            keyword_type:         (255, 203, 107), // #FFCB6B  yellow
+            name_function:        (130, 170, 255), // #82AAFF  blue
+            name_builtin:         (173, 219, 103), // #ADDB67  green
+            name_tag:             (127, 219, 202), // #7FDBCA  teal
+            name_attribute:       (240, 113, 120), // #F07178  red
+            name_decorator:       (255, 203, 107), // #FFCB6B
+            literal_string:       (173, 219, 103), // #ADDB67  green
+            literal_string_escape:(234, 179,  80), // #EAB350  gold
+            literal_number:       (247, 140, 108), // #F78C6C  orange
+            literal_const:        (255, 203, 107), // #FFCB6B
+            comment:              ( 99, 119, 119), // #637777  gray
+            operator:             (127, 219, 202), // #7FDBCA
+            punctuation:          (176, 191, 203), // #B0BFCB  fg-dim
+            variable:             (214, 222, 235), // #D6DEEB  fg
+            generic_inserted:     (173, 219, 103), // #ADDB67
+            generic_deleted:      (239, 83,  80),  // #EF5350  red
+            markup_heading:       (130, 170, 255), // #82AAFF
+            markup_bold:          (255, 203, 107), // #FFCB6B
+            markup_italic:        (199, 146, 234), // #C792EA
+            markup_code:          (173, 219, 103), // #ADDB67
+            markup_link:          (130, 170, 255), // #82AAFF
+            markup_link_text:     (127, 219, 202), // #7FDBCA
+            markup_list:          (199, 146, 234), // #C792EA
+            markup_quote:         ( 99, 119, 119), // #637777
+            markup_raw:           (173, 219, 103), // #ADDB67
+            markup_section:       (214, 222, 235), // #D6DEEB
+            shell_builtin:        (127, 219, 202), // #7FDBCA
+            text:                 (214, 222, 235), // #D6DEEB
+        }
+    }
+
+    /// Ayu Dark — vibrant yet balanced palette.
+    pub fn ayu() -> Self {
+        Self {
+            keyword:              (255, 143,  64), // #FF8F40  orange
+            keyword_reserved:     (255, 143,  64), // #FF8F40
+            keyword_type:         ( 57, 186, 230), // #39BAE6  blue
+            name_function:        (255, 180,  84), // #FFB454  light-orange
+            name_builtin:         ( 57, 186, 230), // #39BAE6
+            name_tag:             ( 57, 186, 230), // #39BAE6
+            name_attribute:       (255, 180,  84), // #FFB454
+            name_decorator:       (230, 182, 115), // #E6B673  sand
+            literal_string:       (170, 217, 76),  // #AAD94C  green
+            literal_string_escape:(213, 255, 128), // #D5FF80  lime
+            literal_number:       (230, 182, 115), // #E6B673
+            literal_const:        (230, 182, 115), // #E6B673
+            comment:              (172, 176, 190), // #ACB0BE  gray (dimmer in ayu)
+            operator:             (242, 151,  39), // #F29727  dark-orange
+            punctuation:          (190, 195, 209), // #BEC3D1  fg-dim
+            variable:             (203, 204, 198), // #CBCCC6  fg
+            generic_inserted:     (170, 217,  76), // #AAD94C
+            generic_deleted:      (255,  51,  51), // #FF3333  red
+            markup_heading:       (255, 143,  64), // #FF8F40
+            markup_bold:          (255, 180,  84), // #FFB454
+            markup_italic:        (210, 168, 255), // #D2A8FF  purple
+            markup_code:          (170, 217,  76), // #AAD94C
+            markup_link:          ( 57, 186, 230), // #39BAE6
+            markup_link_text:     (115, 210, 230), // #73D2E6  light-cyan
+            markup_list:          (255, 143,  64), // #FF8F40
+            markup_quote:         (172, 176, 190), // #ACB0BE
+            markup_raw:           (170, 217,  76), // #AAD94C
+            markup_section:       (203, 204, 198), // #CBCCC6
+            shell_builtin:        ( 57, 186, 230), // #39BAE6
+            text:                 (203, 204, 198), // #CBCCC6
+        }
+    }
+
     /// Look up a palette by name.  Returns `None` for unknown names.
     pub fn by_name(name: &str) -> Option<Self> {
         match name {
@@ -1268,6 +1448,16 @@ impl CodePalette {
                 => Some(Self::electric_impressionism()),
             "synthwave" | "synthwave-84" | "synthwave_84"
                 => Some(Self::synthwave()),
+            "catppuccin" | "catppuccin-mocha" | "mocha"
+                => Some(Self::catppuccin_mocha()),
+            "tokyo-night" | "tokyo_night" | "tokyo"
+                => Some(Self::tokyo_night()),
+            "gruvbox" | "gruvbox-dark"
+                => Some(Self::gruvbox()),
+            "night-owl" | "night_owl" | "nightowl"
+                => Some(Self::night_owl()),
+            "ayu" | "ayu-dark"
+                => Some(Self::ayu()),
             _ => None,
         }
     }
@@ -1275,12 +1465,17 @@ impl CodePalette {
     /// Return a list of all available theme names (canonical form).
     pub fn available_themes() -> &'static [&'static str] {
         &[
+            "catppuccin",
+            "tokyo-night",
+            "gruvbox",
+            "night-owl",
+            "ayu",
+            "one-dark-pro",
+            "monokai-pro",
+            "dracula",
             "neon-minimalist",
             "glow-dark",
-            "monokai-pro",
             "github-dark",
-            "one-dark-pro",
-            "dracula",
             "electric-impressionism",
             "synthwave",
         ]

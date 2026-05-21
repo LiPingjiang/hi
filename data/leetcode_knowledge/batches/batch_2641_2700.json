@@ -1,0 +1,1050 @@
+[
+  {
+    "id": 2641,
+    "title": "Cousins in Binary Tree II",
+    "slug": "cousins-in-binary-tree-ii",
+    "category": "树",
+    "subcategory": "BFS层序遍历",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Replace each node's value with the sum of its cousins (same level nodes excluding siblings). Use BFS to compute level sums, then update each node to level_sum minus sibling sum.",
+    "approach": "BFS Two Pass",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "树",
+      "图"
+    ],
+    "code_python3": "def replaceValueInTree(self, root):\n    from collections import deque\n    q = deque([root])\n    root.val = 0\n    while q:\n        level_sum = 0\n        next_q = deque()\n        pairs = []\n        for node in q:\n            l_val = node.left.val if node.left else 0\n            r_val = node.right.val if node.right else 0\n            sibling_sum = l_val + r_val\n            level_sum += l_val + r_val\n            if node.left:\n                pairs.append((node.left, sibling_sum))\n                next_q.append(node.left)\n            if node.right:\n                pairs.append((node.right, sibling_sum))\n                next_q.append(node.right)\n        for child, sib_sum in pairs:\n            child.val = level_sum - sib_sum\n        q = next_q\n    return root"
+  },
+  {
+    "id": 2642,
+    "title": "Design Graph With Shortest Path Calculator",
+    "slug": "design-graph-with-shortest-path-calculator",
+    "category": "图",
+    "subcategory": "最短路径",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Maintain an adjacency list and use Dijkstra's algorithm for shortest path queries. Support dynamic edge addition.",
+    "approach": "Dijkstra",
+    "time_complexity": "O((V+E) log V) per query",
+    "space_complexity": "O(V+E)",
+    "tags": [
+      "图",
+      "设计",
+      "堆"
+    ],
+    "code_python3": "class Graph:\n    def __init__(self, n, edges):\n        self.n = n\n        self.adj = [[] for _ in range(n)]\n        for u, v, w in edges:\n            self.adj[u].append((v, w))\n    def addEdge(self, edge):\n        u, v, w = edge\n        self.adj[u].append((v, w))\n    def shortestPath(self, node1, node2):\n        import heapq\n        dist = [float('inf')] * self.n\n        dist[node1] = 0\n        heap = [(0, node1)]\n        while heap:\n            d, u = heapq.heappop(heap)\n            if u == node2:\n                return d\n            if d > dist[u]:\n                continue\n            for v, w in self.adj[u]:\n                nd = d + w\n                if nd < dist[v]:\n                    dist[v] = nd\n                    heapq.heappush(heap, (nd, v))\n        return -1"
+  },
+  {
+    "id": 2643,
+    "title": "Row With Maximum Ones",
+    "slug": "row-with-maximum-ones",
+    "category": "数组",
+    "subcategory": "遍历",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Iterate through each row, count ones, track the row with maximum count.",
+    "approach": "Linear Scan",
+    "time_complexity": "O(m*n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "def rowAndMaximumOnes(self, mat):\n    max_count = 0\n    max_row = 0\n    for i, row in enumerate(mat):\n        cnt = sum(row)\n        if cnt > max_count:\n            max_count = cnt\n            max_row = i\n    return [max_row, max_count]"
+  },
+  {
+    "id": 2644,
+    "title": "Find the Maximum Divisibility Score",
+    "slug": "find-the-maximum-divisibility-score",
+    "category": "数组",
+    "subcategory": "暴力枚举",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "For each divisor, count how many nums it divides. Return the divisor with max count (smallest if tie).",
+    "approach": "Brute Force Counting",
+    "time_complexity": "O(m*n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组",
+      "数学"
+    ],
+    "code_python3": "def maxDivScore(self, nums, divisors):\n    best_div = -1\n    best_count = -1\n    for d in sorted(divisors):\n        cnt = sum(1 for x in nums if x % d == 0)\n        if cnt > best_count:\n            best_count = cnt\n            best_div = d\n    return best_div"
+  },
+  {
+    "id": 2645,
+    "title": "Minimum Additions to Make Valid String",
+    "slug": "minimum-additions-to-make-valid-string",
+    "category": "贪心",
+    "subcategory": "字符串匹配",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Greedily match characters to the pattern 'abc'. Track position in the pattern and count insertions needed.",
+    "approach": "Greedy Pattern Matching",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "贪心"
+    ],
+    "code_python3": "def addMinimum(self, word):\n    res = 0\n    i = 0\n    pattern = 'abc'\n    while i < len(word):\n        for j in range(3):\n            if i < len(word) and word[i] == pattern[j]:\n                i += 1\n            else:\n                res += 1\n    # handle remaining pattern chars after last match\n    return res"
+  },
+  {
+    "id": 2646,
+    "title": "Minimize the Total Price of the Trips",
+    "slug": "minimize-the-total-price-of-the-trips",
+    "category": "树",
+    "subcategory": "树形DP",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "First count how many times each node is visited across all trips (using LCA or DFS). Then apply house-robber style DP on the tree to decide which nodes to halve.",
+    "approach": "DFS Path Count + Tree DP (House Robber on Tree)",
+    "time_complexity": "O(n * trips + n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "树",
+      "动态规划"
+    ],
+    "code_python3": "def minimumTotalPrice(self, n, edges, price, trips):\n    adj = [[] for _ in range(n)]\n    for u, v in edges:\n        adj[u].append(v)\n        adj[v].append(u)\n    count = [0] * n\n    def dfs_path(u, parent, target, path):\n        path.append(u)\n        if u == target:\n            for node in path:\n                count[node] += 1\n            path.pop()\n            return True\n        for v in adj[u]:\n            if v != parent:\n                if dfs_path(v, u, target, path):\n                    path.pop()\n                    return True\n        path.pop()\n        return False\n    for s, t in trips:\n        dfs_path(s, -1, t, [])\n    def dp(u, parent):\n        full = price[u] * count[u]\n        half = full // 2\n        for v in adj[u]:\n            if v != parent:\n                f, h = dp(v, u)\n                full += min(f, h)\n                half += f\n        return full, half\n    f, h = dp(0, -1)\n    return min(f, h)"
+  },
+  {
+    "id": 2647,
+    "title": "Color the Triangle Red",
+    "slug": "color-the-triangle-red",
+    "category": "数学",
+    "subcategory": "找规律",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "The triangle has n rows. Find a pattern to color minimum cells red so every sub-triangle of side 2 has at least one red cell.",
+    "approach": "Mathematical Pattern",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数学"
+    ],
+    "code_python3": "def colorRed(self, n):\n    # Pattern-based construction\n    res = [[1, 1]]\n    for row in range(2, n + 1):\n        if row % 4 == 2:\n            res.append([row, 2])\n        elif row % 4 == 3:\n            res.append([row, row * 2 - 1])\n        elif row % 4 == 0:\n            for col in range(row * 2 - 1, 0, -4):\n                res.append([row, col])\n        else:  # row % 4 == 1 and row > 1\n            for col in range(2, row * 2, 4):\n                res.append([row, col])\n    return res"
+  },
+  {
+    "id": 2648,
+    "title": "Generate Fibonacci Sequence",
+    "slug": "generate-fibonacci-sequence",
+    "category": "设计",
+    "subcategory": "生成器",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Use a generator function to yield Fibonacci numbers one at a time.",
+    "approach": "Generator / Iterator",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "# JavaScript problem - Python equivalent:\ndef fibGenerator():\n    a, b = 0, 1\n    while True:\n        yield a\n        a, b = b, a + b"
+  },
+  {
+    "id": 2649,
+    "title": "Nested Array Generator",
+    "slug": "nested-array-generator",
+    "category": "设计",
+    "subcategory": "生成器",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Recursively flatten a multi-dimensional array using a generator that yields non-array elements.",
+    "approach": "Recursive Generator",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(d)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "# JavaScript problem - Python equivalent:\ndef inorderTraversal(arr):\n    for item in arr:\n        if isinstance(item, list):\n            yield from inorderTraversal(item)\n        else:\n            yield item"
+  },
+  {
+    "id": 2650,
+    "title": "Design Cancellable Function",
+    "slug": "design-cancellable-function",
+    "category": "设计",
+    "subcategory": "异步控制",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Design a function wrapper that supports cancellation of async generator-based operations.",
+    "approach": "Async Generator with Cancel Token",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "# JavaScript-specific problem (async generators with cancel)\n# No direct Python equivalent - concept is asyncio task cancellation\nimport asyncio\nasync def cancellable(generator, cancel_token):\n    try:\n        result = None\n        while True:\n            if cancel_token.is_set():\n                raise asyncio.CancelledError()\n            result = next(generator)\n    except StopIteration as e:\n        return e.value"
+  },
+  {
+    "id": 2651,
+    "title": "Calculate Delayed Arrival Time",
+    "slug": "calculate-delayed-arrival-time",
+    "category": "数学",
+    "subcategory": "模运算",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Simply add arrival hour and delay, then mod by 24.",
+    "approach": "Modular Arithmetic",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学"
+    ],
+    "code_python3": "def findDelayedArrivalTime(self, arrivalTime, delayedTime):\n    return (arrivalTime + delayedTime) % 24"
+  },
+  {
+    "id": 2652,
+    "title": "Sum Multiples",
+    "slug": "sum-multiples",
+    "category": "数学",
+    "subcategory": "遍历",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Sum all numbers from 1 to n that are divisible by 3, 5, or 7.",
+    "approach": "Linear Scan",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学"
+    ],
+    "code_python3": "def sumOfMultiples(self, n):\n    return sum(i for i in range(1, n + 1) if i % 3 == 0 or i % 5 == 0 or i % 7 == 0)"
+  },
+  {
+    "id": 2653,
+    "title": "Sliding Subarray Beauty",
+    "slug": "sliding-subarray-beauty",
+    "category": "滑动窗口",
+    "subcategory": "有序统计",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Maintain a sorted structure or counting array for the sliding window to find the x-th smallest negative number efficiently.",
+    "approach": "Sliding Window + Counting Sort",
+    "time_complexity": "O(n * 50)",
+    "space_complexity": "O(50)",
+    "tags": [
+      "滑动窗口",
+      "排序"
+    ],
+    "code_python3": "def getSubarrayBeauty(self, nums, k, x):\n    cnt = [0] * 101  # offset: idx 0 = value -50\n    res = []\n    for i in range(len(nums)):\n        if nums[i] < 0:\n            cnt[nums[i] + 50] += 1\n        if i >= k and nums[i - k] < 0:\n            cnt[nums[i - k] + 50] -= 1\n        if i >= k - 1:\n            count = 0\n            for j in range(50):  # only negatives\n                count += cnt[j]\n                if count >= x:\n                    res.append(j - 50)\n                    break\n            else:\n                res.append(0)\n    return res"
+  },
+  {
+    "id": 2654,
+    "title": "Minimum Number of Operations to Make All Array Elements Equal to 1",
+    "slug": "minimum-number-of-operations-to-make-all-array-elements-equal-to-1",
+    "category": "数学",
+    "subcategory": "GCD",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "If array already has a 1, answer is n - count(1). Otherwise find shortest subarray with GCD=1, answer is (len-1) + (n-1). If no such subarray, return -1.",
+    "approach": "GCD of Subarrays",
+    "time_complexity": "O(n^2)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学",
+      "数组"
+    ],
+    "code_python3": "def minOperations(self, nums):\n    from math import gcd\n    n = len(nums)\n    ones = nums.count(1)\n    if ones:\n        return n - ones\n    min_len = float('inf')\n    for i in range(n):\n        g = 0\n        for j in range(i, n):\n            g = gcd(g, nums[j])\n            if g == 1:\n                min_len = min(min_len, j - i)\n                break\n    return -1 if min_len == float('inf') else min_len + n - 1"
+  },
+  {
+    "id": 2655,
+    "title": "Find Maximal Uncovered Ranges",
+    "slug": "find-maximal-uncovered-ranges",
+    "category": "排序",
+    "subcategory": "区间合并",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Sort the covered ranges, merge overlapping ones, then find the gaps between merged ranges within [0, n-1].",
+    "approach": "Sort + Merge + Gap Finding",
+    "time_complexity": "O(m log m)",
+    "space_complexity": "O(m)",
+    "tags": [
+      "排序",
+      "数组"
+    ],
+    "code_python3": "def findMaximalUncoveredRanges(self, n, ranges):\n    if not ranges:\n        return [[0, n - 1]]\n    ranges.sort()\n    merged = []\n    for l, r in ranges:\n        if merged and l <= merged[-1][1] + 1:\n            merged[-1][1] = max(merged[-1][1], r)\n        else:\n            merged.append([l, r])\n    res = []\n    if merged[0][0] > 0:\n        res.append([0, merged[0][0] - 1])\n    for i in range(1, len(merged)):\n        res.append([merged[i-1][1] + 1, merged[i][0] - 1])\n    if merged[-1][1] < n - 1:\n        res.append([merged[-1][1] + 1, n - 1])\n    return res"
+  },
+  {
+    "id": 2656,
+    "title": "Maximum Sum With Exactly K Elements",
+    "slug": "maximum-sum-with-exactly-k-elements",
+    "category": "贪心",
+    "subcategory": "数学",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Always pick the maximum element and increment it. Sum = max*k + k*(k-1)/2.",
+    "approach": "Greedy Math",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "贪心",
+      "数学"
+    ],
+    "code_python3": "def maximizeSum(self, nums, k):\n    mx = max(nums)\n    return mx * k + k * (k - 1) // 2"
+  },
+  {
+    "id": 2657,
+    "title": "Find the Prefix Common Array of Two Permutations",
+    "slug": "find-the-prefix-common-array-of-two-permutations",
+    "category": "数组",
+    "subcategory": "计数",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Track which numbers have appeared in both A and B so far. When a number appears in both, increment common count.",
+    "approach": "Frequency Counting",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数组",
+      "哈希表"
+    ],
+    "code_python3": "def findThePrefixCommonArray(self, A, B):\n    n = len(A)\n    seen = [0] * (n + 1)\n    res = []\n    common = 0\n    for i in range(n):\n        seen[A[i]] += 1\n        if seen[A[i]] == 2:\n            common += 1\n        seen[B[i]] += 1\n        if seen[B[i]] == 2:\n            common += 1\n        res.append(common)\n    return res"
+  },
+  {
+    "id": 2658,
+    "title": "Maximum Number of Fish in a Grid",
+    "slug": "maximum-number-of-fish-in-a-grid",
+    "category": "图",
+    "subcategory": "BFS/DFS",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Find connected components of water cells (value > 0) and return the maximum sum among all components.",
+    "approach": "BFS/DFS Connected Components",
+    "time_complexity": "O(m*n)",
+    "space_complexity": "O(m*n)",
+    "tags": [
+      "图",
+      "数组"
+    ],
+    "code_python3": "def findMaxFish(self, grid):\n    m, n = len(grid), len(grid[0])\n    visited = [[False]*n for _ in range(m)]\n    def dfs(i, j):\n        if i < 0 or i >= m or j < 0 or j >= n or visited[i][j] or grid[i][j] == 0:\n            return 0\n        visited[i][j] = True\n        return grid[i][j] + dfs(i+1,j) + dfs(i-1,j) + dfs(i,j+1) + dfs(i,j-1)\n    res = 0\n    for i in range(m):\n        for j in range(n):\n            if grid[i][j] > 0 and not visited[i][j]:\n                res = max(res, dfs(i, j))\n    return res"
+  },
+  {
+    "id": 2659,
+    "title": "Make Array Empty",
+    "slug": "make-array-empty",
+    "category": "排序",
+    "subcategory": "BIT/树状数组",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Simulate circular removal of the minimum element. Use BIT to count remaining elements between positions.",
+    "approach": "Sort by Value + BIT for Position Tracking",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "排序",
+      "数组"
+    ],
+    "code_python3": "def countOperationsToEmptyArray(self, nums):\n    n = len(nums)\n    indices = sorted(range(n), key=lambda i: (nums[i], i))\n    res = n  # each removal costs 1 operation\n    for k in range(1, n):\n        if indices[k] < indices[k-1]:\n            res += n - k  # wrap around costs remaining elements\n    return res"
+  },
+  {
+    "id": 2660,
+    "title": "Determine the Winner of a Bowling Game",
+    "slug": "determine-the-winner-of-a-bowling-game",
+    "category": "数组",
+    "subcategory": "模拟",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Calculate scores: if any of the previous 2 rolls was a strike (10), current roll counts double.",
+    "approach": "Simulation",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "def isWinner(self, player1, player2):\n    def score(p):\n        s = 0\n        for i in range(len(p)):\n            double = any(i-j > 0 and i-j <= 2 and p[j] == 10 for j in range(max(0,i-2), i))\n            s += p[i] * (2 if double else 1)\n        return s\n    s1, s2 = score(player1), score(player2)\n    if s1 > s2: return 1\n    if s2 > s1: return 2\n    return 0"
+  },
+  {
+    "id": 2661,
+    "title": "First Completely Painted Row or Column",
+    "slug": "first-completely-painted-row-or-column",
+    "category": "哈希表",
+    "subcategory": "模拟",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Map each value to its (row, col) position. Track count of painted cells per row and column. Return first index where any row/col is complete.",
+    "approach": "HashMap + Row/Col Counting",
+    "time_complexity": "O(m*n)",
+    "space_complexity": "O(m*n)",
+    "tags": [
+      "哈希表",
+      "数组"
+    ],
+    "code_python3": "def firstCompleteIndex(self, arr, mat):\n    m, n = len(mat), len(mat[0])\n    pos = {}\n    for i in range(m):\n        for j in range(n):\n            pos[mat[i][j]] = (i, j)\n    row_cnt = [0] * m\n    col_cnt = [0] * n\n    for idx, val in enumerate(arr):\n        r, c = pos[val]\n        row_cnt[r] += 1\n        col_cnt[c] += 1\n        if row_cnt[r] == n or col_cnt[c] == m:\n            return idx\n    return -1"
+  },
+  {
+    "id": 2662,
+    "title": "Minimum Cost of a Path With Special Roads",
+    "slug": "minimum-cost-of-a-path-with-special-roads",
+    "category": "图",
+    "subcategory": "Dijkstra",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Model start, target, and all special road endpoints as nodes. Use Dijkstra where edge weights include Manhattan distance or special road cost.",
+    "approach": "Dijkstra on Virtual Graph",
+    "time_complexity": "O(n^2 log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "图",
+      "堆"
+    ],
+    "code_python3": "def minimumCost(self, start, target, specialRoads):\n    import heapq\n    def dist(a, b):\n        return abs(a[0]-b[0]) + abs(a[1]-b[1])\n    nodes = [tuple(start), tuple(target)]\n    roads = []\n    for x1,y1,x2,y2,c in specialRoads:\n        roads.append(((x1,y1),(x2,y2),c))\n        nodes.append((x1,y1))\n        nodes.append((x2,y2))\n    nodes = list(set(nodes))\n    best = {node: float('inf') for node in nodes}\n    best[tuple(start)] = 0\n    heap = [(0, tuple(start))]\n    while heap:\n        d, u = heapq.heappop(heap)\n        if u == tuple(target):\n            return d\n        if d > best[u]:\n            continue\n        for v in nodes:\n            nd = d + dist(u, v)\n            if nd < best[v]:\n                best[v] = nd\n                heapq.heappush(heap, (nd, v))\n        for (s, e, c) in roads:\n            nd = d + dist(u, s) + c\n            if nd < best[e]:\n                best[e] = nd\n                heapq.heappush(heap, (nd, e))\n    return best[tuple(target)]"
+  },
+  {
+    "id": 2663,
+    "title": "Lexicographically Smallest Beautiful String",
+    "slug": "lexicographically-smallest-beautiful-string",
+    "category": "贪心",
+    "subcategory": "字符串构造",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Find the rightmost character that can be incremented without creating a palindrome of length 2 or 3, then fill the rest with the smallest valid characters.",
+    "approach": "Greedy Right-to-Left Increment",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "贪心"
+    ],
+    "code_python3": "def smallestBeautifulString(self, s, k):\n    s = list(s)\n    n = len(s)\n    i = n - 1\n    s[i] = chr(ord(s[i]) + 1)\n    while i < n:\n        if s[i] >= chr(ord('a') + k):\n            i -= 1\n            if i < 0:\n                return ''\n            s[i] = chr(ord(s[i]) + 1)\n        elif (i >= 1 and s[i] == s[i-1]) or (i >= 2 and s[i] == s[i-2]):\n            s[i] = chr(ord(s[i]) + 1)\n        else:\n            i += 1\n            if i < n:\n                s[i] = 'a'\n    return ''.join(s)"
+  },
+  {
+    "id": 2664,
+    "title": "The Knight's Tour",
+    "slug": "the-knights-tour",
+    "category": "回溯",
+    "subcategory": "Warnsdorff启发式",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Use backtracking with Warnsdorff's heuristic (prefer cells with fewer onward moves) to find a Hamiltonian path for the knight.",
+    "approach": "Backtracking + Warnsdorff Heuristic",
+    "time_complexity": "O(8^(m*n)) worst case",
+    "space_complexity": "O(m*n)",
+    "tags": [
+      "回溯"
+    ],
+    "code_python3": "def tourOfKnight(self, m, n, r, c):\n    board = [[-1]*n for _ in range(m)]\n    moves = [(2,1),(2,-1),(-2,1),(-2,-1),(1,2),(1,-2),(-1,2),(-1,-2)]\n    board[r][c] = 0\n    def degree(x, y):\n        return sum(1 for dx,dy in moves if 0<=x+dx<m and 0<=y+dy<n and board[x+dx][y+dy]==-1)\n    def solve(x, y, step):\n        if step == m * n:\n            return True\n        nexts = []\n        for dx, dy in moves:\n            nx, ny = x+dx, y+dy\n            if 0<=nx<m and 0<=ny<n and board[nx][ny]==-1:\n                nexts.append((degree(nx,ny), nx, ny))\n        nexts.sort()\n        for _, nx, ny in nexts:\n            board[nx][ny] = step\n            if solve(nx, ny, step+1):\n                return True\n            board[nx][ny] = -1\n        return False\n    solve(r, c, 1)\n    return board"
+  },
+  {
+    "id": 2665,
+    "title": "Counter II",
+    "slug": "counter-ii",
+    "category": "设计",
+    "subcategory": "闭包",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "JavaScript closure problem: create a counter with increment, decrement, and reset methods.",
+    "approach": "Closure",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "# JavaScript problem - Python equivalent using class:\nclass Counter:\n    def __init__(self, init):\n        self.init = init\n        self.val = init\n    def increment(self):\n        self.val += 1\n        return self.val\n    def decrement(self):\n        self.val -= 1\n        return self.val\n    def reset(self):\n        self.val = self.init\n        return self.val"
+  },
+  {
+    "id": 2666,
+    "title": "Allow One Function Call",
+    "slug": "allow-one-function-call",
+    "category": "设计",
+    "subcategory": "函数包装",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Wrap a function so it can only be called once; subsequent calls return undefined.",
+    "approach": "Closure Wrapper",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "# JavaScript problem - Python equivalent:\ndef once(fn):\n    called = [False]\n    def wrapper(*args):\n        if not called[0]:\n            called[0] = True\n            return fn(*args)\n        return None\n    return wrapper"
+  },
+  {
+    "id": 2667,
+    "title": "Create Hello World Function",
+    "slug": "create-hello-world-function",
+    "category": "设计",
+    "subcategory": "基础",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Return a function that always returns 'Hello World'.",
+    "approach": "Closure",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "# JavaScript problem - Python equivalent:\ndef createHelloWorld():\n    def hello(*args):\n        return 'Hello World'\n    return hello"
+  },
+  {
+    "id": 2668,
+    "title": "Find Latest Salaries",
+    "slug": "find-latest-salaries",
+    "category": "数据库",
+    "subcategory": "窗口函数",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Use ROW_NUMBER() window function partitioned by emp_id ordered by date desc to get latest salary.",
+    "approach": "Window Function",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "# SQL Solution:\n# SELECT emp_id, firstname, lastname, salary, department_id\n# FROM (\n#   SELECT *, ROW_NUMBER() OVER(PARTITION BY emp_id ORDER BY salary DESC) rn\n#   FROM Salary\n# ) t WHERE rn = 1"
+  },
+  {
+    "id": 2669,
+    "title": "Count Artist Occurrences On Merged Playlist",
+    "slug": "count-artist-occurrences-on-merged-playlist",
+    "category": "数据库",
+    "subcategory": "聚合",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Merge two playlists with UNION ALL and count occurrences of each artist.",
+    "approach": "UNION ALL + GROUP BY",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "# SQL Solution:\n# SELECT artist, COUNT(*) as occurrences\n# FROM (\n#   SELECT artist FROM Playlist1\n#   UNION ALL\n#   SELECT artist FROM Playlist2\n# ) t\n# GROUP BY artist\n# ORDER BY occurrences DESC"
+  },
+  {
+    "id": 2670,
+    "title": "Find the Distinct Difference Array",
+    "slug": "find-the-distinct-difference-array",
+    "category": "数组",
+    "subcategory": "前缀后缀计数",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Precompute suffix distinct count. For each index, prefix distinct count minus suffix distinct count.",
+    "approach": "Prefix/Suffix Distinct Count",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数组",
+      "哈希表"
+    ],
+    "code_python3": "def distinctDifferenceArray(self, nums):\n    n = len(nums)\n    suffix_distinct = [0] * (n + 1)\n    seen = set()\n    for i in range(n - 1, -1, -1):\n        seen.add(nums[i])\n        suffix_distinct[i] = len(seen)\n    res = []\n    prefix = set()\n    for i in range(n):\n        prefix.add(nums[i])\n        res.append(len(prefix) - suffix_distinct[i + 1])\n    return res"
+  },
+  {
+    "id": 2671,
+    "title": "Frequency Tracker",
+    "slug": "frequency-tracker",
+    "category": "设计",
+    "subcategory": "双哈希表",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Maintain two maps: val->freq and freq->count. Update both on add/deleteOne.",
+    "approach": "Double HashMap",
+    "time_complexity": "O(1) per operation",
+    "space_complexity": "O(n)",
+    "tags": [
+      "设计",
+      "哈希表"
+    ],
+    "code_python3": "class FrequencyTracker:\n    def __init__(self):\n        self.val_freq = {}\n        self.freq_count = {}\n    def add(self, number):\n        old = self.val_freq.get(number, 0)\n        if old > 0:\n            self.freq_count[old] -= 1\n        self.val_freq[number] = old + 1\n        self.freq_count[old + 1] = self.freq_count.get(old + 1, 0) + 1\n    def deleteOne(self, number):\n        old = self.val_freq.get(number, 0)\n        if old == 0:\n            return\n        self.freq_count[old] -= 1\n        self.val_freq[number] = old - 1\n        if old - 1 > 0:\n            self.freq_count[old - 1] = self.freq_count.get(old - 1, 0) + 1\n    def hasFrequency(self, frequency):\n        return self.freq_count.get(frequency, 0) > 0"
+  },
+  {
+    "id": 2672,
+    "title": "Number of Adjacent Elements With the Same Color",
+    "slug": "number-of-adjacent-elements-with-the-same-color",
+    "category": "数组",
+    "subcategory": "模拟",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Maintain a count of adjacent same-color pairs. On each assignment, update the count by checking neighbors before and after the change.",
+    "approach": "Incremental Update",
+    "time_complexity": "O(q)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "def colorTheArray(self, n, queries):\n    colors = [0] * n\n    count = 0\n    res = []\n    for idx, color in queries:\n        old = colors[idx]\n        if old != 0:\n            if idx > 0 and colors[idx-1] == old:\n                count -= 1\n            if idx < n-1 and colors[idx+1] == old:\n                count -= 1\n        colors[idx] = color\n        if idx > 0 and colors[idx-1] == color:\n            count += 1\n        if idx < n-1 and colors[idx+1] == color:\n            count += 1\n        res.append(count)\n    return res"
+  },
+  {
+    "id": 2673,
+    "title": "Make Costs of Paths Equal in a Binary Tree",
+    "slug": "make-costs-of-paths-equal-in-a-binary-tree",
+    "category": "贪心",
+    "subcategory": "树上贪心",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Process from leaves to root. At each node, make the two children's path sums equal by incrementing the smaller one.",
+    "approach": "Bottom-up Greedy",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "贪心",
+      "树"
+    ],
+    "code_python3": "def minIncrements(self, n, cost):\n    res = 0\n    for i in range(n - 2, 0, -2):\n        diff = abs(cost[i] - cost[i - 1])\n        res += diff\n        cost[(i - 1) // 2] += max(cost[i], cost[i - 1])\n    return res"
+  },
+  {
+    "id": 2674,
+    "title": "Split a Circular Linked List",
+    "slug": "split-a-circular-linked-list",
+    "category": "链表",
+    "subcategory": "快慢指针",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Use slow/fast pointers to find the midpoint of the circular list, then split into two circular lists.",
+    "approach": "Slow/Fast Pointer",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "链表",
+      "双指针"
+    ],
+    "code_python3": "def splitCircularLinkedList(self, head):\n    slow = fast = head\n    while fast.next != head and fast.next.next != head:\n        slow = slow.next\n        fast = fast.next.next\n    if fast.next != head:\n        fast = fast.next\n    head2 = slow.next\n    slow.next = head\n    fast.next = head2\n    return [head, head2]"
+  },
+  {
+    "id": 2675,
+    "title": "Array of Objects to Matrix",
+    "slug": "array-of-objects-to-matrix",
+    "category": "设计",
+    "subcategory": "JSON处理",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Flatten nested objects, collect all unique keys, sort them, and build matrix rows. JavaScript problem.",
+    "approach": "Flatten + Sort Keys",
+    "time_complexity": "O(n * k)",
+    "space_complexity": "O(n * k)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "# JavaScript problem - not applicable in Python3\n# Solution involves flattening objects and building a matrix"
+  },
+  {
+    "id": 2676,
+    "title": "Throttle",
+    "slug": "throttle",
+    "category": "设计",
+    "subcategory": "函数节流",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "JavaScript throttle: call immediately if not in cooldown, otherwise schedule for end of interval. JS-only problem.",
+    "approach": "Timer-based Throttle",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "# JavaScript problem - Throttle function design\n# Not applicable in Python3"
+  },
+  {
+    "id": 2677,
+    "title": "Chunk Array",
+    "slug": "chunk-array",
+    "category": "数组",
+    "subcategory": "分块",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Split array into chunks of given size. JavaScript problem but logic is universal.",
+    "approach": "Iterative Chunking",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "def chunk(arr, size):\n    return [arr[i:i+size] for i in range(0, len(arr), size)]"
+  },
+  {
+    "id": 2678,
+    "title": "Number of Senior Citizens",
+    "slug": "number-of-senior-citizens",
+    "category": "数组",
+    "subcategory": "字符串解析",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Parse the age from fixed positions (index 11-12) in each string and count those > 60.",
+    "approach": "String Slicing",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "def countSeniors(self, details):\n    return sum(1 for d in details if int(d[11:13]) > 60)"
+  },
+  {
+    "id": 2679,
+    "title": "Sum in a Matrix",
+    "slug": "sum-in-a-matrix",
+    "category": "数组",
+    "subcategory": "排序与贪心",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Sort each row, then for each column take the maximum. Sum of column maxima is the score.",
+    "approach": "Sort Rows + Column Max",
+    "time_complexity": "O(m * n log n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组",
+      "排序",
+      "贪心"
+    ],
+    "code_python3": "def matrixSum(self, nums):\n    for row in nums:\n        row.sort()\n    return sum(max(col) for col in zip(*nums))"
+  },
+  {
+    "id": 2680,
+    "title": "Maximum OR",
+    "slug": "maximum-or",
+    "category": "贪心",
+    "subcategory": "前后缀OR",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "All k operations should be applied to the same element to maximize OR. Precompute prefix and suffix OR to find best element.",
+    "approach": "Prefix/Suffix OR + Greedy",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "贪心",
+      "位运算",
+      "前缀和"
+    ],
+    "code_python3": "def maximumOr(self, nums, k):\n    n = len(nums)\n    suffix = [0] * (n + 1)\n    for i in range(n - 1, -1, -1):\n        suffix[i] = suffix[i + 1] | nums[i]\n    res = 0\n    prefix = 0\n    for i in range(n):\n        res = max(res, prefix | (nums[i] << k) | suffix[i + 1])\n        prefix |= nums[i]\n    return res"
+  },
+  {
+    "id": 2681,
+    "title": "Power of Heroes",
+    "slug": "power-of-heroes",
+    "category": "数学",
+    "subcategory": "排序与贡献法",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Sort array. For each element as the max of a subsequence, compute contribution using prefix sum of powers of 2 weighted values.",
+    "approach": "Sort + Contribution Counting",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学",
+      "排序"
+    ],
+    "code_python3": "def sumOfPower(self, nums):\n    MOD = 10**9 + 7\n    nums.sort()\n    res = 0\n    s = 0\n    for x in nums:\n        res = (res + x * x % MOD * (x + s)) % MOD\n        s = (s * 2 + x) % MOD\n    return res"
+  },
+  {
+    "id": 2682,
+    "title": "Find the Losers of the Circular Game",
+    "slug": "find-the-losers-of-the-circular-game",
+    "category": "数组",
+    "subcategory": "模拟",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Simulate the circular passing game. Track visited friends and return those never visited.",
+    "approach": "Simulation",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数组",
+      "哈希表"
+    ],
+    "code_python3": "def circularGameLosers(self, n, k):\n    visited = [False] * n\n    cur = 0\n    step = 1\n    while not visited[cur]:\n        visited[cur] = True\n        cur = (cur + step * k) % n\n        step += 1\n    return [i + 1 for i in range(n) if not visited[i]]"
+  },
+  {
+    "id": 2683,
+    "title": "Neighboring Bitwise XOR",
+    "slug": "neighboring-bitwise-xor",
+    "category": "位运算",
+    "subcategory": "数学推导",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "The XOR of all elements in derived must be 0 for a valid original array to exist.",
+    "approach": "XOR Property",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "位运算",
+      "数学"
+    ],
+    "code_python3": "def doesValidArrayExist(self, derived):\n    xor = 0\n    for d in derived:\n        xor ^= d\n    return xor == 0"
+  },
+  {
+    "id": 2684,
+    "title": "Maximum Number of Moves in a Grid",
+    "slug": "maximum-number-of-moves-in-a-grid",
+    "category": "动态规划",
+    "subcategory": "网格DP",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "BFS/DP column by column. From each cell, move to the next column's adjacent cells with strictly greater value.",
+    "approach": "BFS / Column-wise DP",
+    "time_complexity": "O(m * n)",
+    "space_complexity": "O(m)",
+    "tags": [
+      "动态规划",
+      "数组"
+    ],
+    "code_python3": "def maxMoves(self, grid):\n    m, n = len(grid), len(grid[0])\n    curr = set(range(m))\n    for j in range(n - 1):\n        nxt = set()\n        for i in curr:\n            for di in (-1, 0, 1):\n                ni = i + di\n                if 0 <= ni < m and grid[ni][j+1] > grid[i][j]:\n                    nxt.add(ni)\n        if not nxt:\n            return j\n        curr = nxt\n    return n - 1"
+  },
+  {
+    "id": 2685,
+    "title": "Count the Number of Complete Components",
+    "slug": "count-the-number-of-complete-components",
+    "category": "图",
+    "subcategory": "连通分量",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Find connected components. A component with v vertices is complete if it has v*(v-1)/2 edges.",
+    "approach": "DFS/BFS + Edge Count",
+    "time_complexity": "O(V + E)",
+    "space_complexity": "O(V + E)",
+    "tags": [
+      "图"
+    ],
+    "code_python3": "def countCompleteComponents(self, n, edges):\n    adj = [[] for _ in range(n)]\n    for u, v in edges:\n        adj[u].append(v)\n        adj[v].append(u)\n    visited = [False] * n\n    res = 0\n    for i in range(n):\n        if visited[i]:\n            continue\n        # BFS\n        queue = [i]\n        visited[i] = True\n        comp = []\n        while queue:\n            node = queue.pop()\n            comp.append(node)\n            for nei in adj[node]:\n                if not visited[nei]:\n                    visited[nei] = True\n                    queue.append(nei)\n        v = len(comp)\n        e = sum(len(adj[x]) for x in comp) // 2\n        if e == v * (v - 1) // 2:\n            res += 1\n    return res"
+  },
+  {
+    "id": 2686,
+    "title": "Immediate Food Delivery III",
+    "slug": "immediate-food-delivery-iii",
+    "category": "数据库",
+    "subcategory": "SQL聚合",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "SQL: find percentage of first orders that are immediate (order_date = customer_pref_delivery_date).",
+    "approach": "SQL Group By + Conditional Aggregate",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "# SQL Problem\n# SELECT ROUND(AVG(order_date = customer_pref_delivery_date) * 100, 2) AS immediate_percentage\n# FROM Delivery WHERE (customer_id, order_date) IN (SELECT customer_id, MIN(order_date) FROM Delivery GROUP BY customer_id)"
+  },
+  {
+    "id": 2687,
+    "title": "Bikes Last Time Used",
+    "slug": "bikes-last-time-used",
+    "category": "数据库",
+    "subcategory": "SQL聚合",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "SQL: find the last time each bike was used by grouping on bike_id and taking max end_time.",
+    "approach": "SQL GROUP BY MAX",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "# SQL Problem\n# SELECT bike_id, MAX(end_time) AS end_time FROM Bikes GROUP BY bike_id ORDER BY end_time DESC"
+  },
+  {
+    "id": 2688,
+    "title": "Find Active Users",
+    "slug": "find-active-users",
+    "category": "数据库",
+    "subcategory": "SQL窗口函数",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "SQL: find users who made purchases on at least 2 days within any 7-day window. Use self-join or window functions.",
+    "approach": "SQL Self-Join / Window",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "# SQL Problem\n# SELECT DISTINCT a.user_id FROM Purchases a JOIN Purchases b\n# ON a.user_id = b.user_id AND a.purchase_date < b.purchase_date\n# AND DATEDIFF(b.purchase_date, a.purchase_date) <= 7"
+  },
+  {
+    "id": 2689,
+    "title": "Extract Kth Character From The Rope Tree",
+    "slug": "extract-kth-character-from-the-rope-tree",
+    "category": "树",
+    "subcategory": "DFS",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Traverse the rope tree in-order to find the k-th character by tracking subtree string lengths.",
+    "approach": "DFS with Length Tracking",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(h)",
+    "tags": [
+      "树"
+    ],
+    "code_python3": "def getKthCharacter(self, root, k):\n    # Rope tree: left subtree chars come before right\n    def dfs(node):\n        if not node:\n            return ''\n        if node.val:\n            return node.val\n        return dfs(node.left) + dfs(node.right)\n    s = dfs(root)\n    return s[k - 1]"
+  },
+  {
+    "id": 2690,
+    "title": "Infinite Method Object",
+    "slug": "infinite-method-object",
+    "category": "设计",
+    "subcategory": "Proxy",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "JavaScript Proxy problem: return a function for any property access. JS-only.",
+    "approach": "Proxy Pattern",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "# JavaScript problem - Proxy design pattern\n# Not applicable in Python3"
+  },
+  {
+    "id": 2691,
+    "title": "Immutability Helper",
+    "slug": "immutability-helper",
+    "category": "设计",
+    "subcategory": "深拷贝",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "JavaScript problem: implement immutable object with structural sharing. JS-only.",
+    "approach": "Structural Sharing / Copy-on-Write",
+    "time_complexity": "O(path length)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "# JavaScript problem - Immutability helper\n# Not applicable in Python3"
+  },
+  {
+    "id": 2692,
+    "title": "Make Object Immutable",
+    "slug": "make-object-immutable",
+    "category": "设计",
+    "subcategory": "深冻结",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "JavaScript: recursively freeze object properties. Throw on mutation attempts. JS-only.",
+    "approach": "Deep Freeze / Proxy",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "# JavaScript problem - Deep freeze object\n# Not applicable in Python3"
+  },
+  {
+    "id": 2693,
+    "title": "Call Function with Custom Context",
+    "slug": "call-function-with-custom-context",
+    "category": "设计",
+    "subcategory": "Function原型",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "JavaScript: implement Function.prototype.callPolyfill that sets `this` context. JS-only.",
+    "approach": "Function Prototype Extension",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "# JavaScript problem - Function.prototype.callPolyfill\n# Not applicable in Python3"
+  },
+  {
+    "id": 2694,
+    "title": "Event Emitter",
+    "slug": "event-emitter",
+    "category": "设计",
+    "subcategory": "发布订阅",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Implement subscribe/emit/unsubscribe pattern. Store callbacks in a map of event names to lists.",
+    "approach": "Pub/Sub Pattern",
+    "time_complexity": "O(1) subscribe, O(k) emit",
+    "space_complexity": "O(n)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "# JavaScript problem - Event Emitter pattern\n# Python equivalent:\nclass EventEmitter:\n    def __init__(self):\n        self.events = {}\n    def subscribe(self, event, cb):\n        if event not in self.events:\n            self.events[event] = []\n        self.events[event].append(cb)\n        return lambda: self.events[event].remove(cb)\n    def emit(self, event, args=None):\n        if args is None:\n            args = []\n        return [cb(*args) for cb in self.events.get(event, [])]"
+  },
+  {
+    "id": 2695,
+    "title": "Array Wrapper",
+    "slug": "array-wrapper",
+    "category": "设计",
+    "subcategory": "运算符重载",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "JavaScript: override valueOf (for +) and toString. In Python, override __add__ and __str__.",
+    "approach": "Operator Overloading",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "# JavaScript problem - operator overloading\n# Python equivalent:\nclass ArrayWrapper:\n    def __init__(self, nums):\n        self.nums = nums\n    def __add__(self, other):\n        return sum(self.nums) + sum(other.nums)\n    def __str__(self):\n        return '[' + ','.join(map(str, self.nums)) + ']'"
+  },
+  {
+    "id": 2696,
+    "title": "Minimum String Length After Removing Substrings",
+    "slug": "minimum-string-length-after-removing-substrings",
+    "category": "栈",
+    "subcategory": "字符串模拟",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Use a stack. Push characters; whenever top two form 'AB' or 'CD', pop them.",
+    "approach": "Stack Simulation",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "栈"
+    ],
+    "code_python3": "def minLength(self, s):\n    stack = []\n    for c in s:\n        if stack and ((stack[-1] == 'A' and c == 'B') or (stack[-1] == 'C' and c == 'D')):\n            stack.pop()\n        else:\n            stack.append(c)\n    return len(stack)"
+  },
+  {
+    "id": 2697,
+    "title": "Lexicographically Smallest Palindrome",
+    "slug": "lexicographically-smallest-palindrome",
+    "category": "双指针",
+    "subcategory": "贪心",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Two pointers from both ends. For each mismatch, pick the smaller character for both positions.",
+    "approach": "Two Pointers Greedy",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "双指针",
+      "贪心"
+    ],
+    "code_python3": "def makeSmallestPalindrome(self, s):\n    s = list(s)\n    l, r = 0, len(s) - 1\n    while l < r:\n        if s[l] != s[r]:\n            s[l] = s[r] = min(s[l], s[r])\n        l += 1\n        r -= 1\n    return ''.join(s)"
+  },
+  {
+    "id": 2698,
+    "title": "Find the Punishment Number of an Integer",
+    "slug": "find-the-punishment-number-of-an-integer",
+    "category": "回溯",
+    "subcategory": "数字分割",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "For each i, check if i*i can be partitioned into substrings whose digit sums equal i. Use backtracking on the string of i*i.",
+    "approach": "Backtracking on Digit String",
+    "time_complexity": "O(n * 2^d)",
+    "space_complexity": "O(d)",
+    "tags": [
+      "回溯",
+      "数学"
+    ],
+    "code_python3": "def punishmentNumber(self, n):\n    def check(s, target):\n        if not s and target == 0:\n            return True\n        for i in range(1, len(s) + 1):\n            if int(s[:i]) > target:\n                break\n            if check(s[i:], target - int(s[:i])):\n                return True\n        return False\n    res = 0\n    for i in range(1, n + 1):\n        if check(str(i * i), i):\n            res += i * i\n    return res"
+  },
+  {
+    "id": 2699,
+    "title": "Modify Graph Edge Weights",
+    "slug": "modify-graph-edge-weights",
+    "category": "图",
+    "subcategory": "最短路径",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Run Dijkstra twice. First with weight-1 edges as 1 to check if target is achievable. Then adjust weights to make shortest path exactly equal to target.",
+    "approach": "Two-pass Dijkstra",
+    "time_complexity": "O(E log V)",
+    "space_complexity": "O(V + E)",
+    "tags": [
+      "图"
+    ],
+    "code_python3": "def modifiedGraphEdges(self, n, edges, source, destination, target):\n    import heapq\n    INF = 2 * 10**9\n    def dijkstra(adj, n, src, dst):\n        dist = [float('inf')] * n\n        dist[src] = 0\n        pq = [(0, src)]\n        while pq:\n            d, u = heapq.heappop(pq)\n            if d > dist[u]: continue\n            for v, w in adj[u]:\n                if dist[u] + w < dist[v]:\n                    dist[v] = dist[u] + w\n                    heapq.heappush(pq, (dist[v], v))\n        return dist[dst]\n    # Set -1 edges to 1, check if shortest path <= target\n    adj = [[] for _ in range(n)]\n    for u, v, w in edges:\n        ww = w if w > 0 else 1\n        adj[u].append((v, ww))\n        adj[v].append((u, ww))\n    d = dijkstra(adj, n, source, destination)\n    if d > target: return []\n    if d == target:\n        return [[u, v, w if w > 0 else 1] for u, v, w in edges]\n    # Set -1 edges to INF, check if shortest path >= target\n    adj2 = [[] for _ in range(n)]\n    for u, v, w in edges:\n        ww = w if w > 0 else INF\n        adj2[u].append((v, ww))\n        adj2[v].append((u, ww))\n    d2 = dijkstra(adj2, n, source, destination)\n    if d2 < target: return []\n    # Binary search each -1 edge\n    result = [[u, v, w if w > 0 else 1] for u, v, w in edges]\n    for i, (u, v, w) in enumerate(edges):\n        if w == -1:\n            result[i][2] = 1\n            adj_t = [[] for _ in range(n)]\n            for uu, vv, ww in result:\n                adj_t[uu].append((vv, ww))\n                adj_t[vv].append((uu, ww))\n            d = dijkstra(adj_t, n, source, destination)\n            if d <= target:\n                result[i][2] += target - d\n                return result\n    return result"
+  },
+  {
+    "id": 2700,
+    "title": "Differences Between Two Objects",
+    "slug": "differences-between-two-objects",
+    "category": "设计",
+    "subcategory": "对象比较",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "JavaScript: recursively compare two objects, returning only differing leaf values. JS-only problem.",
+    "approach": "Recursive Object Diff",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "# JavaScript problem - Object diff\n# Not directly applicable in Python3\n# Conceptual: recursively compare dicts and return differences"
+  }
+]

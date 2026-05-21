@@ -85,11 +85,19 @@ impl Editor {
         let mut col = self.cursor_col;
 
         let is_word = |c: char| if big { !c.is_whitespace() } else { c.is_alphanumeric() || c == '_' };
+        let is_punct = |c: char| !c.is_whitespace() && !is_word(c);
 
-        // Skip current word chars
-        while col < chars.len() && is_word(chars[col]) { col += 1; }
-        // Skip whitespace
-        while col < chars.len() && chars[col].is_whitespace() { col += 1; }
+        if col < chars.len() {
+            if is_word(chars[col]) {
+                // Skip current word chars
+                while col < chars.len() && is_word(chars[col]) { col += 1; }
+            } else if is_punct(chars[col]) {
+                // Skip current punctuation sequence
+                while col < chars.len() && is_punct(chars[col]) { col += 1; }
+            }
+            // Skip whitespace after word/punct
+            while col < chars.len() && chars[col].is_whitespace() { col += 1; }
+        }
 
         if col >= chars.len() {
             // Move to next line
@@ -109,12 +117,24 @@ impl Editor {
         let line = self.buffer.line_str(self.cursor_line);
         let chars: Vec<char> = line.chars().collect();
         let is_word = |c: char| if big { !c.is_whitespace() } else { c.is_alphanumeric() || c == '_' };
+        let is_punct = |c: char| !c.is_whitespace() && !is_word(c);
 
         if self.cursor_col == 0 {
             if self.cursor_line > 0 {
                 self.cursor_line -= 1;
-                let prev_len = self.buffer.line_len(self.cursor_line).saturating_sub(1);
-                self.cursor_col = prev_len;
+                let prev_line = self.buffer.line_str(self.cursor_line);
+                let prev_chars: Vec<char> = prev_line.chars().collect();
+                // Position at end of previous line, then find word start
+                let mut col = prev_chars.len().saturating_sub(1);
+                // Skip trailing whitespace
+                while col > 0 && prev_chars[col].is_whitespace() { col -= 1; }
+                // Skip the word/punct group
+                if col < prev_chars.len() && is_word(prev_chars[col]) {
+                    while col > 0 && is_word(prev_chars[col - 1]) { col -= 1; }
+                } else if col < prev_chars.len() && is_punct(prev_chars[col]) {
+                    while col > 0 && is_punct(prev_chars[col - 1]) { col -= 1; }
+                }
+                self.cursor_col = col;
             }
             return;
         }
@@ -122,14 +142,13 @@ impl Editor {
         let mut col = self.cursor_col.saturating_sub(1);
         // Skip whitespace backward
         while col > 0 && chars[col].is_whitespace() { col -= 1; }
-        // Skip word backward
-        while col > 0 && is_word(chars[col]) { col -= 1; }
-        // If we stopped on a non-word char, move forward one
-        if col > 0 || (!chars.is_empty() && !is_word(chars[col])) {
-            if !chars.is_empty() && !is_word(chars[col]) && col + 1 <= self.cursor_col {
-                col += 1;
-            }
+        // Now skip the word or punctuation group backward
+        if col < chars.len() && is_word(chars[col]) {
+            while col > 0 && is_word(chars[col - 1]) { col -= 1; }
+        } else if col < chars.len() && is_punct(chars[col]) {
+            while col > 0 && is_punct(chars[col - 1]) { col -= 1; }
         }
+        // Handle edge case: if at position 0 and it's whitespace, stay at 0
         self.cursor_col = col;
     }
 

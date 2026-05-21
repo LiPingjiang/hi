@@ -1848,6 +1848,53 @@ fn display_width_str(s: &str) -> usize {
     s.chars().map(|c| UnicodeWidthChar::width(c).unwrap_or(0)).sum()
 }
 
+/// Word-wrap text to fit within `max_width` display columns.
+/// Respects existing newlines and wraps long lines at word boundaries.
+fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
+    let mut result = Vec::new();
+    for line in text.lines() {
+        if line.is_empty() {
+            result.push(String::new());
+            continue;
+        }
+        let line_dw = display_width_str(line);
+        if line_dw <= max_width {
+            result.push(line.to_string());
+            continue;
+        }
+        // Need to wrap this line
+        let mut current = String::new();
+        let mut current_w = 0usize;
+        for word in line.split_inclusive(|c: char| c == ' ' || c == ',' || c == '.' || c == ';') {
+            let word_w = display_width_str(word);
+            if current_w + word_w <= max_width {
+                current.push_str(word);
+                current_w += word_w;
+            } else if current.is_empty() {
+                // Single word wider than max_width — break by character
+                for ch in word.chars() {
+                    let cw = UnicodeWidthChar::width(ch).unwrap_or(0);
+                    if current_w + cw > max_width {
+                        result.push(current.clone());
+                        current.clear();
+                        current_w = 0;
+                    }
+                    current.push(ch);
+                    current_w += cw;
+                }
+            } else {
+                result.push(current.clone());
+                current = word.to_string();
+                current_w = word_w;
+            }
+        }
+        if !current.is_empty() {
+            result.push(current);
+        }
+    }
+    result
+}
+
 /// Pad `s` with trailing spaces so its display width equals `target_dw`.
 /// Unlike `{:<width$}`, this accounts for CJK double-width characters.
 fn pad_to_dw(s: &str, target_dw: usize) -> String {
@@ -1945,7 +1992,7 @@ impl Renderer {
     /// Render the LeetCode panel as a full-screen overlay.
     pub fn render_leetcode_panel(
         &mut self,
-        panel: &crate::leetcode::LeetCodePanel,
+        panel: &mut crate::leetcode::LeetCodePanel,
         w: usize,
         h: usize,
     ) -> io::Result<()> {
@@ -1966,22 +2013,40 @@ impl Renderer {
 
         match panel.view {
             LeetCodeView::Splash => {
-                // Draw ASCII logo centered vertically
-                // Logo + 2 blank lines + status = total block height
-                let logo_lines: Vec<&str> = panel.logo_lines();
-                let block_height = logo_lines.len() + 3; // logo + 2 gap + 1 status
+                // Use the user's chosen splash color for the logo
+                let sc = panel.splash_color;
+                let splash_fg = Color::Rgb { r: sc.fg().0, g: sc.fg().1, b: sc.fg().2 };
+                let splash_dim = Color::Rgb { r: sc.dim().0, g: sc.dim().1, b: sc.dim().2 };
+                let splash_accent = Color::Rgb { r: sc.accent().0, g: sc.accent().1, b: sc.accent().2 };
+
+                // Draw splash lines centered vertically with per-line coloring
+                let splash_lines = panel.splash_lines();
+                let block_height = splash_lines.len() + 3; // lines + 2 gap + 1 status
                 let start_y = h.saturating_sub(block_height) / 2;
 
-                // Find max display width across all logo lines so they align as a block
-                let max_logo_dw = logo_lines.iter()
-                    .map(|l| display_width_str(l))
+                // Find max display width across all lines so they align as a block
+                let max_logo_dw = splash_lines.iter()
+                    .map(|(l, _)| display_width_str(l))
                     .max()
                     .unwrap_or(0);
 
-                for (i, line) in logo_lines.iter().enumerate() {
+                let splash_cool = Color::Rgb { r: sc.cool().0, g: sc.cool().1, b: sc.cool().2 };
+                let splash_warm = Color::Rgb { r: sc.warm().0, g: sc.warm().1, b: sc.warm().2 };
+
+                for (i, (line, zone)) in splash_lines.iter().enumerate() {
                     let y = start_y + i;
                     if y >= h { break; }
-                    queue!(self.stdout, cursor::MoveTo(0, y as u16), SetBackgroundColor(bg), SetForegroundColor(green))?;
+                    // Pick color based on zone tag
+                    let fg_color = match zone {
+                        'L' => splash_fg,      // Logo text — bright
+                        'T' => splash_fg,      // Text — bright
+                        'B' => splash_dim,     // Border — dim
+                        'D' => splash_accent,  // Decoration — subtle accent
+                        'C' => splash_cool,    // Cool — blue/cyan tones
+                        'W' => splash_warm,    // Warm — mint/aqua tones
+                        _   => splash_fg,
+                    };
+                    queue!(self.stdout, cursor::MoveTo(0, y as u16), SetBackgroundColor(bg), SetForegroundColor(fg_color))?;
                     // Pad each line to max_logo_dw (right-pad) so they form a uniform block
                     let line_dw = display_width_str(line);
                     let padded_line = if line_dw < max_logo_dw {
@@ -1995,34 +2060,105 @@ impl Renderer {
                     write!(self.stdout, "{}", truncated)?;
                 }
 
-                // Status message: 2 lines below logo, also centered
-                let status_y = start_y + logo_lines.len() + 2;
-                if status_y < h {
-                    queue!(self.stdout, cursor::MoveTo(0, status_y as u16), SetBackgroundColor(bg), SetForegroundColor(amber))?;
-                    let status = center_to_dw(&panel.status_msg, w);
-                    let truncated = truncate_to_width(&status, w);
-                    write!(self.stdout, "{}", truncated)?;
+                // Bottom area: color hint (h-2) + command input or status (h-1)
+                if h >= 3 {
+                    use crate::leetcode::panel::SplashColor;
+
+                    // h-2: Hint bar (always visible, uses splash color)
+                    let colors_list = SplashColor::all()
+                        .iter()
+                        .map(|c| c.name())
+                        .collect::<Vec<_>>()
+                        .join("/");
+                    let hint = format!(
+                        ":color <{}>  |  :q quit  |  current: {}",
+                        colors_list,
+                        panel.splash_color.name()
+                    );
+                    queue!(self.stdout, cursor::MoveTo(0, (h - 2) as u16), SetBackgroundColor(bg), SetForegroundColor(splash_dim))?;
+                    let hint_centered = center_to_dw(&hint, w);
+                    let hint_truncated = truncate_to_width(&hint_centered, w);
+                    write!(self.stdout, "{}", hint_truncated)?;
+
+                    // h-1: Command input (when active) or status message
+                    if panel.splash_cmd_active {
+                        queue!(self.stdout, cursor::MoveTo(0, (h - 1) as u16), SetBackgroundColor(bg), SetForegroundColor(splash_fg))?;
+                        let cmd_line = format!(":{}", &panel.splash_cmd_input);
+                        // Show completion hint inline (dimmed)
+                        let completion_hint = if !panel.cmd_completions.is_empty() {
+                            let first = &panel.cmd_completions[0];
+                            if first.starts_with(&panel.splash_cmd_input) && first.len() > panel.splash_cmd_input.len() {
+                                first[panel.splash_cmd_input.len()..].to_string()
+                            } else {
+                                String::new()
+                            }
+                        } else {
+                            String::new()
+                        };
+                        write!(self.stdout, "{}", cmd_line)?;
+                        // Draw ghost completion text
+                        if !completion_hint.is_empty() {
+                            queue!(self.stdout, SetForegroundColor(splash_dim))?;
+                            write!(self.stdout, "{}", completion_hint)?;
+                            queue!(self.stdout, SetForegroundColor(splash_fg))?;
+                        }
+                        // Pad rest of line
+                        let used = display_width_str(&cmd_line) + display_width_str(&completion_hint);
+                        if used < w {
+                            write!(self.stdout, "{}", " ".repeat(w - used))?;
+                        }
+                        let cursor_x = display_width_str(&cmd_line);
+                        queue!(self.stdout, cursor::Show, cursor::MoveTo(cursor_x as u16, (h - 1) as u16), cursor::SetCursorStyle::BlinkingBar)?;
+                    } else {
+                        queue!(self.stdout, cursor::MoveTo(0, (h - 1) as u16), SetBackgroundColor(bg), SetForegroundColor(amber))?;
+                        let status = center_to_dw(&panel.status_msg, w);
+                        let truncated = truncate_to_width(&status, w);
+                        write!(self.stdout, "{}", truncated)?;
+                    }
                 }
             }
             LeetCodeView::ProblemList => {
-                // Header
+                use crate::leetcode::panel::ListMode;
+
+                // Header with filter indicators
                 queue!(self.stdout, cursor::MoveTo(0, 0), SetBackgroundColor(highlight_bg), SetForegroundColor(green))?;
-                let header = format!(" ╔═ LeetCode 古法时代 ═╗  [{} problems]  [1]Easy [2]Med [3]Hard [0]All ", panel.filtered.len());
+                // Build filter indicator string
+                let diff_indicator = match panel.filter.difficulty {
+                    Some(crate::leetcode::Difficulty::Easy) => "[1:Easy]",
+                    Some(crate::leetcode::Difficulty::Medium) => "[2:Med]",
+                    Some(crate::leetcode::Difficulty::Hard) => "[3:Hard]",
+                    None => "[All]",
+                };
+                let status_indicator = match panel.filter.status {
+                    Some(crate::leetcode::SolveStatus::Solved) => " [s:✓]",
+                    Some(crate::leetcode::SolveStatus::Attempted) => " [s:○]",
+                    Some(crate::leetcode::SolveStatus::NotStarted) => " [s:·]",
+                    None => "",
+                };
+                let header = format!(
+                    " ╔═ LeetCode 古法时代 ═╗  {} {}  {}/{}",
+                    diff_indicator, status_indicator, panel.filtered.len(), panel.problems.len()
+                );
                 write!(self.stdout, "{:width$}", header, width = w)?;
 
-                // Separator
+                // Column header row — must align with data row:
+                // data: " ▸ ✓ " (5 chars) + difficulty (8 chars) + rate (6 chars) + "  " + id.title
                 queue!(self.stdout, cursor::MoveTo(0, 1), SetBackgroundColor(bg), SetForegroundColor(dim_green))?;
-                let sep: String = "═".repeat(w);
+                let col_header = format!("     {:<8}{:>6}  {}", "DIFF", "RATE", "PROBLEM");
+                write!(self.stdout, "{:width$}", col_header, width = w)?;
+
+                // Separator
+                queue!(self.stdout, cursor::MoveTo(0, 2), SetBackgroundColor(bg), SetForegroundColor(dim_green))?;
+                let sep: String = "─".repeat(w);
                 let truncated = truncate_to_width(&sep, w);
                 write!(self.stdout, "{}", truncated)?;
 
                 // Problem rows
-                let list_h = h.saturating_sub(4); // header(2) + footer(2)
                 let visible = panel.visible_problems(h);
                 let cursor_in_view = panel.cursor_in_view(h);
 
                 for (i, problem) in visible.iter().enumerate() {
-                    let y = i + 2;
+                    let y = i + 3; // after header(1) + col_header(1) + separator(1)
                     if y >= h.saturating_sub(2) { break; }
 
                     let is_selected = i == cursor_in_view;
@@ -2033,61 +2169,687 @@ impl Renderer {
                         crate::leetcode::Difficulty::Hard => Color::Rgb { r: RetroColors::HARD.0, g: RetroColors::HARD.1, b: RetroColors::HARD.2 },
                     };
 
-                    queue!(self.stdout, cursor::MoveTo(0, y as u16), SetBackgroundColor(row_bg), SetForegroundColor(green))?;
-                    let status_icon = problem.status.icon();
+                    queue!(self.stdout, cursor::MoveTo(0, y as u16), SetBackgroundColor(row_bg))?;
+
+                    // Pointer + status icon
                     let pointer = if is_selected { "▸" } else { " " };
-                    write!(self.stdout, " {} {} {:>4}. ", pointer, status_icon, problem.frontend_id)?;
+                    let status_icon = problem.status.icon();
+                    queue!(self.stdout, SetForegroundColor(green))?;
+                    write!(self.stdout, " {} {} ", pointer, status_icon)?;
 
-                    // Title in green
-                    let title_w = w.saturating_sub(30);
-                    let title: String = problem.title.chars().take(title_w).collect();
-                    write!(self.stdout, "{:<width$}", title, width = title_w)?;
-
-                    // Difficulty in color
+                    // Difficulty (colored, 8 chars padded)
                     queue!(self.stdout, SetForegroundColor(diff_color))?;
-                    write!(self.stdout, " {:>6} ", problem.difficulty.label())?;
+                    write!(self.stdout, "{:<8}", problem.difficulty.label())?;
 
-                    // Acceptance
+                    // Acceptance rate (dim green, 6 chars)
                     queue!(self.stdout, SetForegroundColor(dim_green))?;
                     write!(self.stdout, "{:>5.1}%", problem.acceptance)?;
 
-                    // Fill rest of line
+                    // Problem number + title (green)
                     queue!(self.stdout, SetForegroundColor(green))?;
+                    let title_w = w.saturating_sub(26); // 4(ptr+status) + 8(diff) + 6(rate) + 8(spacing)
+                    let id_title = format!("  {:>4}. {}", problem.frontend_id, problem.title);
+                    let id_title_display: String = id_title.chars().take(title_w).collect();
+                    write!(self.stdout, "{:<width$}", id_title_display, width = title_w)?;
                 }
 
-                // Footer separator + status
+                // Footer separator + status/search
                 let footer_y = h.saturating_sub(2);
                 queue!(self.stdout, cursor::MoveTo(0, footer_y as u16), SetBackgroundColor(bg), SetForegroundColor(dim_green))?;
-                write!(self.stdout, "{:width$}", "═".repeat(w), width = w)?;
+                write!(self.stdout, "{:width$}", "─".repeat(w), width = w)?;
 
                 queue!(self.stdout, cursor::MoveTo(0, h.saturating_sub(1) as u16), SetBackgroundColor(highlight_bg), SetForegroundColor(amber))?;
-                let footer = format!(" {} │ j/k:↑↓  Enter:open  r:refresh  Esc:quit", &panel.status_msg);
-                write!(self.stdout, "{:width$}", footer, width = w)?;
+                match panel.list_mode {
+                    ListMode::Search => {
+                        let footer = format!(" /{}█  (Enter:confirm  Esc:cancel)", &panel.search_input);
+                        write!(self.stdout, "{:width$}", footer, width = w)?;
+                    }
+                    ListMode::Command => {
+                        // Show command with ghost completion
+                        let cmd_part = format!(" :{}", &panel.search_input);
+                        write!(self.stdout, "{}", cmd_part)?;
+                        let ghost = if !panel.cmd_completions.is_empty() {
+                            let first = &panel.cmd_completions[0];
+                            if first.starts_with(panel.search_input.as_str()) && first.len() > panel.search_input.len() {
+                                first[panel.search_input.len()..].to_string()
+                            } else { String::new() }
+                        } else { String::new() };
+                        if !ghost.is_empty() {
+                            queue!(self.stdout, SetForegroundColor(dim_green))?;
+                            write!(self.stdout, "{}", ghost)?;
+                            queue!(self.stdout, SetForegroundColor(amber))?;
+                        }
+                        let tail = "  (Tab:complete  Enter:exec  Esc:cancel)";
+                        write!(self.stdout, "{}", tail)?;
+                        let used = display_width_str(&cmd_part) + display_width_str(&ghost) + display_width_str(tail);
+                        if used < w { write!(self.stdout, "{}", " ".repeat(w - used))?; }
+                    }
+                    ListMode::Normal => {
+                        let footer = format!(" {} │ j/k:↕ ^d/^u:page /:search s:过滤 1-3:难度 0:clear m:图谱 :q:quit", &panel.status_msg);
+                        write!(self.stdout, "{:width$}", footer, width = w)?;
+                    }
+                };
             }
-            LeetCodeView::ProblemDetail => {
-                if let Some(ref detail) = panel.detail {
-                    // Title bar
+            LeetCodeView::Coding => {
+                use crate::leetcode::panel::CodingFocus;
+
+                if let Some(ref mut coding) = panel.coding {
+                    // ── Layout calculation ──
+                    // Title bar: 1 row, Footer: 2 rows, Content area: h-3
+                    let full_content_h = h.saturating_sub(3);
+                    // Result panel takes bottom portion when shown
+                    let result_panel_h = if coding.show_result_panel { (full_content_h / 3).max(5) } else { 0 };
+                    let content_h = full_content_h.saturating_sub(result_panel_h);
+                    // Horizontal split: description | editor | ai
+                    let desc_w = if coding.show_description { w * 2 / 5 } else { 0 };
+                    let ai_w = if coding.show_ai { w / 4 } else { 0 };
+                    let editor_w = w.saturating_sub(desc_w).saturating_sub(ai_w);
+                    let editor_x = desc_w;
+
+                    // ── Title bar ──
                     queue!(self.stdout, cursor::MoveTo(0, 0), SetBackgroundColor(highlight_bg), SetForegroundColor(green))?;
-                    let title_bar = format!(" ╔═ #{} {} ═╗", detail.summary.frontend_id, detail.summary.title);
+                    let lang_name = coding.detail.code_snippets.get(coding.lang_index)
+                        .map(|s| s.lang.as_str()).unwrap_or("?");
+                    let mode_name = coding.editor.mode.name();
+                    let title_bar = format!(
+                        " #{} {} │ [{}] │ {} │ --{}--",
+                        coding.detail.summary.frontend_id,
+                        coding.detail.summary.title,
+                        lang_name,
+                        match coding.focus {
+                            CodingFocus::Editor => "EDITOR",
+                            CodingFocus::Description => "DESC",
+                            CodingFocus::AiChat => "AI",
+                            CodingFocus::Result => "RESULT",
+                        },
+                        mode_name,
+                    );
                     write!(self.stdout, "{:width$}", title_bar, width = w)?;
 
-                    // Content
-                    let content_lines: Vec<&str> = detail.content_text.lines().collect();
-                    for (i, line) in content_lines.iter().enumerate().take(h.saturating_sub(3)) {
-                        let y = i + 1;
-                        queue!(self.stdout, cursor::MoveTo(0, y as u16), SetBackgroundColor(bg), SetForegroundColor(green))?;
-                        let display_line: String = line.chars().take(w).collect();
-                        write!(self.stdout, "{:width$}", display_line, width = w)?;
+                    // ── Description panel (left) with word wrap ──
+                    if coding.show_description && desc_w > 2 {
+                        let inner_w = desc_w.saturating_sub(1); // 1 for border
+                        let is_focused = coding.focus == CodingFocus::Description;
+                        let border_color = if is_focused { green } else { dim_green };
+
+                        // Word-wrap the description text to fit inner_w
+                        let wrapped_lines = wrap_text(&coding.detail.content_text, inner_w);
+
+                        for row in 0..content_h {
+                            let y = row + 1;
+                            queue!(self.stdout, cursor::MoveTo(0, y as u16), SetBackgroundColor(bg), SetForegroundColor(border_color))?;
+                            let line_idx = row + coding.desc_scroll;
+                            if let Some(line) = wrapped_lines.get(line_idx) {
+                                queue!(self.stdout, SetForegroundColor(if is_focused { green } else { dim_green }))?;
+                                let dw = display_width_str(line);
+                                write!(self.stdout, "{}", line)?;
+                                if dw < inner_w {
+                                    write!(self.stdout, "{}", " ".repeat(inner_w - dw))?;
+                                }
+                            } else {
+                                write!(self.stdout, "{:width$}", "", width = inner_w)?;
+                            }
+                            // Vertical border
+                            queue!(self.stdout, SetForegroundColor(dim_green))?;
+                            write!(self.stdout, "│")?;
+                        }
                     }
 
-                    // Footer
-                    queue!(self.stdout, cursor::MoveTo(0, h.saturating_sub(1) as u16), SetBackgroundColor(highlight_bg), SetForegroundColor(amber))?;
-                    write!(self.stdout, "{:width$}", " Esc/q: back to list", width = w)?;
+                    // ── Code editor (center) with syntax highlighting ──
+                    {
+                        // Drain pending edits into tree-sitter for proper incremental parsing
+                        let edits: Vec<_> = coding.editor.buffer.pending_edits.drain(..).collect();
+                        if !edits.is_empty() {
+                            for ei in &edits {
+                                coding.ts_hl.edit(
+                                    ei.start_byte, ei.old_end_byte, ei.new_end_byte,
+                                    ei.start_row,  ei.start_col,
+                                    ei.old_end_row, ei.old_end_col,
+                                    ei.new_end_row, ei.new_end_col,
+                                );
+                            }
+                        }
+
+                        let code_text = coding.editor.buffer.rope.to_string();
+                        let code_lines: Vec<&str> = code_text.lines().collect();
+                        let is_focused = coding.focus == CodingFocus::Editor;
+                        let line_num_w = 4; // "  1 "
+                        let code_inner_w = editor_w.saturating_sub(line_num_w + 1); // +1 for right border if ai panel
+
+                        // Incremental parse for syntax highlighting
+                        coding.ts_hl.incremental_parse(&code_text);
+                        let viewport_end = (coding.editor.scroll_line + content_h).min(code_lines.len());
+                        let viewport_spans = coding.ts_hl.highlight_viewport(
+                            &code_text,
+                            coding.editor.scroll_line,
+                            viewport_end,
+                        );
+                        // Build line→spans lookup
+                        let viewport_map: std::collections::HashMap<usize, Vec<SyntectSpan>> =
+                            viewport_spans.into_iter().collect();
+
+                        // Error line uses red background for highlighting
+                    let error_line_bg = Color::Rgb { r: 80, g: 20, b: 20 };
+                    let error_line_num_fg = Color::Rgb { r: 255, g: 80, b: 80 };
+
+                    for row in 0..content_h {
+                            let y = row + 1;
+                            let line_idx = row + coding.editor.scroll_line;
+                            // Check if this is the error line (1-based in coding.error_line)
+                            let is_error_line = coding.error_line > 0 && (line_idx + 1) == coding.error_line;
+                            let row_bg = if is_error_line { error_line_bg } else { bg };
+                            queue!(self.stdout, cursor::MoveTo(editor_x as u16, y as u16), SetBackgroundColor(row_bg))?;
+
+                            // Line number
+                            let ln_fg = if is_error_line { error_line_num_fg } else { dim_green };
+                            queue!(self.stdout, SetForegroundColor(ln_fg))?;
+                            if line_idx < code_lines.len() {
+                                write!(self.stdout, "{:>3} ", line_idx + 1)?;
+                            } else {
+                                write!(self.stdout, "  ~ ")?;
+                            }
+
+                            // Code content with syntax highlighting
+                            if let Some(line) = code_lines.get(line_idx) {
+                                if let Some(spans) = viewport_map.get(&line_idx) {
+                                    // Render with syntax colors
+                                    let mut col = 0usize; // display column
+                                    let mut byte_pos = 0usize;
+                                    let mut span_idx = 0;
+                                    for ch in line.chars() {
+                                        if col >= code_inner_w { break; }
+                                        let ch_len = ch.len_utf8();
+                                        let ch_width = UnicodeWidthChar::width(ch).unwrap_or(1);
+                                        // Find the span covering this byte position
+                                        while span_idx < spans.len() && spans[span_idx].end <= byte_pos {
+                                            span_idx += 1;
+                                        }
+                                        let fg = if !is_focused {
+                                            dim_green
+                                        } else if span_idx < spans.len() && byte_pos >= spans[span_idx].start && byte_pos < spans[span_idx].end {
+                                            spans[span_idx].fg
+                                        } else {
+                                            green
+                                        };
+                                        queue!(self.stdout, SetBackgroundColor(row_bg), SetForegroundColor(fg))?;
+                                        write!(self.stdout, "{}", ch)?;
+                                        byte_pos += ch_len;
+                                        col += ch_width;
+                                    }
+                                    // Pad remaining space
+                                    if col < code_inner_w {
+                                        queue!(self.stdout, SetForegroundColor(row_bg))?;
+                                        write!(self.stdout, "{:width$}", "", width = code_inner_w - col)?;
+                                    }
+                                } else {
+                                    // No spans — plain text fallback
+                                    let fg = if is_focused { green } else { dim_green };
+                                    queue!(self.stdout, SetForegroundColor(fg))?;
+                                    let display: String = line.chars().take(code_inner_w).collect();
+                                    write!(self.stdout, "{:<width$}", display, width = code_inner_w)?;
+                                }
+                            } else {
+                                write!(self.stdout, "{:width$}", "", width = code_inner_w)?;
+                            }
+
+                            // Right border if AI panel is shown
+                            if coding.show_ai {
+                                queue!(self.stdout, SetBackgroundColor(bg), SetForegroundColor(dim_green))?;
+                                write!(self.stdout, "│")?;
+                            }
+                        }
+                    }
+
+                    // ── AI panel (right) with chat messages ──
+                    if coding.show_ai && ai_w > 2 {
+                        let ai_x = w.saturating_sub(ai_w);
+                        let is_focused = coding.focus == CodingFocus::AiChat;
+                        let border_fg = if is_focused { green } else { dim_green };
+                        let ai_inner_w = ai_w.saturating_sub(1); // 1 for left border
+                        let _input_rows = 1usize; // input line at bottom
+                        let chat_rows = content_h.saturating_sub(2); // -1 header -1 input
+
+                        // Header row
+                        let header_y = 1;
+                        queue!(self.stdout, cursor::MoveTo(ai_x as u16, header_y as u16), SetBackgroundColor(bg), SetForegroundColor(border_fg))?;
+                        let pending_indicator = if coding.ai_pending { " ⟳" } else { "" };
+                        let header = format!(" AI Chat{} ", pending_indicator);
+                        let header_fill = ai_w.saturating_sub(display_width_str(&header));
+                        write!(self.stdout, "{}{}", header, "─".repeat(header_fill / 2))?;
+
+                        // Chat messages area
+                        let chat_lines = coding.ai_chat.render_lines(ai_inner_w.saturating_sub(1));
+                        let total_chat_lines = chat_lines.len();
+                        let scroll = coding.ai_chat.scroll;
+                        // Show from bottom (most recent), scrolled up by `scroll`
+                        let visible_end = total_chat_lines.saturating_sub(scroll);
+                        let visible_start = visible_end.saturating_sub(chat_rows);
+
+                        let user_fg = Color::Rgb { r: 100, g: 200, b: 255 };
+                        let asst_fg = Color::Rgb { r: 150, g: 255, b: 150 };
+                        let system_fg = Color::Rgb { r: 255, g: 200, b: 100 };
+
+                        for row in 0..chat_rows {
+                            let y = 2 + row; // after header
+                            queue!(self.stdout, cursor::MoveTo(ai_x as u16, y as u16), SetBackgroundColor(bg), SetForegroundColor(border_fg))?;
+                            write!(self.stdout, "│")?;
+
+                            let line_idx = visible_start + row;
+                            if line_idx < visible_end {
+                                if let Some((role, text)) = chat_lines.get(line_idx) {
+                                    let msg_fg = match role {
+                                        crate::ui::chatpanel::ChatRole::User => user_fg,
+                                        crate::ui::chatpanel::ChatRole::Assistant => asst_fg,
+                                        crate::ui::chatpanel::ChatRole::System => system_fg,
+                                    };
+                                    queue!(self.stdout, SetForegroundColor(msg_fg))?;
+                                    let display: String = text.chars().take(ai_inner_w.saturating_sub(1)).collect();
+                                    let dw = display_width_str(&display);
+                                    write!(self.stdout, "{}", display)?;
+                                    if dw < ai_inner_w.saturating_sub(1) {
+                                        write!(self.stdout, "{:width$}", "", width = ai_inner_w.saturating_sub(1) - dw)?;
+                                    }
+                                } else {
+                                    write!(self.stdout, "{:width$}", "", width = ai_inner_w.saturating_sub(1))?;
+                                }
+                            } else {
+                                write!(self.stdout, "{:width$}", "", width = ai_inner_w.saturating_sub(1))?;
+                            }
+                        }
+
+                        // Input line at bottom of AI panel
+                        let input_y = 2 + chat_rows;
+                        queue!(self.stdout, cursor::MoveTo(ai_x as u16, input_y as u16), SetBackgroundColor(bg), SetForegroundColor(border_fg))?;
+                        write!(self.stdout, "│")?;
+                        let input_fg = if is_focused { Color::Rgb { r: 255, g: 255, b: 255 } } else { dim_green };
+                        queue!(self.stdout, SetForegroundColor(input_fg))?;
+                        let prompt_char = "▸ ";
+                        let input_display_w = ai_inner_w.saturating_sub(3); // "│▸ " prefix
+                        let input_text: String = coding.ai_input.chars().take(input_display_w).collect();
+                        let input_dw = display_width_str(&input_text);
+                        write!(self.stdout, "{}{}", prompt_char, input_text)?;
+                        if input_dw + 2 < ai_inner_w.saturating_sub(1) {
+                            write!(self.stdout, "{:width$}", "", width = ai_inner_w.saturating_sub(1) - input_dw - 2)?;
+                        }
+                    }
+
+                    // ── Result/Error panel (bottom split) ──
+                    if coding.show_result_panel && result_panel_h > 0 {
+                        let panel_y_start = 1 + content_h; // after title bar + editor area
+                        let panel_border_fg = Color::Rgb { r: 255, g: 80, b: 80 };
+                        let panel_text_fg = Color::Rgb { r: 220, g: 180, b: 180 };
+                        let panel_header_fg = Color::Rgb { r: 255, g: 100, b: 100 };
+
+                        // Border top row
+                        queue!(self.stdout, cursor::MoveTo(0, panel_y_start as u16), SetBackgroundColor(bg), SetForegroundColor(panel_border_fg))?;
+                        let border_title = if let Some(ref res) = coding.result {
+                            if !res.compile_error.is_empty() {
+                                " ─── Compile Error "
+                            } else if !res.runtime_error.is_empty() {
+                                " ─── Runtime Error "
+                            } else {
+                                " ─── Result "
+                            }
+                        } else {
+                            " ─── Result "
+                        };
+                        let border_line = format!("{}{}", border_title, "─".repeat(w.saturating_sub(display_width_str(border_title))));
+                        write!(self.stdout, "{}", &border_line[..border_line.len().min(w * 4)])?;
+
+                        // Panel content
+                        if let Some(ref result) = coding.result {
+                            let mut lines: Vec<String> = Vec::new();
+
+                            // Status line
+                            lines.push(format!("Status: {}", result.status_msg));
+
+                            // Passed/Total + Runtime info (always show when available)
+                            if result.total_testcases > 0 {
+                                lines.push(format!("Passed: {}/{}", result.total_correct, result.total_testcases));
+                            }
+                            if !result.runtime.is_empty() {
+                                lines.push(format!("Runtime: {} │ Memory: {}", result.runtime, result.memory));
+                            }
+
+                            // Compile error section
+                            if !result.compile_error.is_empty() || !result.full_compile_error.is_empty() {
+                                lines.push(String::new());
+                                lines.push(String::from("── Compile Error ──"));
+                                let full_err = if !result.full_compile_error.is_empty() {
+                                    &result.full_compile_error
+                                } else {
+                                    &result.compile_error
+                                };
+                                for l in full_err.lines() {
+                                    lines.push(l.to_string());
+                                }
+                            }
+
+                            // Runtime error section
+                            if !result.runtime_error.is_empty() || !result.full_runtime_error.is_empty() {
+                                lines.push(String::new());
+                                lines.push(String::from("── Runtime Error ──"));
+                                let full_err = if !result.full_runtime_error.is_empty() {
+                                    &result.full_runtime_error
+                                } else {
+                                    &result.runtime_error
+                                };
+                                for l in full_err.lines() {
+                                    lines.push(l.to_string());
+                                }
+                            }
+
+                            // Test case diff section (Wrong Answer / TLE etc.)
+                            if !result.last_testcase.is_empty() || !result.expected_output.is_empty() || !result.code_output.is_empty() {
+                                lines.push(String::new());
+                                lines.push(String::from("── Failed Test Case ──"));
+                                if !result.last_testcase.is_empty() {
+                                    lines.push(String::from("Input:"));
+                                    for l in result.last_testcase.lines() {
+                                        lines.push(format!("  {}", l));
+                                    }
+                                }
+                                if !result.expected_output.is_empty() {
+                                    lines.push(String::from("Expected:"));
+                                    for l in result.expected_output.lines() {
+                                        lines.push(format!("  {}", l));
+                                    }
+                                }
+                                if !result.code_output.is_empty() {
+                                    lines.push(String::from("Your Output:"));
+                                    for l in result.code_output.lines() {
+                                        lines.push(format!("  {}", l));
+                                    }
+                                }
+                            }
+
+                            // Stdout section
+                            if !result.std_output.is_empty() {
+                                lines.push(String::new());
+                                lines.push(String::from("── Stdout ──"));
+                                for l in result.std_output.lines() {
+                                    lines.push(format!("  {}", l));
+                                }
+                            }
+
+                            // If Wrong Answer but no details available, show hint
+                            if result.status_msg != "Accepted"
+                                && result.compile_error.is_empty()
+                                && result.full_compile_error.is_empty()
+                                && result.runtime_error.is_empty()
+                                && result.full_runtime_error.is_empty()
+                                && result.last_testcase.is_empty()
+                                && result.expected_output.is_empty()
+                                && result.code_output.is_empty()
+                                && result.std_output.is_empty()
+                            {
+                                lines.push(String::new());
+                                lines.push(String::from("(No detailed error info available)"));
+                                lines.push(String::from("Try :run to test with specific inputs"));
+                            }
+
+                            // Render visible lines (scrollable)
+                            let visible_rows = result_panel_h.saturating_sub(1); // -1 for border
+                            for row in 0..visible_rows {
+                                let y = panel_y_start + 1 + row;
+                                queue!(self.stdout, cursor::MoveTo(0, y as u16), SetBackgroundColor(bg))?;
+                                let line_idx = row + coding.result_scroll;
+                                if let Some(line) = lines.get(line_idx) {
+                                    let fg = if line.starts_with("Status:") || line.starts_with("──") {
+                                        panel_header_fg
+                                    } else {
+                                        panel_text_fg
+                                    };
+                                    queue!(self.stdout, SetForegroundColor(fg))?;
+                                    let display: String = line.chars().take(w).collect();
+                                    let dw = display_width_str(&display);
+                                    write!(self.stdout, " {}", display)?;
+                                    if dw + 1 < w {
+                                        write!(self.stdout, "{:width$}", "", width = w - dw - 1)?;
+                                    }
+                                } else {
+                                    write!(self.stdout, "{:width$}", "", width = w)?;
+                                }
+                            }
+                        }
+                    }
+
+                    // ── Language selection overlay ──
+                    if coding.selecting_lang {
+                        let overlay_w = 30.min(w.saturating_sub(4));
+                        let overlay_h = (coding.detail.code_snippets.len() + 2).min(content_h);
+                        let ox = (w.saturating_sub(overlay_w)) / 2;
+                        let oy = (h.saturating_sub(overlay_h)) / 2;
+
+                        // Border top
+                        queue!(self.stdout, cursor::MoveTo(ox as u16, oy as u16), SetBackgroundColor(bg), SetForegroundColor(amber))?;
+                        write!(self.stdout, "╔{}╗", "═".repeat(overlay_w.saturating_sub(2)))?;
+
+                        for (i, snippet) in coding.detail.code_snippets.iter().enumerate() {
+                            let y = oy + 1 + i;
+                            if y >= oy + overlay_h - 1 { break; }
+                            let is_sel = i == coding.lang_cursor;
+                            let sel_bg = if is_sel { highlight_bg } else { bg };
+                            queue!(self.stdout, cursor::MoveTo(ox as u16, y as u16), SetBackgroundColor(sel_bg), SetForegroundColor(if is_sel { amber } else { green }))?;
+                            let ptr = if is_sel { "▸" } else { " " };
+                            let inner_w = overlay_w.saturating_sub(4);
+                            let lang_display: String = snippet.lang.chars().take(inner_w).collect();
+                            write!(self.stdout, "║{} {:<width$}║", ptr, lang_display, width = inner_w)?;
+                        }
+
+                        // Border bottom
+                        let bot_y = oy + overlay_h - 1;
+                        queue!(self.stdout, cursor::MoveTo(ox as u16, bot_y as u16), SetBackgroundColor(bg), SetForegroundColor(amber))?;
+                        write!(self.stdout, "╚{}╝", "═".repeat(overlay_w.saturating_sub(2)))?;
+                    }
+
+                    // ── History selection overlay ──
+                    if coding.selecting_history && !coding.submissions.is_empty() {
+                        let overlay_w = 60.min(w.saturating_sub(4));
+                        let visible_count = coding.submissions.len().min(content_h.saturating_sub(2));
+                        let overlay_h = visible_count + 2; // +2 for top/bottom border
+                        let ox = (w.saturating_sub(overlay_w)) / 2;
+                        let oy = (h.saturating_sub(overlay_h)) / 2;
+
+                        // Border top
+                        queue!(self.stdout, cursor::MoveTo(ox as u16, oy as u16), SetBackgroundColor(bg), SetForegroundColor(amber))?;
+                        write!(self.stdout, "╔{}╗", "═".repeat(overlay_w.saturating_sub(2)))?;
+
+                        // Scrolling: keep cursor visible
+                        let max_visible = visible_count;
+                        let scroll = if coding.history_cursor >= coding.history_scroll + max_visible {
+                            coding.history_cursor - max_visible + 1
+                        } else if coding.history_cursor < coding.history_scroll {
+                            coding.history_cursor
+                        } else {
+                            coding.history_scroll
+                        };
+
+                        for vi in 0..max_visible {
+                            let i = scroll + vi;
+                            if i >= coding.submissions.len() { break; }
+                            let entry = &coding.submissions[i];
+                            let y = oy + 1 + vi;
+                            let is_sel = i == coding.history_cursor;
+                            let sel_bg = if is_sel { highlight_bg } else { bg };
+                            let status_color = if entry.status_display == "Accepted" {
+                                green
+                            } else {
+                                Color::Rgb { r: 255, g: 80, b: 80 }
+                            };
+                            queue!(self.stdout, cursor::MoveTo(ox as u16, y as u16), SetBackgroundColor(sel_bg), SetForegroundColor(if is_sel { amber } else { status_color }))?;
+                            let ptr = if is_sel { "▸" } else { " " };
+                            let inner_w = overlay_w.saturating_sub(4);
+                            // Format: "▸ Accepted | Python3 | 4 ms | 2024-01-15"
+                            let ts_str = {
+                                // Format timestamp as YYYY-MM-DD (approximate)
+                                let secs = entry.timestamp as i64;
+                                let days = secs / 86400;
+                                // Calculate date from days since epoch
+                                let mut y = 1970i64;
+                                let mut remaining = days;
+                                loop {
+                                    let days_in_year = if y % 4 == 0 && (y % 100 != 0 || y % 400 == 0) { 366 } else { 365 };
+                                    if remaining < days_in_year { break; }
+                                    remaining -= days_in_year;
+                                    y += 1;
+                                }
+                                let months_days = if y % 4 == 0 && (y % 100 != 0 || y % 400 == 0) {
+                                    [31,29,31,30,31,30,31,31,30,31,30,31]
+                                } else {
+                                    [31,28,31,30,31,30,31,31,30,31,30,31]
+                                };
+                                let mut m = 1u32;
+                                for &md in months_days.iter() {
+                                    if remaining < md { break; }
+                                    remaining -= md;
+                                    m += 1;
+                                }
+                                let d = remaining + 1;
+                                format!("{:04}-{:02}-{:02}", y, m, d)
+                            };
+                            let line = format!(
+                                "{} {} │ {} │ {}",
+                                entry.status_display, entry.lang, entry.runtime, ts_str
+                            );
+                            let display: String = line.chars().take(inner_w).collect();
+                            write!(self.stdout, "║{} {:<width$}║", ptr, display, width = inner_w)?;
+                        }
+
+                        // Border bottom
+                        let bot_y = oy + overlay_h - 1;
+                        queue!(self.stdout, cursor::MoveTo(ox as u16, bot_y as u16), SetBackgroundColor(bg), SetForegroundColor(amber))?;
+                        write!(self.stdout, "╚{}╝", "═".repeat(overlay_w.saturating_sub(2)))?;
+                    }
+
+                    // ── Footer (2 lines) ──
+                    let footer_y1 = h.saturating_sub(2) as u16; // Line 1: vim keys
+                    let footer_y2 = h.saturating_sub(1) as u16; // Line 2: commands / input
+
+                    // Footer line 1: Vim shortcuts (always visible)
+                    {
+                        let key_color = Color::Rgb { r: 180, g: 140, b: 255 }; // purple for keys
+                        let sep_color = Color::Rgb { r: 80, g: 80, b: 80 };    // dim separator
+                        let desc_color = Color::Rgb { r: 140, g: 140, b: 140 }; // dim desc
+                        queue!(self.stdout, cursor::MoveTo(0, footer_y1), SetBackgroundColor(highlight_bg))?;
+                        // Format: key=desc separated by │
+                        // Show Tab hint when multiple panels are visible
+                        let has_multi_panel = coding.show_description || coding.show_ai || coding.show_result_panel;
+                        let keys: Vec<(&str, &str)> = {
+                            let mut v: Vec<(&str, &str)> = vec![
+                                ("i", "edit"), ("A", "append"), ("o/O", "newline"),
+                                ("dd", "del line"), ("u", "undo"),
+                                ("hjkl", "move"), ("w/b", "word"),
+                                ("gg/G", "top/bot"), ("/", "search"), ("?", "ai"),
+                            ];
+                            if has_multi_panel {
+                                v.push(("Tab", "切换面板"));
+                            }
+                            v
+                        };
+                        let mut col = 1usize;
+                        for (idx, (key, desc)) in keys.iter().enumerate() {
+                            if idx > 0 {
+                                queue!(self.stdout, SetForegroundColor(sep_color))?;
+                                write!(self.stdout, " │ ")?;
+                                col += 3;
+                            }
+                            queue!(self.stdout, SetForegroundColor(key_color))?;
+                            write!(self.stdout, "{}", key)?;
+                            col += display_width_str(key);
+                            queue!(self.stdout, SetForegroundColor(desc_color))?;
+                            write!(self.stdout, " {}", desc)?;
+                            col += 1 + display_width_str(desc);
+                            if col >= w.saturating_sub(4) { break; }
+                        }
+                        // Fill remaining
+                        if col < w {
+                            write!(self.stdout, "{:width$}", "", width = w - col)?;
+                        }
+                    }
+
+                    // Footer line 2: : commands or active input
+                    queue!(self.stdout, cursor::MoveTo(0, footer_y2), SetBackgroundColor(highlight_bg), SetForegroundColor(amber))?;
+                    match &coding.editor.mode {
+                        crate::mode::Mode::Command(s) => {
+                            let cmd_part = format!(":{}", s);
+                            write!(self.stdout, "{}", cmd_part)?;
+                            // Show ghost completion hint (dimmed)
+                            let ghost = if !panel.cmd_completions.is_empty() {
+                                let first = &panel.cmd_completions[0];
+                                if first.starts_with(s.as_str()) && first.len() > s.len() {
+                                    first[s.len()..].to_string()
+                                } else { String::new() }
+                            } else { String::new() };
+                            if !ghost.is_empty() {
+                                queue!(self.stdout, SetForegroundColor(dim_green))?;
+                                write!(self.stdout, "{}", ghost)?;
+                                queue!(self.stdout, SetForegroundColor(amber))?;
+                            }
+                            // Fill remaining width
+                            let used = display_width_str(&cmd_part) + display_width_str(&ghost);
+                            if used < w {
+                                write!(self.stdout, "{:width$}", "", width = w - used)?;
+                            }
+                        }
+                        crate::mode::Mode::Search(s) => {
+                            let footer_text = format!("/{}", s);
+                            write!(self.stdout, "{:width$}", footer_text, width = w)?;
+                        }
+                        _ => {
+                            // Show : commands on the left
+                            let cmd_color = Color::Rgb { r: 100, g: 200, b: 130 }; // green for commands
+                            let sep_color = Color::Rgb { r: 80, g: 80, b: 80 };
+                            let cmds = [":submit", ":run", ":lang", ":hist", ":desc", ":ai", ":result", ":q"];
+                            let mut col = 1usize;
+                            queue!(self.stdout, SetForegroundColor(cmd_color))?;
+                            for (idx, cmd) in cmds.iter().enumerate() {
+                                if idx > 0 {
+                                    queue!(self.stdout, SetForegroundColor(sep_color))?;
+                                    write!(self.stdout, "  ")?;
+                                    col += 2;
+                                    queue!(self.stdout, SetForegroundColor(cmd_color))?;
+                                }
+                                write!(self.stdout, "{}", cmd)?;
+                                col += display_width_str(cmd);
+                                if col >= w.saturating_sub(4) { break; }
+                            }
+                            // Show status_msg on the right if there's room
+                            if !coding.status_msg.is_empty() && w > col + 4 {
+                                let max_status = w - col - 3;
+                                let status_display = if display_width_str(&coding.status_msg) > max_status {
+                                    coding.status_msg.chars().take(max_status).collect::<String>()
+                                } else {
+                                    coding.status_msg.clone()
+                                };
+                                let status_w = display_width_str(&status_display);
+                                let gap = w - col - status_w - 3;
+                                write!(self.stdout, "{:gap$}", "", gap = gap)?;
+                                queue!(self.stdout, SetForegroundColor(amber))?;
+                                write!(self.stdout, " │ {}", status_display)?;
+                            } else if col < w {
+                                write!(self.stdout, "{:width$}", "", width = w - col)?;
+                            }
+                        }
+                    }
                 }
             }
             LeetCodeView::Login => {
+                use crate::leetcode::panel::LoginStep;
                 // Login instructions — vertically centered block
-                let lines: &[(&str, bool)] = &[
+                // Adapt content based on current login step
+                let (prompt_text, step_hint) = match panel.login_step {
+                    LoginStep::Session => (
+                        "Step 1/2: Paste LEETCODE_SESSION value (Esc to cancel):",
+                        "  (Copy the value of LEETCODE_SESSION from browser cookies)",
+                    ),
+                    LoginStep::CsrfToken => (
+                        "Step 2/2: Paste csrftoken value (Esc to cancel):",
+                        "  (Copy the value of csrftoken from browser cookies)",
+                    ),
+                };
+
+                let lines: Vec<(&str, bool)> = vec![
                     ("╔══════════════════════════════════════╗", true),
                     ("║        LeetCode Login                ║", true),
                     ("╚══════════════════════════════════════╝", true),
@@ -2097,11 +2859,11 @@ impl Renderer {
                     ("  1. Open https://leetcode.cn (or leetcode.com)", false),
                     ("  2. Log in to your account", false),
                     ("  3. Press F12 → Application → Cookies", false),
-                    ("  4. Copy values of LEETCODE_SESSION and csrftoken", false),
-                    ("  5. Paste below in format:", false),
-                    ("     LEETCODE_SESSION=xxx;csrftoken=yyy", false),
+                    ("  4. Copy the value of LEETCODE_SESSION", false),
+                    ("  5. Copy the value of csrftoken", false),
                     ("", false),
-                    ("Paste cookie (Esc to cancel):", false),
+                    (prompt_text, false),
+                    (step_hint, false),
                 ];
                 let total_lines = lines.len() + 2; // +2 for input line + blank
                 let start_y = h.saturating_sub(total_lines) / 2;
@@ -2125,6 +2887,206 @@ impl Renderer {
                     let truncated = truncate_to_width(&centered, w);
                     write!(self.stdout, "{}", truncated)?;
                 }
+            }
+            LeetCodeView::KnowledgeMap => {
+                if let Some(ref kp) = panel.knowledge_panel {
+                    // ── Tab bar (row 0) ──
+                    let tab_bar = kp.render_tab_bar(w);
+                    queue!(self.stdout, cursor::MoveTo(0, 0), SetBackgroundColor(bg))?;
+                    write!(self.stdout, "{}", tab_bar)?;
+
+                    // ── Filter bar (rows 1-3) ──
+                    let filter_bar = kp.render_filter_bar(w);
+                    for (i, line) in filter_bar.lines().enumerate() {
+                        let row = 1 + i;
+                        if row >= h { break; }
+                        queue!(self.stdout, cursor::MoveTo(0, row as u16), SetBackgroundColor(bg))?;
+                        write!(self.stdout, "{:width$}", "", width = w)?;
+                        queue!(self.stdout, cursor::MoveTo(0, row as u16))?;
+                        write!(self.stdout, "{}", line)?;
+                    }
+
+                    // ── Content area (row 4 onwards) ──
+                    let content_start = 4;
+                    let content_height = h.saturating_sub(content_start + 1); // -1 for footer
+
+                    use crate::leetcode::knowledge_panel::PanelTab;
+                    let content_lines = match kp.selected_tab {
+                        PanelTab::Overview => kp.render_overview(w),
+                        PanelTab::Topics => kp.render_topics(w),
+                        PanelTab::Techniques => kp.render_techniques(w),
+                        PanelTab::Problems => kp.render_problem_list(w, content_height),
+                    };
+                    for (i, line) in content_lines.iter().enumerate() {
+                        let row = content_start + i;
+                        if row >= h.saturating_sub(1) { break; }
+                        queue!(self.stdout, cursor::MoveTo(0, row as u16), SetBackgroundColor(bg))?;
+                        write!(self.stdout, "{:width$}", "", width = w)?;
+                        queue!(self.stdout, cursor::MoveTo(0, row as u16))?;
+                        write!(self.stdout, "{}", line)?;
+                    }
+
+                    // ── Footer ──
+                    let footer_y = h.saturating_sub(1);
+                    queue!(self.stdout, cursor::MoveTo(0, footer_y as u16), SetBackgroundColor(highlight_bg), SetForegroundColor(green))?;
+                    let footer = format!(" Knowledge Map │ Tab:切换 1-4:面板 j/k:滚动 q:返回 │ {} problems", kp.filtered_ids.len());
+                    write!(self.stdout, "{:width$}", footer, width = w)?;
+                }
+            }
+        }
+
+        // ── Hardware cursor positioning for LeetCode views ──
+        match panel.view {
+            LeetCodeView::Coding => {
+                use crate::leetcode::panel::CodingFocus;
+                use crate::mode::Mode as EditorMode;
+                if let Some(ref coding) = panel.coding {
+                    // Command/Search mode: cursor in footer line
+                    match &coding.editor.mode {
+                        EditorMode::Command(s) => {
+                            let cursor_x = (display_width_str(":") + display_width_str(s)).min(w.saturating_sub(1));
+                            let cursor_y = h.saturating_sub(1);
+                            queue!(self.stdout,
+                                cursor::Show,
+                                cursor::MoveTo(cursor_x as u16, cursor_y as u16),
+                                cursor::SetCursorStyle::BlinkingBar,
+                            )?;
+                        }
+                        EditorMode::Search(s) => {
+                            let cursor_x = (display_width_str("/") + display_width_str(s)).min(w.saturating_sub(1));
+                            let cursor_y = h.saturating_sub(1);
+                            queue!(self.stdout,
+                                cursor::Show,
+                                cursor::MoveTo(cursor_x as u16, cursor_y as u16),
+                                cursor::SetCursorStyle::BlinkingBar,
+                            )?;
+                        }
+                        _ if coding.focus == CodingFocus::AiChat => {
+                            // Position cursor in the AI input line
+                            let ai_w = if coding.show_ai { w / 4 } else { 0 };
+                            let ai_x = w.saturating_sub(ai_w);
+                            let full_content_h = h.saturating_sub(3); // title(1) + footer(2)
+                            let result_panel_h = if coding.show_result_panel { (full_content_h / 3).max(5) } else { 0 };
+                            let content_h = full_content_h.saturating_sub(result_panel_h);
+                            let chat_rows = content_h.saturating_sub(2);
+                            let input_y = 2 + chat_rows;
+                            // "│▸ " = 4 display columns offset, then cursor at input position
+                            let input_prefix_w = 3; // "│▸ "
+                            let cursor_col: usize = coding.ai_input.chars()
+                                .take(coding.ai_input_cursor)
+                                .map(|c| UnicodeWidthChar::width(c).unwrap_or(1))
+                                .sum();
+                            let cursor_x = ai_x + input_prefix_w + cursor_col;
+                            queue!(self.stdout,
+                                cursor::Show,
+                                cursor::MoveTo(cursor_x as u16, input_y as u16),
+                                cursor::SetCursorStyle::BlinkingBar,
+                            )?;
+                        }
+                        _ if coding.focus == CodingFocus::Editor && !coding.selecting_lang && !coding.selecting_history && !coding.lang_confirm_pending => {
+                            // Position cursor in the code editor area
+                            let full_content_h = h.saturating_sub(3); // title(1) + footer(2)
+                            let result_panel_h = if coding.show_result_panel { (full_content_h / 3).max(5) } else { 0 };
+                            let content_h = full_content_h.saturating_sub(result_panel_h);
+                            let desc_w = if coding.show_description { w * 2 / 5 } else { 0 };
+                            let editor_x = desc_w;
+                            let line_num_w: usize = 4; // "  1 "
+
+                            // Only show cursor if cursor_line is visible
+                            let vis_line = coding.editor.cursor_line.saturating_sub(coding.editor.scroll_line);
+                            if vis_line < content_h {
+                                let code_text = coding.editor.buffer.rope.to_string();
+                                let code_lines: Vec<&str> = code_text.lines().collect();
+                                let current_line = code_lines.get(coding.editor.cursor_line).unwrap_or(&"");
+                                let display_col: usize = current_line.chars()
+                                    .take(coding.editor.cursor_col)
+                                    .map(|c| UnicodeWidthChar::width(c).unwrap_or(1))
+                                    .sum();
+                                let cursor_x = editor_x + line_num_w + display_col;
+                                let cursor_y = vis_line + 1; // +1 for title bar
+                                // Cursor style depends on editor mode
+                                let cursor_style = match coding.editor.mode {
+                                    EditorMode::Insert => cursor::SetCursorStyle::BlinkingBar,
+                                    _ => cursor::SetCursorStyle::SteadyBlock,
+                                };
+                                queue!(self.stdout,
+                                    cursor::Show,
+                                    cursor::MoveTo(cursor_x as u16, cursor_y as u16),
+                                    cursor_style,
+                                )?;
+                            } else {
+                                queue!(self.stdout, cursor::Hide)?;
+                            }
+                        }
+                        _ => {
+                            queue!(self.stdout, cursor::Hide)?;
+                        }
+                    }
+                } else {
+                    queue!(self.stdout, cursor::Hide)?;
+                }
+            }
+            LeetCodeView::ProblemList => {
+                use crate::leetcode::panel::ListMode;
+                match panel.list_mode {
+                    ListMode::Search => {
+                        let prefix = " /";
+                        let input_dw = display_width_str(&panel.search_input);
+                        let cursor_x = (display_width_str(prefix) + input_dw).min(w.saturating_sub(1));
+                        let cursor_y = h.saturating_sub(1);
+                        queue!(self.stdout,
+                            cursor::Show,
+                            cursor::MoveTo(cursor_x as u16, cursor_y as u16),
+                            cursor::SetCursorStyle::BlinkingBar,
+                        )?;
+                    }
+                    ListMode::Command => {
+                        let prefix = " :";
+                        let input_dw = display_width_str(&panel.search_input);
+                        let cursor_x = (display_width_str(prefix) + input_dw).min(w.saturating_sub(1));
+                        let cursor_y = h.saturating_sub(1);
+                        queue!(self.stdout,
+                            cursor::Show,
+                            cursor::MoveTo(cursor_x as u16, cursor_y as u16),
+                            cursor::SetCursorStyle::BlinkingBar,
+                        )?;
+                    }
+                    ListMode::Normal => {
+                        queue!(self.stdout, cursor::Hide)?;
+                    }
+                }
+            }
+            LeetCodeView::Login => {
+                // Show cursor at end of login input
+                let total_lines = 15; // approximate lines count from login view
+                let start_y = h.saturating_sub(total_lines + 2) / 2;
+                let input_y = start_y + total_lines;
+                if input_y < h {
+                    let prefix = "  > ";
+                    let input_dw = display_width_str(&panel.login_input);
+                    let prefix_dw = display_width_str(prefix);
+                    // The input is centered, so calculate offset
+                    let full_text = format!("  > {}_", &panel.login_input);
+                    let full_dw = display_width_str(&full_text);
+                    let left_pad = w.saturating_sub(full_dw) / 2;
+                    let cursor_x = (left_pad + prefix_dw + input_dw).min(w.saturating_sub(1));
+                    queue!(self.stdout,
+                        cursor::Show,
+                        cursor::MoveTo(cursor_x as u16, input_y as u16),
+                        cursor::SetCursorStyle::BlinkingBar,
+                    )?;
+                } else {
+                    queue!(self.stdout, cursor::Hide)?;
+                }
+            }
+            LeetCodeView::Splash => {
+                // Cursor is handled in the render section above (shown when cmd active)
+                if !panel.splash_cmd_active {
+                    queue!(self.stdout, cursor::Hide)?;
+                }
+            }
+            _ => {
+                queue!(self.stdout, cursor::Hide)?;
             }
         }
 

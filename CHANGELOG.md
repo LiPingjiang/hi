@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.1.7] - 2026-05-19
+
+### Added
+- **LeetCode Mode** (`Ctrl+L`) — built-in LeetCode practice environment with retro phosphor-green terminal aesthetic
+  - Problem browser with difficulty filtering (Easy/Medium/Hard), search, and pagination
+  - Full Vim mode system in the code editor: Normal, Insert, Visual, Command, and Search modes — identical UX to the main editor
+  - **Tree-sitter syntax highlighting** for LeetCode code: Rust, Python, Java, Go, JavaScript, TypeScript, Bash
+  - Multi-language support with `Ctrl+L` language switcher
+  - Auto-save every 5 seconds with full state restore (code, cursor position, language selection)
+  - Run (`Ctrl+R` / `:run`) and Submit (`Ctrl+S` / `:submit`) with result display
+  - Problem description panel (toggle `Ctrl+D`) and AI chat panel (toggle `Ctrl+A`)
+  - Session-based authentication with cookie persistence
+  - LeetCode CN and Global site support
+- **Blinking cursor** in LeetCode code editor (Insert mode: blinking bar, Normal mode: steady block)
+- **Code persistence** — solutions are saved to `~/.hi/leetcode/` and restored on reopen
+
+### Fixed
+- Program exit (panic) when pressing Enter on a LeetCode problem with non-UTF-8 content
+- Esc key in LeetCode editor now switches Vim modes instead of exiting to problem list
+
 ## [0.1.2] - 2025-05-12
 
 ### Added

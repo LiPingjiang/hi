@@ -1,0 +1,1060 @@
+[
+  {
+    "id": 2581,
+    "title": "Count Number of Possible Root Nodes",
+    "slug": "count-number-of-possible-root-nodes",
+    "category": "树",
+    "subcategory": "换根DP",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Use rerooting technique: first DFS from node 0 to count correct guesses, then re-root DFS to compute answer for every node as root.",
+    "approach": "Rerooting DP",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "树",
+      "图"
+    ],
+    "code_python3": "def rootCount(self, edges, guesses, k):\n    from collections import defaultdict\n    n = len(edges) + 1\n    g = defaultdict(list)\n    for u, v in edges:\n        g[u].append(v)\n        g[v].append(u)\n    guess_set = set(map(tuple, guesses))\n    cnt = [0]\n    def dfs(u, parent):\n        for v in g[u]:\n            if v != parent:\n                if (u, v) in guess_set:\n                    cnt[0] += 1\n                dfs(v, u)\n    dfs(0, -1)\n    res = [0]\n    def reroot(u, parent, cur):\n        if cur >= k:\n            res[0] += 1\n        for v in g[u]:\n            if v != parent:\n                new_cur = cur - ((u, v) in guess_set) + ((v, u) in guess_set)\n                reroot(v, u, new_cur)\n    reroot(0, -1, cnt[0])\n    return res[0]"
+  },
+  {
+    "id": 2582,
+    "title": "Pass the Pillow",
+    "slug": "pass-the-pillow",
+    "category": "数学",
+    "subcategory": "模拟",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "The pillow goes back and forth in a cycle of length 2*(n-1). Use modulo to find the position.",
+    "approach": "Math Modulo",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学"
+    ],
+    "code_python3": "def passThePillow(self, n, time):\n    cycle = 2 * (n - 1)\n    time %= cycle\n    if time < n:\n        return time + 1\n    else:\n        return 2 * n - 1 - time"
+  },
+  {
+    "id": 2583,
+    "title": "Kth Largest Sum in a Binary Tree",
+    "slug": "kth-largest-sum-in-a-binary-tree",
+    "category": "树",
+    "subcategory": "BFS层序遍历",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "BFS level by level, compute each level sum, then return the kth largest.",
+    "approach": "BFS + Sort",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "树",
+      "排序"
+    ],
+    "code_python3": "def kthLargestLevelSum(self, root, k):\n    from collections import deque\n    if not root:\n        return -1\n    q = deque([root])\n    sums = []\n    while q:\n        level_sum = 0\n        for _ in range(len(q)):\n            node = q.popleft()\n            level_sum += node.val\n            if node.left:\n                q.append(node.left)\n            if node.right:\n                q.append(node.right)\n        sums.append(level_sum)\n    if k > len(sums):\n        return -1\n    sums.sort(reverse=True)\n    return sums[k - 1]"
+  },
+  {
+    "id": 2584,
+    "title": "Split the Array to Make Coprime Products",
+    "slug": "split-the-array-to-make-coprime-products",
+    "category": "数学",
+    "subcategory": "质因数分解",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "For each prime factor, find its first and last occurrence. A valid split at index i means no prime factor has first occurrence <= i and last occurrence > i. Use a sweep line approach.",
+    "approach": "Prime Factorization + Sweep Line",
+    "time_complexity": "O(n * sqrt(max))",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数学",
+      "数组"
+    ],
+    "code_python3": "def findValidSplit(self, nums):\n    from collections import defaultdict\n    n = len(nums)\n    first = {}\n    last = {}\n    def factorize(x):\n        factors = []\n        d = 2\n        while d * d <= x:\n            if x % d == 0:\n                factors.append(d)\n                while x % d == 0:\n                    x //= d\n            d += 1\n        if x > 1:\n            factors.append(x)\n        return factors\n    for i, num in enumerate(nums):\n        for p in factorize(num):\n            if p not in first:\n                first[p] = i\n            last[p] = i\n    # sweep line: for each prime, cover [first[p], last[p]]\n    right_max = 0\n    diff = [0] * (n + 1)\n    for p in first:\n        l, r = first[p], last[p]\n        if l < r:\n            diff[l] += 1\n            diff[r] -= 1\n    cur = 0\n    for i in range(n - 1):\n        cur += diff[i]\n        if cur == 0:\n            return i\n    return -1"
+  },
+  {
+    "id": 2585,
+    "title": "Number of Ways to Earn Points",
+    "slug": "number-of-ways-to-earn-points",
+    "category": "动态规划",
+    "subcategory": "分组背包",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Grouped knapsack DP: for each type, you can pick 0..count[i] questions each worth marks[i] points. Count ways to reach exactly target.",
+    "approach": "Grouped Knapsack DP",
+    "time_complexity": "O(n * target * max_count)",
+    "space_complexity": "O(target)",
+    "tags": [
+      "动态规划"
+    ],
+    "code_python3": "def waysToReachTarget(self, target, types):\n    MOD = 10**9 + 7\n    dp = [0] * (target + 1)\n    dp[0] = 1\n    for count, marks in types:\n        for j in range(target, -1, -1):\n            for k in range(1, count + 1):\n                if j - k * marks >= 0:\n                    dp[j] = (dp[j] + dp[j - k * marks]) % MOD\n    return dp[target]"
+  },
+  {
+    "id": 2586,
+    "title": "Count the Number of Vowel Strings in Range",
+    "slug": "count-the-number-of-vowel-strings-in-range",
+    "category": "数组",
+    "subcategory": "字符串",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Simply count strings in range [left, right] that start and end with a vowel.",
+    "approach": "Linear Scan",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "def vowelStrings(self, words, left, right):\n    vowels = set('aeiou')\n    return sum(1 for i in range(left, right + 1) if words[i][0] in vowels and words[i][-1] in vowels)"
+  },
+  {
+    "id": 2587,
+    "title": "Rearrange Array to Maximize Prefix Score",
+    "slug": "rearrange-array-to-maximize-prefix-score",
+    "category": "贪心",
+    "subcategory": "排序",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Sort descending and take prefix sums. Count how many prefix sums are positive.",
+    "approach": "Sort + Prefix Sum",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "贪心",
+      "排序",
+      "前缀和"
+    ],
+    "code_python3": "def maxScore(self, nums):\n    nums.sort(reverse=True)\n    prefix = 0\n    res = 0\n    for x in nums:\n        prefix += x\n        if prefix > 0:\n            res += 1\n        else:\n            break\n    return res"
+  },
+  {
+    "id": 2588,
+    "title": "Count the Number of Beautiful Subarrays",
+    "slug": "count-the-number-of-beautiful-subarrays",
+    "category": "前缀和",
+    "subcategory": "异或前缀",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "A beautiful subarray has XOR = 0. Use prefix XOR: count pairs (i, j) with same prefix XOR.",
+    "approach": "Prefix XOR + HashMap",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "前缀和",
+      "哈希表",
+      "位运算"
+    ],
+    "code_python3": "def beautifulSubarrays(self, nums):\n    from collections import defaultdict\n    cnt = defaultdict(int)\n    cnt[0] = 1\n    xor = 0\n    res = 0\n    for x in nums:\n        xor ^= x\n        res += cnt[xor]\n        cnt[xor] += 1\n    return res"
+  },
+  {
+    "id": 2589,
+    "title": "Minimum Time to Complete All Tasks",
+    "slug": "minimum-time-to-complete-all-tasks",
+    "category": "贪心",
+    "subcategory": "区间调度",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Sort tasks by end time. Greedily assign running time slots as late as possible to maximize reuse across tasks.",
+    "approach": "Greedy + Timeline Array",
+    "time_complexity": "O(n * max_end)",
+    "space_complexity": "O(max_end)",
+    "tags": [
+      "贪心",
+      "排序"
+    ],
+    "code_python3": "def findMinimumTime(self, tasks):\n    tasks.sort(key=lambda x: x[1])\n    max_end = max(t[1] for t in tasks)\n    run = [False] * (max_end + 1)\n    for start, end, duration in tasks:\n        # count already running slots in [start, end]\n        already = sum(run[start:end+1])\n        need = duration - already\n        if need > 0:\n            for t in range(end, start - 1, -1):\n                if not run[t]:\n                    run[t] = True\n                    need -= 1\n                    if need == 0:\n                        break\n    return sum(run)"
+  },
+  {
+    "id": 2590,
+    "title": "Design a Todo List",
+    "slug": "design-a-todo-list",
+    "category": "设计",
+    "subcategory": "模拟",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Use dictionaries to store tasks per user with tags and completion status.",
+    "approach": "HashMap Design",
+    "time_complexity": "O(n log n) for getTask",
+    "space_complexity": "O(n)",
+    "tags": [
+      "设计",
+      "哈希表",
+      "排序"
+    ],
+    "code_python3": "class TodoList:\n    def __init__(self):\n        self.tasks = {}\n        self.task_id = 0\n    def addTask(self, userId, taskDescription, dueDate, tags):\n        self.task_id += 1\n        if userId not in self.tasks:\n            self.tasks[userId] = []\n        self.tasks[userId].append({'id': self.task_id, 'desc': taskDescription, 'due': dueDate, 'tags': tags, 'done': False})\n        return self.task_id\n    def getAllTasks(self, userId):\n        if userId not in self.tasks:\n            return []\n        pending = [t for t in self.tasks[userId] if not t['done']]\n        pending.sort(key=lambda x: x['due'])\n        return [t['desc'] for t in pending]\n    def getTasksForTag(self, userId, tag):\n        if userId not in self.tasks:\n            return []\n        pending = [t for t in self.tasks[userId] if not t['done'] and tag in t['tags']]\n        pending.sort(key=lambda x: x['due'])\n        return [t['desc'] for t in pending]\n    def completeTask(self, userId, taskId):\n        if userId in self.tasks:\n            for t in self.tasks[userId]:\n                if t['id'] == taskId:\n                    t['done'] = True"
+  },
+  {
+    "id": 2591,
+    "title": "Distribute Money to Maximum Children",
+    "slug": "distribute-money-to-maximum-children",
+    "category": "贪心",
+    "subcategory": "数学",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Each child needs at least 1 dollar. Give 8 to as many children as possible, but no child can have exactly 4.",
+    "approach": "Greedy Distribution",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "贪心",
+      "数学"
+    ],
+    "code_python3": "def distMoney(self, money, children):\n    if money < children:\n        return -1\n    money -= children  # give 1 to each\n    # give 7 more to make 8\n    full = min(money // 7, children)\n    money -= full * 7\n    remaining_children = children - full\n    if remaining_children == 0 and money > 0:\n        full -= 1\n    elif remaining_children == 1 and money == 3:\n        full -= 1\n    return full"
+  },
+  {
+    "id": 2592,
+    "title": "Maximize Greatness of an Array",
+    "slug": "maximize-greatness-of-an-array",
+    "category": "贪心",
+    "subcategory": "排序",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Sort the array. Greedily match each element with the smallest element greater than it (two pointers).",
+    "approach": "Sort + Two Pointers",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "贪心",
+      "排序",
+      "双指针"
+    ],
+    "code_python3": "def maximizeGreatness(self, nums):\n    nums.sort()\n    res = 0\n    for x in nums:\n        if x > nums[res]:\n            res += 1\n    return res"
+  },
+  {
+    "id": 2593,
+    "title": "Find Score of an Array After Marking All Elements",
+    "slug": "find-score-of-an-array-after-marking-all-elements",
+    "category": "排序",
+    "subcategory": "模拟",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Process elements in order of value (smallest first, break ties by index). Mark chosen element and its neighbors.",
+    "approach": "Sort by Value + Marking",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "排序",
+      "数组"
+    ],
+    "code_python3": "def findScore(self, nums):\n    n = len(nums)\n    indexed = sorted(range(n), key=lambda i: (nums[i], i))\n    marked = [False] * n\n    score = 0\n    for i in indexed:\n        if not marked[i]:\n            score += nums[i]\n            marked[i] = True\n            if i > 0:\n                marked[i - 1] = True\n            if i < n - 1:\n                marked[i + 1] = True\n    return score"
+  },
+  {
+    "id": 2594,
+    "title": "Minimum Time to Repair Cars",
+    "slug": "minimum-time-to-repair-cars",
+    "category": "二分查找",
+    "subcategory": "二分答案",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Binary search on time. For a given time t, mechanic with rank r can repair floor(sqrt(t/r)) cars. Check if total >= cars.",
+    "approach": "Binary Search on Answer",
+    "time_complexity": "O(n * log(r * cars^2))",
+    "space_complexity": "O(1)",
+    "tags": [
+      "二分查找"
+    ],
+    "code_python3": "def repairCars(self, ranks, cars):\n    import math\n    lo, hi = 1, min(ranks) * cars * cars\n    while lo < hi:\n        mid = (lo + hi) // 2\n        total = sum(int(math.isqrt(mid // r)) for r in ranks)\n        if total >= cars:\n            hi = mid\n        else:\n            lo = mid + 1\n    return lo"
+  },
+  {
+    "id": 2595,
+    "title": "Number of Even and Odd Bits",
+    "slug": "number-of-even-and-odd-bits",
+    "category": "位运算",
+    "subcategory": "基础",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Count bits at even and odd positions in binary representation.",
+    "approach": "Bit Manipulation",
+    "time_complexity": "O(log n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "位运算"
+    ],
+    "code_python3": "def evenOddBit(self, n):\n    even = odd = 0\n    i = 0\n    while n:\n        if n & 1:\n            if i % 2 == 0:\n                even += 1\n            else:\n                odd += 1\n        n >>= 1\n        i += 1\n    return [even, odd]"
+  },
+  {
+    "id": 2596,
+    "title": "Check Knight Tour Configuration",
+    "slug": "check-knight-tour-configuration",
+    "category": "数组",
+    "subcategory": "模拟",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Build position array from grid, then verify each consecutive move is a valid knight move.",
+    "approach": "Simulation",
+    "time_complexity": "O(n^2)",
+    "space_complexity": "O(n^2)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "def checkValidGrid(self, grid):\n    n = len(grid)\n    pos = [None] * (n * n)\n    for i in range(n):\n        for j in range(n):\n            pos[grid[i][j]] = (i, j)\n    if pos[0] != (0, 0):\n        return False\n    for k in range(1, n * n):\n        r1, c1 = pos[k - 1]\n        r2, c2 = pos[k]\n        dr, dc = abs(r1 - r2), abs(c1 - c2)\n        if sorted([dr, dc]) != [1, 2]:\n            return False\n    return True"
+  },
+  {
+    "id": 2597,
+    "title": "The Number of Beautiful Subsets",
+    "slug": "the-number-of-beautiful-subsets",
+    "category": "回溯",
+    "subcategory": "计数",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Group numbers by value mod k. Within each group, use DP similar to house robber to count valid subsets, then multiply across groups.",
+    "approach": "Grouping + DP (House Robber variant)",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "回溯",
+      "动态规划"
+    ],
+    "code_python3": "def beautifulSubsets(self, nums, k):\n    from collections import Counter\n    groups = {}\n    for x in nums:\n        key = x % k\n        if key not in groups:\n            groups[key] = Counter()\n        groups[key][x] += 1\n    result = 1\n    for key in groups:\n        sorted_vals = sorted(groups[key].keys())\n        prev_skip = 1\n        prev_take = 0\n        prev_val = -1\n        for i, val in enumerate(sorted_vals):\n            cnt = groups[key][val]\n            take = (2 ** cnt - 1)\n            if prev_val != -1 and val - prev_val == k:\n                new_skip = prev_skip + prev_take\n                new_take = take * prev_skip\n            else:\n                new_skip = prev_skip + prev_take\n                new_take = take * (prev_skip + prev_take)\n            prev_skip, prev_take = new_skip, new_take\n            prev_val = val\n        result *= (prev_skip + prev_take)\n    return result - 1"
+  },
+  {
+    "id": 2598,
+    "title": "Smallest Missing Non-negative Integer After Operations",
+    "slug": "smallest-missing-non-negative-integer-after-operations",
+    "category": "哈希表",
+    "subcategory": "数学",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Each number nums[i] can become nums[i] + k*x for any integer x. So what matters is nums[i] % value. Count remainders and find the smallest missing.",
+    "approach": "Modulo Counting",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(value)",
+    "tags": [
+      "哈希表",
+      "数学"
+    ],
+    "code_python3": "def findSmallestInteger(self, nums, value):\n    from collections import Counter\n    cnt = Counter(x % value for x in nums)\n    mex = 0\n    while cnt[mex % value] > 0:\n        cnt[mex % value] -= 1\n        mex += 1\n    return mex"
+  },
+  {
+    "id": 2599,
+    "title": "Make the Prefix Sum Non-negative",
+    "slug": "make-the-prefix-sum-non-negative",
+    "category": "贪心",
+    "subcategory": "优先队列",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Maintain prefix sum. When it goes negative, move the most negative element to the end using a min-heap.",
+    "approach": "Greedy + Min Heap",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "贪心",
+      "堆"
+    ],
+    "code_python3": "def makePrefSumNonNegative(self, nums):\n    import heapq\n    heap = []\n    prefix = 0\n    ops = 0\n    for x in nums:\n        prefix += x\n        if x < 0:\n            heapq.heappush(heap, x)\n        while prefix < 0 and heap:\n            prefix -= heapq.heappop(heap)\n            ops += 1\n    return ops"
+  },
+  {
+    "id": 2600,
+    "title": "K Items With the Maximum Sum",
+    "slug": "k-items-with-the-maximum-sum",
+    "category": "贪心",
+    "subcategory": "数学",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Take all 1s first, then 0s, then -1s to maximize sum.",
+    "approach": "Greedy",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "贪心",
+      "数学"
+    ],
+    "code_python3": "def kItemsWithMaximumSum(self, numOnes, numZeros, numNegOnes, k):\n    if k <= numOnes:\n        return k\n    if k <= numOnes + numZeros:\n        return numOnes\n    return numOnes - (k - numOnes - numZeros)"
+  },
+  {
+    "id": 2601,
+    "title": "Prime Subtraction Operation",
+    "slug": "prime-subtraction-operation",
+    "category": "贪心",
+    "subcategory": "数学",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Process from left to right. For each element, subtract the largest prime that keeps it strictly greater than the previous element.",
+    "approach": "Greedy + Sieve of Primes",
+    "time_complexity": "O(n * max_val)",
+    "space_complexity": "O(max_val)",
+    "tags": [
+      "贪心",
+      "数学"
+    ],
+    "code_python3": "def primeSubOperation(self, nums):\n    def sieve(n):\n        is_prime = [True] * (n + 1)\n        is_prime[0] = is_prime[1] = False\n        for i in range(2, int(n**0.5) + 1):\n            if is_prime[i]:\n                for j in range(i*i, n + 1, i):\n                    is_prime[j] = False\n        return [i for i in range(2, n + 1) if is_prime[i]]\n    primes = sieve(1000)\n    prev = 0\n    for i in range(len(nums)):\n        best = nums[i]\n        for p in primes:\n            if p >= nums[i]:\n                break\n            if nums[i] - p > prev:\n                best = nums[i] - p\n                break\n        if best <= prev:\n            return False\n        prev = best\n    return True"
+  },
+  {
+    "id": 2602,
+    "title": "Minimum Operations to Make All Array Elements Equal",
+    "slug": "minimum-operations-to-make-all-array-elements-equal",
+    "category": "前缀和",
+    "subcategory": "二分查找",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Sort the array and compute prefix sums. For each query, binary search for position and compute total operations using prefix sums.",
+    "approach": "Sort + Prefix Sum + Binary Search",
+    "time_complexity": "O((n + q) log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "前缀和",
+      "二分查找",
+      "排序"
+    ],
+    "code_python3": "def minOperations(self, nums, queries):\n    nums.sort()\n    n = len(nums)\n    prefix = [0] * (n + 1)\n    for i in range(n):\n        prefix[i + 1] = prefix[i] + nums[i]\n    from bisect import bisect_left\n    res = []\n    for q in queries:\n        idx = bisect_left(nums, q)\n        left_cost = q * idx - prefix[idx]\n        right_cost = (prefix[n] - prefix[idx]) - q * (n - idx)\n        res.append(left_cost + right_cost)\n    return res"
+  },
+  {
+    "id": 2603,
+    "title": "Collect Coins in a Tree",
+    "slug": "collect-coins-in-a-tree",
+    "category": "树",
+    "subcategory": "拓扑排序",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Remove all leaves without coins iteratively (topological pruning), then remove 2 more layers of leaves. The remaining edges * 2 is the answer.",
+    "approach": "Topological Sort / Tree Pruning",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "树",
+      "图"
+    ],
+    "code_python3": "def collectTheCoins(self, coins, edges):\n    from collections import defaultdict\n    n = len(coins)\n    g = defaultdict(set)\n    for u, v in edges:\n        g[u].add(v)\n        g[v].add(u)\n    # Remove leaves without coins\n    degree = [len(g[i]) for i in range(n)]\n    queue = [i for i in range(n) if degree[i] == 1 and coins[i] == 0]\n    for u in queue:\n        for v in g[u]:\n            g[v].discard(u)\n            degree[v] -= 1\n            if degree[v] == 1 and coins[v] == 0:\n                queue.append(v)\n        g[u].clear()\n        degree[u] = 0\n    # Remove 2 layers of leaves\n    for _ in range(2):\n        leaves = [i for i in range(n) if degree[i] == 1]\n        for u in leaves:\n            for v in g[u]:\n                g[v].discard(u)\n                degree[v] -= 1\n            g[u].clear()\n            degree[u] = 0\n    return sum(len(g[i]) for i in range(n))"
+  },
+  {
+    "id": 2604,
+    "title": "Minimum Time to Eat All Grains",
+    "slug": "minimum-time-to-eat-all-grains",
+    "category": "二分查找",
+    "subcategory": "二分答案",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Binary search on time. Check if all grains can be eaten within given time by greedy matching hens to grains.",
+    "approach": "Binary Search + Greedy Check",
+    "time_complexity": "O((n + m) log D)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "二分查找",
+      "贪心"
+    ],
+    "code_python3": "def minimumTime(self, hens, grains):\n    hens.sort()\n    grains.sort()\n    def can(t):\n        j = 0\n        for h in hens:\n            if j >= len(grains):\n                return True\n            if grains[j] < h:\n                left = h - grains[j]\n                if left > t:\n                    return False\n                right_reach = max(0, t - 2 * left)\n                right_reach2 = max(0, (t - left) // 2)\n                reach = h + max(right_reach, right_reach2)\n            else:\n                reach = h + t\n            while j < len(grains) and grains[j] <= reach:\n                j += 1\n        return j >= len(grains)\n    lo, hi = 0, 2 * 10**14\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if can(mid):\n            hi = mid\n        else:\n            lo = mid + 1\n    return lo"
+  },
+  {
+    "id": 2605,
+    "title": "Form Smallest Number From Two Digit Arrays",
+    "slug": "form-smallest-number-from-two-digit-arrays",
+    "category": "数组",
+    "subcategory": "哈希表",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "If there's a common digit, return the smallest one. Otherwise combine the smallest from each array.",
+    "approach": "Set Intersection",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组",
+      "哈希表"
+    ],
+    "code_python3": "def minNumber(self, nums1, nums2):\n    common = set(nums1) & set(nums2)\n    if common:\n        return min(common)\n    a, b = min(nums1), min(nums2)\n    return min(a * 10 + b, b * 10 + a)"
+  },
+  {
+    "id": 2606,
+    "title": "Find the Substring With Maximum Cost",
+    "slug": "find-the-substring-with-maximum-cost",
+    "category": "动态规划",
+    "subcategory": "最大子数组和",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Map each character to its cost value, then find maximum subarray sum (Kadane's algorithm).",
+    "approach": "Kadane's Algorithm",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "动态规划",
+      "数组"
+    ],
+    "code_python3": "def maximumCostSubstring(self, s, chars, vals):\n    cost = {c: ord(c) - ord('a') + 1 for c in 'abcdefghijklmnopqrstuvwxyz'}\n    for c, v in zip(chars, vals):\n        cost[c] = v\n    res = 0\n    cur = 0\n    for ch in s:\n        cur = max(0, cur + cost[ch])\n        res = max(res, cur)\n    return res"
+  },
+  {
+    "id": 2607,
+    "title": "Make K-Subarray Sums Equal",
+    "slug": "make-k-subarray-sums-equal",
+    "category": "数学",
+    "subcategory": "中位数",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Elements at indices with same (index % gcd(n,k)) must be equal. For each group, minimize cost by choosing median.",
+    "approach": "GCD Groups + Median",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数学",
+      "排序"
+    ],
+    "code_python3": "def makeSubKSumEqual(self, arr, k):\n    from math import gcd\n    n = len(arr)\n    g = gcd(n, k)\n    res = 0\n    visited = [False] * n\n    for i in range(g):\n        group = []\n        j = i\n        while not visited[j]:\n            visited[j] = True\n            group.append(arr[j])\n            j = (j + k) % n\n        group.sort()\n        median = group[len(group) // 2]\n        res += sum(abs(x - median) for x in group)\n    return res"
+  },
+  {
+    "id": 2608,
+    "title": "Shortest Cycle in a Graph",
+    "slug": "shortest-cycle-in-a-graph",
+    "category": "图",
+    "subcategory": "BFS",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "For each node, run BFS to find the shortest cycle through that node. The answer is the minimum across all nodes.",
+    "approach": "BFS from Each Node",
+    "time_complexity": "O(n * (n + m))",
+    "space_complexity": "O(n + m)",
+    "tags": [
+      "图"
+    ],
+    "code_python3": "def findShortestCycle(self, n, edges):\n    from collections import defaultdict, deque\n    g = defaultdict(list)\n    for u, v in edges:\n        g[u].append(v)\n        g[v].append(u)\n    ans = float('inf')\n    for src in range(n):\n        dist = [-1] * n\n        dist[src] = 0\n        q = deque([src])\n        while q:\n            u = q.popleft()\n            for v in g[u]:\n                if dist[v] == -1:\n                    dist[v] = dist[u] + 1\n                    q.append(v)\n                elif dist[v] >= dist[u]:\n                    ans = min(ans, dist[u] + dist[v] + 1)\n    return ans if ans != float('inf') else -1"
+  },
+  {
+    "id": 2609,
+    "title": "Find the Longest Balanced Substring of a Binary String",
+    "slug": "find-the-longest-balanced-substring-of-a-binary-string",
+    "category": "数组",
+    "subcategory": "字符串",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Track consecutive 0s followed by consecutive 1s. The balanced length is 2 * min(zeros, ones).",
+    "approach": "Linear Scan",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "def findTheLongestBalancedSubstring(self, s):\n    res = 0\n    zeros = ones = 0\n    for i, c in enumerate(s):\n        if c == '0':\n            if i > 0 and s[i-1] == '1':\n                zeros = 1\n                ones = 0\n            else:\n                zeros += 1\n        else:\n            ones += 1\n            res = max(res, 2 * min(zeros, ones))\n    return res"
+  },
+  {
+    "id": 2610,
+    "title": "Convert an Array Into a 2D Array With Conditions",
+    "slug": "convert-an-array-into-a-2d-array-with-conditions",
+    "category": "哈希表",
+    "subcategory": "计数",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "The number of rows needed equals the maximum frequency of any element. Distribute elements row by row.",
+    "approach": "Frequency Counting",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "哈希表",
+      "数组"
+    ],
+    "code_python3": "def findMatrix(self, nums):\n    from collections import Counter\n    cnt = Counter(nums)\n    res = []\n    while cnt:\n        row = list(cnt.keys())\n        res.append(row)\n        for x in row:\n            cnt[x] -= 1\n            if cnt[x] == 0:\n                del cnt[x]\n    return res"
+  },
+  {
+    "id": 2611,
+    "title": "Mice and Cheese",
+    "slug": "mice-and-cheese",
+    "category": "贪心",
+    "subcategory": "排序",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Give all cheese to mouse 2 first. Then greedily pick k cheeses where switching to mouse 1 gives the maximum gain (reward1[i] - reward2[i]).",
+    "approach": "Greedy Sort by Difference",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "贪心",
+      "排序"
+    ],
+    "code_python3": "def miceAndCheese(self, reward1, reward2, k):\n    n = len(reward1)\n    diff = [(reward1[i] - reward2[i], i) for i in range(n)]\n    diff.sort(reverse=True)\n    res = sum(reward2)\n    for i in range(k):\n        res += diff[i][0]\n    return res"
+  },
+  {
+    "id": 2612,
+    "title": "Minimum Reverse Operations",
+    "slug": "minimum-reverse-operations",
+    "category": "图",
+    "subcategory": "BFS",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "BFS with sorted sets to find reachable positions efficiently. After reversing a subarray of length k containing position p, the new position is bounded.",
+    "approach": "BFS + Sorted Set",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "图",
+      "数组"
+    ],
+    "code_python3": "def minReverseOperations(self, n, p, banned, k):\n    from sortedcontainers import SortedList\n    from collections import deque\n    ban = set(banned)\n    # positions reachable from p by reversing subarray of length k\n    # After reverse, position i goes to lo+hi-i where [lo,hi] is subarray\n    # New position range: [max(i-k+1,0)+k-1-i+max(i-k+1,0), ...]\n    # = [i-k+1 + k-1, ...] hmm\n    even_avail = SortedList(i for i in range(0, n, 2) if i != p and i not in ban)\n    odd_avail = SortedList(i for i in range(1, n, 2) if i != p and i not in ban)\n    ans = [-1] * n\n    ans[p] = 0\n    q = deque([p])\n    while q:\n        i = q.popleft()\n        lo = max(i - k + 1, 0)\n        hi = min(i, n - k)\n        new_lo = lo + (lo + k - 1) - i\n        new_hi = hi + (hi + k - 1) - i\n        avail = even_avail if new_lo % 2 == 0 else odd_avail\n        idx = avail.bisect_left(new_lo)\n        while idx < len(avail) and avail[idx] <= new_hi:\n            j = avail[idx]\n            ans[j] = ans[i] + 1\n            q.append(j)\n            avail.remove(j)\n            idx = avail.bisect_left(new_lo)\n    return ans"
+  },
+  {
+    "id": 2613,
+    "title": "Beautiful Pairs",
+    "slug": "beautiful-pairs",
+    "category": "分治",
+    "subcategory": "最近点对",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Find the pair (i, j) with minimum |nums1[i]-nums1[j]| + |nums2[i]-nums2[j]| (Manhattan distance). Use divide and conquer closest pair algorithm.",
+    "approach": "Closest Pair (Manhattan Distance)",
+    "time_complexity": "O(n log^2 n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "分治",
+      "排序"
+    ],
+    "code_python3": "def beautifulPair(self, nums1, nums2):\n    n = len(nums1)\n    points = sorted(range(n), key=lambda i: (nums1[i], nums2[i]))\n    import math\n    def dist(i, j):\n        return abs(nums1[i]-nums1[j]) + abs(nums2[i]-nums2[j])\n    def solve(pts):\n        if len(pts) <= 3:\n            best = (math.inf, -1, -1)\n            for a in range(len(pts)):\n                for b in range(a+1, len(pts)):\n                    i, j = min(pts[a], pts[b]), max(pts[a], pts[b])\n                    d = dist(i, j)\n                    best = min(best, (d, i, j))\n            return best\n        mid = len(pts)//2\n        mx = nums1[pts[mid]]\n        left = solve(pts[:mid])\n        right = solve(pts[mid:])\n        best = min(left, right)\n        d = best[0]\n        strip = [p for p in pts if abs(nums1[p]-mx) < d]\n        strip.sort(key=lambda p: nums2[p])\n        for a in range(len(strip)):\n            for b in range(a+1, len(strip)):\n                if abs(nums2[strip[a]]-nums2[strip[b]]) >= d:\n                    break\n                i, j = min(strip[a], strip[b]), max(strip[a], strip[b])\n                cand = (dist(i, j), i, j)\n                best = min(best, cand)\n                d = best[0]\n        return best\n    _, i, j = solve(points)\n    return [i, j]"
+  },
+  {
+    "id": 2614,
+    "title": "Prime In Diagonal",
+    "slug": "prime-in-diagonal",
+    "category": "数学",
+    "subcategory": "质数判断",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Check elements on both diagonals and return the largest prime among them.",
+    "approach": "Diagonal Traversal + Primality Check",
+    "time_complexity": "O(n * sqrt(max_val))",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学",
+      "数组"
+    ],
+    "code_python3": "def diagonalPrime(self, nums):\n    def is_prime(n):\n        if n < 2:\n            return False\n        if n < 4:\n            return True\n        if n % 2 == 0 or n % 3 == 0:\n            return False\n        i = 5\n        while i * i <= n:\n            if n % i == 0 or n % (i + 2) == 0:\n                return False\n            i += 6\n        return True\n    n = len(nums)\n    res = 0\n    for i in range(n):\n        if is_prime(nums[i][i]):\n            res = max(res, nums[i][i])\n        if is_prime(nums[i][n-1-i]):\n            res = max(res, nums[i][n-1-i])\n    return res"
+  },
+  {
+    "id": 2615,
+    "title": "Sum of Distances",
+    "slug": "sum-of-distances",
+    "category": "前缀和",
+    "subcategory": "哈希表",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Group indices by value. For each group, use prefix sums to compute sum of absolute differences efficiently.",
+    "approach": "Group by Value + Prefix Sum",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "前缀和",
+      "哈希表"
+    ],
+    "code_python3": "def distance(self, nums):\n    from collections import defaultdict\n    groups = defaultdict(list)\n    for i, x in enumerate(nums):\n        groups[x].append(i)\n    res = [0] * len(nums)\n    for indices in groups.values():\n        n = len(indices)\n        prefix = [0] * (n + 1)\n        for i in range(n):\n            prefix[i+1] = prefix[i] + indices[i]\n        for i in range(n):\n            left = indices[i] * i - prefix[i]\n            right = (prefix[n] - prefix[i+1]) - indices[i] * (n - 1 - i)\n            res[indices[i]] = left + right\n    return res"
+  },
+  {
+    "id": 2616,
+    "title": "Minimize the Maximum Difference of Pairs",
+    "slug": "minimize-the-maximum-difference-of-pairs",
+    "category": "二分查找",
+    "subcategory": "贪心",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Binary search on the maximum difference. For a given max diff, greedily pair adjacent elements in sorted array.",
+    "approach": "Binary Search + Greedy",
+    "time_complexity": "O(n log n + n log D)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "二分查找",
+      "贪心"
+    ],
+    "code_python3": "def minimizeMax(self, nums, p):\n    nums.sort()\n    def can(mid):\n        count = 0\n        i = 0\n        while i < len(nums) - 1:\n            if nums[i+1] - nums[i] <= mid:\n                count += 1\n                i += 2\n            else:\n                i += 1\n        return count >= p\n    lo, hi = 0, nums[-1] - nums[0]\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if can(mid):\n            hi = mid\n        else:\n            lo = mid + 1\n    return lo"
+  },
+  {
+    "id": 2617,
+    "title": "Minimum Number of Visited Cells in a Grid",
+    "slug": "minimum-number-of-visited-cells-in-a-grid",
+    "category": "动态规划",
+    "subcategory": "单调栈",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "BFS/DP with sorted sets or segment trees per row and column to efficiently find the next reachable cell.",
+    "approach": "BFS + Sorted Set per Row/Col",
+    "time_complexity": "O(m*n*log(m*n))",
+    "space_complexity": "O(m*n)",
+    "tags": [
+      "动态规划",
+      "堆"
+    ],
+    "code_python3": "def minimumVisitedCells(self, grid):\n    from sortedcontainers import SortedList\n    m, n = len(grid), len(grid[0])\n    row_avail = [SortedList(range(n)) for _ in range(m)]\n    col_avail = [SortedList(range(m)) for _ in range(n)]\n    from collections import deque\n    dist = [[float('inf')]*n for _ in range(m)]\n    dist[0][0] = 1\n    q = deque([(0, 0)])\n    row_avail[0].discard(0)\n    col_avail[0].discard(0)\n    while q:\n        r, c = q.popleft()\n        val = grid[r][c]\n        # move right\n        if val > 0:\n            idx = row_avail[r].bisect_left(c+1)\n            while idx < len(row_avail[r]) and row_avail[r][idx] <= c + val:\n                nc = row_avail[r][idx]\n                dist[r][nc] = dist[r][c] + 1\n                q.append((r, nc))\n                col_avail[nc].discard(r)\n                row_avail[r].discard(nc)\n                idx = row_avail[r].bisect_left(c+1)\n            # move down\n            idx2 = col_avail[c].bisect_left(r+1)\n            while idx2 < len(col_avail[c]) and col_avail[c][idx2] <= r + val:\n                nr = col_avail[c][idx2]\n                dist[nr][c] = dist[r][c] + 1\n                q.append((nr, c))\n                row_avail[nr].discard(c)\n                col_avail[c].discard(nr)\n                idx2 = col_avail[c].bisect_left(r+1)\n    return dist[m-1][n-1] if dist[m-1][n-1] != float('inf') else -1"
+  },
+  {
+    "id": 2618,
+    "title": "Check if Object Instance of Class",
+    "slug": "check-if-object-instance-of-class",
+    "category": "设计",
+    "subcategory": "JavaScript原型链",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Walk up the prototype chain of obj and check if any prototype matches classFunction.prototype.",
+    "approach": "Prototype Chain Traversal",
+    "time_complexity": "O(d) where d is prototype chain depth",
+    "space_complexity": "O(1)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "# JavaScript problem - Python equivalent concept\ndef checkIfInstanceOf(obj, classFunction):\n    # This is a JS problem, Python equivalent:\n    return isinstance(obj, classFunction) if classFunction else False"
+  },
+  {
+    "id": 2619,
+    "title": "Array Prototype Last",
+    "slug": "array-prototype-last",
+    "category": "设计",
+    "subcategory": "JavaScript扩展",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Return the last element of the array, or -1 if empty.",
+    "approach": "Array Method Extension",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "# JavaScript problem - Python equivalent:\ndef last(arr):\n    return arr[-1] if arr else -1"
+  },
+  {
+    "id": 2620,
+    "title": "Counter",
+    "slug": "counter",
+    "category": "设计",
+    "subcategory": "闭包",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Return a closure that increments and returns a counter starting from n.",
+    "approach": "Closure",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "# JavaScript problem - Python equivalent:\ndef createCounter(n):\n    count = [n - 1]\n    def counter():\n        count[0] += 1\n        return count[0]\n    return counter"
+  },
+  {
+    "id": 2621,
+    "title": "Sleep",
+    "slug": "sleep",
+    "category": "设计",
+    "subcategory": "异步编程",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Return a promise that resolves after given milliseconds.",
+    "approach": "Promise/Async",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "# JavaScript problem - Python equivalent:\nimport asyncio\nasync def sleep(millis):\n    await asyncio.sleep(millis / 1000)"
+  },
+  {
+    "id": 2622,
+    "title": "Cache With Time Limit",
+    "slug": "cache-with-time-limit",
+    "category": "设计",
+    "subcategory": "缓存",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Implement a key-value cache where entries expire after a given duration.",
+    "approach": "HashMap with Expiry",
+    "time_complexity": "O(1) per operation",
+    "space_complexity": "O(n)",
+    "tags": [
+      "设计",
+      "哈希表"
+    ],
+    "code_python3": "import time\nclass TimeLimitedCache:\n    def __init__(self):\n        self.cache = {}\n    def set(self, key, value, duration):\n        existed = key in self.cache and self.cache[key][1] > time.time()\n        self.cache[key] = (value, time.time() + duration / 1000)\n        return existed\n    def get(self, key):\n        if key in self.cache and self.cache[key][1] > time.time():\n            return self.cache[key][0]\n        return -1\n    def count(self):\n        now = time.time()\n        return sum(1 for v in self.cache.values() if v[1] > now)"
+  },
+  {
+    "id": 2623,
+    "title": "Memoize",
+    "slug": "memoize",
+    "category": "设计",
+    "subcategory": "缓存",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Create a memoization wrapper that caches function results based on input arguments.",
+    "approach": "Memoization Decorator",
+    "time_complexity": "O(1) per cached call",
+    "space_complexity": "O(n)",
+    "tags": [
+      "设计",
+      "哈希表"
+    ],
+    "code_python3": "def memoize(fn):\n    cache = {}\n    def wrapper(*args):\n        key = args\n        if key not in cache:\n            cache[key] = fn(*args)\n        return cache[key]\n    return wrapper"
+  },
+  {
+    "id": 2624,
+    "title": "Snail Traversal",
+    "slug": "snail-traversal",
+    "category": "数组",
+    "subcategory": "矩阵遍历",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Fill a matrix in snail pattern: top to bottom for odd columns, bottom to top for even columns.",
+    "approach": "Column-wise Zigzag Fill",
+    "time_complexity": "O(m*n)",
+    "space_complexity": "O(m*n)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "def snail(nums, m, n):\n    if m * n != len(nums):\n        return []\n    matrix = [[0]*n for _ in range(m)]\n    idx = 0\n    for col in range(n):\n        if col % 2 == 0:\n            for row in range(m):\n                matrix[row][col] = nums[idx]\n                idx += 1\n        else:\n            for row in range(m-1, -1, -1):\n                matrix[row][col] = nums[idx]\n                idx += 1\n    return matrix"
+  },
+  {
+    "id": 2625,
+    "title": "Flatten Deeply Nested Array",
+    "slug": "flatten-deeply-nested-array",
+    "category": "数组",
+    "subcategory": "递归",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Recursively flatten array up to given depth.",
+    "approach": "Recursive Flatten",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(d)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "def flat(arr, n):\n    res = []\n    for item in arr:\n        if isinstance(item, list) and n > 0:\n            res.extend(flat(item, n - 1))\n        else:\n            res.append(item)\n    return res"
+  },
+  {
+    "id": 2626,
+    "title": "Array Reduce Transformation",
+    "slug": "array-reduce-transformation",
+    "category": "数组",
+    "subcategory": "函数式编程",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Implement reduce: apply function cumulatively to array elements with initial value.",
+    "approach": "Functional Reduce",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "def reduce(nums, fn, init):\n    result = init\n    for x in nums:\n        result = fn(result, x)\n    return result"
+  },
+  {
+    "id": 2627,
+    "title": "Debounce",
+    "slug": "debounce",
+    "category": "设计",
+    "subcategory": "异步编程",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Return a debounced version of the function that delays execution until after wait ms of inactivity.",
+    "approach": "Timer-based Debounce",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "# JavaScript problem - Python concept:\nimport threading\ndef debounce(fn, t):\n    timer = [None]\n    def debounced(*args):\n        if timer[0]:\n            timer[0].cancel()\n        timer[0] = threading.Timer(t/1000, fn, args)\n        timer[0].start()\n    return debounced"
+  },
+  {
+    "id": 2628,
+    "title": "JSON Deep Equal",
+    "slug": "json-deep-equal",
+    "category": "设计",
+    "subcategory": "递归",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Recursively compare two JSON values for deep equality.",
+    "approach": "Recursive Deep Comparison",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(d)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "def areDeeplyEqual(o1, o2):\n    if type(o1) != type(o2):\n        return False\n    if isinstance(o1, dict):\n        if o1.keys() != o2.keys():\n            return False\n        return all(areDeeplyEqual(o1[k], o2[k]) for k in o1)\n    if isinstance(o1, list):\n        if len(o1) != len(o2):\n            return False\n        return all(areDeeplyEqual(a, b) for a, b in zip(o1, o2))\n    return o1 == o2"
+  },
+  {
+    "id": 2629,
+    "title": "Function Composition",
+    "slug": "function-composition",
+    "category": "设计",
+    "subcategory": "函数式编程",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Compose functions right to left: compose([f,g,h])(x) = f(g(h(x))).",
+    "approach": "Function Composition",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "def compose(functions):\n    def composed(x):\n        for fn in reversed(functions):\n            x = fn(x)\n        return x\n    return composed"
+  },
+  {
+    "id": 2630,
+    "title": "Memoize II",
+    "slug": "memoize-ii",
+    "category": "设计",
+    "subcategory": "缓存",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Memoize with support for object references as arguments. Need a custom key strategy that handles identity.",
+    "approach": "Reference-based Memoization",
+    "time_complexity": "O(1) per call",
+    "space_complexity": "O(n)",
+    "tags": [
+      "设计",
+      "哈希表"
+    ],
+    "code_python3": "def memoize2(fn):\n    cache = {}\n    id_map = {}\n    counter = [0]\n    def get_id(obj):\n        obj_id = id(obj)\n        if obj_id not in id_map:\n            id_map[obj_id] = counter[0]\n            counter[0] += 1\n        return id_map[obj_id]\n    def wrapper(*args):\n        key = tuple(get_id(a) if not isinstance(a, (int, float, str, bool)) else a for a in args)\n        if key not in cache:\n            cache[key] = fn(*args)\n        return cache[key]\n    return wrapper"
+  },
+  {
+    "id": 2631,
+    "title": "Group By",
+    "slug": "group-by",
+    "category": "哈希表",
+    "subcategory": "函数式编程",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Group array elements by the result of calling a function on each element.",
+    "approach": "HashMap Grouping",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "哈希表"
+    ],
+    "code_python3": "def groupBy(arr, fn):\n    result = {}\n    for item in arr:\n        key = fn(item)\n        if key not in result:\n            result[key] = []\n        result[key].append(item)\n    return result"
+  },
+  {
+    "id": 2632,
+    "title": "Curry",
+    "slug": "curry",
+    "category": "设计",
+    "subcategory": "函数式编程",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Return a curried version of the function that collects arguments until enough are provided.",
+    "approach": "Currying / Partial Application",
+    "time_complexity": "O(1) per call",
+    "space_complexity": "O(n)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "import functools\ndef curry(fn):\n    @functools.wraps(fn)\n    def curried(*args):\n        if len(args) >= fn.__code__.co_argcount:\n            return fn(*args)\n        return lambda *more: curried(*args, *more)\n    return curried"
+  },
+  {
+    "id": 2633,
+    "title": "Convert Object to JSON String",
+    "slug": "convert-object-to-json-string",
+    "category": "设计",
+    "subcategory": "递归",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Recursively convert a Python/JS object to its JSON string representation.",
+    "approach": "Recursive Serialization",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(d)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "import json\ndef jsonStringify(obj):\n    return json.dumps(obj)"
+  },
+  {
+    "id": 2634,
+    "title": "Filter Elements from Array",
+    "slug": "filter-elements-from-array",
+    "category": "数组",
+    "subcategory": "函数式编程",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Return elements where the callback returns truthy, passing both element and index.",
+    "approach": "Filter",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "def filter_arr(arr, fn):\n    return [arr[i] for i in range(len(arr)) if fn(arr[i], i)]"
+  },
+  {
+    "id": 2635,
+    "title": "Apply Transform Over Each Element in Array",
+    "slug": "apply-transform-over-each-element-in-array",
+    "category": "数组",
+    "subcategory": "函数式编程",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Apply a transformation function to each element and return new array.",
+    "approach": "Map",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "def map_arr(arr, fn):\n    return [fn(arr[i], i) for i in range(len(arr))]"
+  },
+  {
+    "id": 2636,
+    "title": "Promise Pool",
+    "slug": "promise-pool",
+    "category": "设计",
+    "subcategory": "并发控制",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Execute async functions with concurrency limit n. When one finishes, start the next.",
+    "approach": "Concurrency Pool",
+    "time_complexity": "O(m)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "import asyncio\nasync def promisePool(functions, n):\n    semaphore = asyncio.Semaphore(n)\n    async def run(fn):\n        async with semaphore:\n            await fn()\n    await asyncio.gather(*(run(fn) for fn in functions))"
+  },
+  {
+    "id": 2637,
+    "title": "Promise Time Limit",
+    "slug": "promise-time-limit",
+    "category": "设计",
+    "subcategory": "异步编程",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Wrap an async function with a timeout. Reject if it doesn't resolve within t ms.",
+    "approach": "Timeout Wrapper",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "设计"
+    ],
+    "code_python3": "import asyncio\ndef timeLimit(fn, t):\n    async def wrapper(*args):\n        return await asyncio.wait_for(fn(*args), timeout=t/1000)\n    return wrapper"
+  },
+  {
+    "id": 2638,
+    "title": "Count the Number of K-Free Subsets",
+    "slug": "count-the-number-of-k-free-subsets",
+    "category": "动态规划",
+    "subcategory": "分组DP",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Group numbers by value mod k. Within each group sorted, no two elements can differ by exactly k (i.e., adjacent in sorted group). Use house robber DP per group.",
+    "approach": "Group by Mod + House Robber DP",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "动态规划"
+    ],
+    "code_python3": "def countTheNumOfKFreeSubsets(self, nums, k):\n    from collections import defaultdict\n    groups = defaultdict(list)\n    for x in sorted(nums):\n        groups[x % k].append(x)\n    result = 1\n    for mod_val in groups:\n        g = groups[mod_val]\n        # dp: skip or take\n        prev_skip = 1\n        prev_take = 1\n        for i in range(1, len(g)):\n            if g[i] - g[i-1] == k:\n                new_skip = prev_skip + prev_take\n                new_take = prev_skip\n            else:\n                new_skip = prev_skip + prev_take\n                new_take = prev_skip + prev_take\n            prev_skip, prev_take = new_skip, new_take\n        result *= (prev_skip + prev_take)\n    return result"
+  },
+  {
+    "id": 2639,
+    "title": "Find the Width of Columns of a Grid",
+    "slug": "find-the-width-of-columns-of-a-grid",
+    "category": "数组",
+    "subcategory": "矩阵",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "For each column, find the maximum width (number of characters including sign) of all elements.",
+    "approach": "Column Width Calculation",
+    "time_complexity": "O(m*n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "def findColumnWidth(self, grid):\n    m, n = len(grid), len(grid[0])\n    res = [0] * n\n    for j in range(n):\n        for i in range(m):\n            res[j] = max(res[j], len(str(grid[i][j])))\n    return res"
+  },
+  {
+    "id": 2640,
+    "title": "Find the Score of All Prefixes of an Array",
+    "slug": "find-the-score-of-all-prefixes-of-an-array",
+    "category": "前缀和",
+    "subcategory": "数组",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Score of prefix ending at i is sum of (nums[j] + max(nums[0..j])) for j=0..i. Track running max and prefix sum.",
+    "approach": "Running Max + Prefix Sum",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "前缀和",
+      "数组"
+    ],
+    "code_python3": "def findPrefixScore(self, nums):\n    n = len(nums)\n    res = [0] * n\n    max_so_far = 0\n    running = 0\n    for i in range(n):\n        max_so_far = max(max_so_far, nums[i])\n        running += nums[i] + max_so_far\n        res[i] = running\n    return res"
+  }
+]

@@ -1,0 +1,1110 @@
+[
+  {
+    "id": 721,
+    "title": "Accounts Merge",
+    "slug": "accounts-merge",
+    "category": "图",
+    "subcategory": "并查集",
+    "real_difficulty": 6,
+    "official_difficulty": "Medium",
+    "key_insight": "将每个邮箱视为节点，同一账户的邮箱互相连通，用并查集合并连通分量",
+    "approach": "1. 为每个邮箱建立并查集节点\n2. 同一账户内的邮箱两两合并\n3. 按根节点分组收集邮箱\n4. 排序后与账户名组合输出",
+    "time_complexity": "O(n*α(n))",
+    "space_complexity": "O(n)",
+    "tags": [
+      "Union Find",
+      "DFS",
+      "Graph"
+    ],
+    "code_python3": "class Solution:\n    def accountsMerge(self, accounts):\n        parent = {}\n        def find(x):\n            parent.setdefault(x, x)\n            while parent[x] != x:\n                parent[x] = parent[parent[x]]\n                x = parent[x]\n            return x\n        def union(x, y):\n            parent[find(x)] = find(y)\n        email_to_name = {}\n        for acc in accounts:\n            name = acc[0]\n            for email in acc[1:]:\n                email_to_name[email] = name\n                union(email, acc[1])\n        from collections import defaultdict\n        groups = defaultdict(list)\n        for email in email_to_name:\n            groups[find(email)].append(email)\n        return [[email_to_name[root]] + sorted(emails) for root, emails in groups.items()]"
+  },
+  {
+    "id": 722,
+    "title": "Remove Comments",
+    "slug": "remove-comments",
+    "category": "数组",
+    "subcategory": "字符串模拟",
+    "real_difficulty": 5,
+    "official_difficulty": "Medium",
+    "key_insight": "逐字符扫描，用状态标记是否在块注释内，处理行注释和块注释的起止",
+    "approach": "1. 逐行逐字符扫描\n2. 遇到//跳过当前行剩余\n3. 遇到/*标记进入块注释\n4. 在块注释中遇到*/恢复正常\n5. 正常字符追加到当前行缓冲",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "String",
+      "Simulation"
+    ],
+    "code_python3": "class Solution:\n    def removeComments(self, source):\n        in_block = False\n        res, buf = [], []\n        for line in source:\n            i = 0\n            while i < len(line):\n                if not in_block and i+1 < len(line) and line[i:i+2] == '//':\n                    break\n                elif not in_block and i+1 < len(line) and line[i:i+2] == '/*':\n                    in_block = True\n                    i += 2\n                elif in_block and i+1 < len(line) and line[i:i+2] == '*/':\n                    in_block = False\n                    i += 2\n                elif not in_block:\n                    buf.append(line[i])\n                    i += 1\n                else:\n                    i += 1\n            if not in_block and buf:\n                res.append(''.join(buf))\n                buf = []\n        return res"
+  },
+  {
+    "id": 723,
+    "title": "Candy Crush",
+    "slug": "candy-crush",
+    "category": "数组",
+    "subcategory": "模拟",
+    "real_difficulty": 5,
+    "official_difficulty": "Medium",
+    "key_insight": "反复标记需要消除的candy然后下落填充直到无可消除",
+    "approach": "1. 扫描横向和纵向连续3个以上相同candy并标记\n2. 将标记位置置零\n3. 对每列执行重力下落\n4. 重复直到无标记",
+    "time_complexity": "O((r*c)^2)",
+    "space_complexity": "O(r*c)",
+    "tags": [
+      "Array",
+      "Matrix",
+      "Simulation"
+    ],
+    "code_python3": "class Solution:\n    def candyCrush(self, board):\n        R, C = len(board), len(board[0])\n        while True:\n            crush = set()\n            for r in range(R):\n                for c in range(C-2):\n                    if board[r][c] and board[r][c]==board[r][c+1]==board[r][c+2]:\n                        crush |= {(r,c),(r,c+1),(r,c+2)}\n            for r in range(R-2):\n                for c in range(C):\n                    if board[r][c] and board[r][c]==board[r+1][c]==board[r+2][c]:\n                        crush |= {(r,c),(r+1,c),(r+2,c)}\n            if not crush: return board\n            for r,c in crush: board[r][c] = 0\n            for c in range(C):\n                idx = R-1\n                for r in range(R-1,-1,-1):\n                    if board[r][c]:\n                        board[idx][c] = board[r][c]\n                        if idx != r: board[r][c] = 0\n                        idx -= 1\n                for r in range(idx,-1,-1): board[r][c] = 0"
+  },
+  {
+    "id": 724,
+    "title": "Find Pivot Index",
+    "slug": "find-pivot-index",
+    "category": "前缀和",
+    "subcategory": "前缀和基础",
+    "real_difficulty": 2,
+    "official_difficulty": "Easy",
+    "key_insight": "寻找左侧和等于右侧和的位置，利用总和减去当前值和左侧和即为右侧和",
+    "approach": "1. 计算总和\n2. 从左遍历维护左侧和\n3. 判断左侧和是否等于总和-左侧和-当前值\n4. 返回第一个满足条件的下标",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "Array",
+      "Prefix Sum"
+    ],
+    "code_python3": "class Solution:\n    def pivotIndex(self, nums):\n        total = sum(nums)\n        left = 0\n        for i, x in enumerate(nums):\n            if left == total - left - x:\n                return i\n            left += x\n        return -1"
+  },
+  {
+    "id": 725,
+    "title": "Split Linked List in Parts",
+    "slug": "split-linked-list-in-parts",
+    "category": "链表",
+    "subcategory": "链表分割",
+    "real_difficulty": 4,
+    "official_difficulty": "Medium",
+    "key_insight": "计算每段长度为n//k，前n%k段多分配一个节点",
+    "approach": "1. 计算链表长度n\n2. 每段基础长度width=n//k，余数rem=n%k\n3. 前rem段长度为width+1\n4. 依次切断链表",
+    "time_complexity": "O(n+k)",
+    "space_complexity": "O(k)",
+    "tags": [
+      "Linked List"
+    ],
+    "code_python3": "class Solution:\n    def splitListToParts(self, head, k):\n        n, cur = 0, head\n        while cur: n += 1; cur = cur.next\n        width, rem = divmod(n, k)\n        res, cur = [], head\n        for i in range(k):\n            res.append(cur)\n            size = width + (1 if i < rem else 0)\n            for _ in range(size - 1):\n                if cur: cur = cur.next\n            if cur:\n                nxt = cur.next\n                cur.next = None\n                cur = nxt\n        return res"
+  },
+  {
+    "id": 726,
+    "title": "Number of Atoms",
+    "slug": "number-of-atoms",
+    "category": "栈",
+    "subcategory": "表达式解析",
+    "real_difficulty": 6,
+    "official_difficulty": "Hard",
+    "key_insight": "用栈处理括号嵌套，遇到右括号时弹出并乘以后续数字",
+    "approach": "1. 用栈存储每层的计数字典\n2. 遇到左括号压入新字典\n3. 遇到右括号弹出并乘以倍数合并到栈顶\n4. 遇到元素名+数字直接加入栈顶\n5. 最终排序输出",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "Stack",
+      "String",
+      "Hash Table"
+    ],
+    "code_python3": "class Solution:\n    def countOfAtoms(self, formula):\n        from collections import defaultdict\n        stack = [defaultdict(int)]\n        i, n = 0, len(formula)\n        while i < n:\n            if formula[i] == '(':\n                stack.append(defaultdict(int))\n                i += 1\n            elif formula[i] == ')':\n                i += 1\n                j = i\n                while i < n and formula[i].isdigit(): i += 1\n                mult = int(formula[j:i] or 1)\n                top = stack.pop()\n                for k, v in top.items(): stack[-1][k] += v * mult\n            else:\n                j = i; i += 1\n                while i < n and formula[i].islower(): i += 1\n                name = formula[j:i]; j = i\n                while i < n and formula[i].isdigit(): i += 1\n                stack[-1][name] += int(formula[j:i] or 1)\n        return ''.join(k + (str(v) if v > 1 else '') for k, v in sorted(stack[-1].items()))"
+  },
+  {
+    "id": 727,
+    "title": "Minimum Window Subsequence",
+    "slug": "minimum-window-subsequence",
+    "category": "动态规划",
+    "subcategory": "子序列DP",
+    "real_difficulty": 7,
+    "official_difficulty": "Hard",
+    "key_insight": "dp[i][j]表示S前i个字符中包含T前j个字符作为子序列时的最左起始位置",
+    "approach": "1. dp[i][j]记录以S[i]结尾匹配T[0..j]的最早起始位置\n2. 若S[i]==T[j]则dp[i][j]=dp[i-1][j-1]\n3. 否则dp[i][j]=dp[i-1][j]\n4. 遍历找最小窗口",
+    "time_complexity": "O(m*n)",
+    "space_complexity": "O(m*n)",
+    "tags": [
+      "Dynamic Programming",
+      "String",
+      "Sliding Window"
+    ],
+    "code_python3": "class Solution:\n    def minWindow(self, s1, s2):\n        m, n = len(s1), len(s2)\n        dp = [[-1]*n for _ in range(m)]\n        for i in range(m):\n            if s1[i] == s2[0]: dp[i][0] = i\n            elif i > 0: dp[i][0] = dp[i-1][0]\n        for j in range(1, n):\n            for i in range(1, m):\n                if s1[i] == s2[j]: dp[i][j] = dp[i-1][j-1]\n                else: dp[i][j] = dp[i-1][j]\n        start, length = -1, m+1\n        for i in range(m):\n            if dp[i][n-1] >= 0:\n                l = i - dp[i][n-1] + 1\n                if l < length: length = l; start = dp[i][n-1]\n        return '' if start == -1 else s1[start:start+length]"
+  },
+  {
+    "id": 728,
+    "title": "Self Dividing Numbers",
+    "slug": "self-dividing-numbers",
+    "category": "数学",
+    "subcategory": "数位操作",
+    "real_difficulty": 1,
+    "official_difficulty": "Easy",
+    "key_insight": "对每个数字检查其各位数字是否都能整除该数本身",
+    "approach": "1. 遍历范围内每个数\n2. 提取各位数字\n3. 判断是否有0或不能整除\n4. 满足条件加入结果",
+    "time_complexity": "O(n*d)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "Math"
+    ],
+    "code_python3": "class Solution:\n    def selfDividingNumbers(self, left, right):\n        def check(n):\n            x = n\n            while x:\n                d = x % 10\n                if d == 0 or n % d != 0: return False\n                x //= 10\n            return True\n        return [i for i in range(left, right+1) if check(i)]"
+  },
+  {
+    "id": 729,
+    "title": "My Calendar I",
+    "slug": "my-calendar-i",
+    "category": "设计",
+    "subcategory": "区间管理",
+    "real_difficulty": 4,
+    "official_difficulty": "Medium",
+    "key_insight": "维护有序区间列表，每次预订检查是否与已有区间重叠",
+    "approach": "1. 用排序列表存储已预订区间\n2. 新区间检查是否与任何已有区间重叠\n3. 不重叠则插入并返回True",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "Design",
+      "Binary Search"
+    ],
+    "code_python3": "class MyCalendar:\n    def __init__(self):\n        self.events = []\n    def book(self, start, end):\n        for s, e in self.events:\n            if start < e and end > s: return False\n        self.events.append((start, end))\n        return True"
+  },
+  {
+    "id": 730,
+    "title": "Count Different Palindromic Subsequences",
+    "slug": "count-different-palindromic-subsequences",
+    "category": "动态规划",
+    "subcategory": "区间DP",
+    "real_difficulty": 9,
+    "official_difficulty": "Hard",
+    "key_insight": "区间DP统计不同回文子序列数量，需处理重复计数",
+    "approach": "1. dp[i][j]表示s[i..j]中不同回文子序列数\n2. 按区间长度递增计算\n3. 对首尾字符相同时找内层边界\n4. 根据内外层关系转移",
+    "time_complexity": "O(n^2)",
+    "space_complexity": "O(n^2)",
+    "tags": [
+      "Dynamic Programming",
+      "String"
+    ],
+    "code_python3": "class Solution:\n    def countPalindromicSubsequences(self, s):\n        MOD = 10**9+7\n        n = len(s)\n        dp = [[0]*n for _ in range(n)]\n        for i in range(n): dp[i][i] = 1\n        for l in range(2, n+1):\n            for i in range(n-l+1):\n                j = i+l-1\n                if s[i] == s[j]:\n                    lo, hi = i+1, j-1\n                    while lo <= hi and s[lo] != s[i]: lo += 1\n                    while hi >= lo and s[hi] != s[i]: hi -= 1\n                    if lo > hi: dp[i][j] = dp[i+1][j-1]*2+2\n                    elif lo == hi: dp[i][j] = dp[i+1][j-1]*2+1\n                    else: dp[i][j] = dp[i+1][j-1]*2-dp[lo+1][hi-1]\n                else: dp[i][j] = dp[i+1][j]+dp[i][j-1]-dp[i+1][j-1]\n                dp[i][j] %= MOD\n        return dp[0][n-1] % MOD"
+  },
+  {
+    "id": 731,
+    "title": "My Calendar II",
+    "slug": "my-calendar-ii",
+    "category": "设计",
+    "subcategory": "差分数组",
+    "real_difficulty": 5,
+    "official_difficulty": "Medium",
+    "key_insight": "维护bookings和overlaps两个列表检查是否产生三重预订",
+    "approach": "1. 维护bookings和overlaps两个列表\n2. 新区间先检查是否与overlaps有交集\n3. 无三重则计算与bookings的交集加入overlaps\n4. 将新区间加入bookings",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "Design",
+      "Ordered Set"
+    ],
+    "code_python3": "class MyCalendarTwo:\n    def __init__(self):\n        self.bookings = []\n        self.overlaps = []\n    def book(self, start, end):\n        for s, e in self.overlaps:\n            if start < e and end > s: return False\n        for s, e in self.bookings:\n            if start < e and end > s:\n                self.overlaps.append((max(start,s), min(end,e)))\n        self.bookings.append((start, end))\n        return True"
+  },
+  {
+    "id": 732,
+    "title": "My Calendar III",
+    "slug": "my-calendar-iii",
+    "category": "设计",
+    "subcategory": "差分数组",
+    "real_difficulty": 6,
+    "official_difficulty": "Hard",
+    "key_insight": "差分数组思想，起点+1终点-1，求最大前缀和即最大重叠数",
+    "approach": "1. 用有序字典记录事件点\n2. 起始点+1，结束点-1\n3. 每次book后遍历求最大前缀和",
+    "time_complexity": "O(n^2)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "Design",
+      "Ordered Set"
+    ],
+    "code_python3": "from sortedcontainers import SortedDict\nclass MyCalendarThree:\n    def __init__(self):\n        self.d = SortedDict()\n    def book(self, start, end):\n        self.d[start] = self.d.get(start, 0) + 1\n        self.d[end] = self.d.get(end, 0) - 1\n        res = cur = 0\n        for v in self.d.values():\n            cur += v\n            res = max(res, cur)\n        return res"
+  },
+  {
+    "id": 733,
+    "title": "Flood Fill",
+    "slug": "flood-fill",
+    "category": "图",
+    "subcategory": "BFS/DFS",
+    "real_difficulty": 2,
+    "official_difficulty": "Easy",
+    "key_insight": "从起始点DFS将所有相同颜色的连通区域填充为新颜色",
+    "approach": "1. 记录起始点颜色\n2. 若新颜色与旧颜色相同直接返回\n3. DFS遍历四方向相邻同色点\n4. 将访问到的点填充新颜色",
+    "time_complexity": "O(m*n)",
+    "space_complexity": "O(m*n)",
+    "tags": [
+      "DFS",
+      "BFS",
+      "Matrix"
+    ],
+    "code_python3": "class Solution:\n    def floodFill(self, image, sr, sc, color):\n        old = image[sr][sc]\n        if old == color: return image\n        def dfs(r, c):\n            if 0<=r<len(image) and 0<=c<len(image[0]) and image[r][c]==old:\n                image[r][c] = color\n                for dr,dc in [(0,1),(0,-1),(1,0),(-1,0)]: dfs(r+dr,c+dc)\n        dfs(sr, sc)\n        return image"
+  },
+  {
+    "id": 734,
+    "title": "Sentence Similarity",
+    "slug": "sentence-similarity",
+    "category": "哈希表",
+    "subcategory": "集合查询",
+    "real_difficulty": 2,
+    "official_difficulty": "Easy",
+    "key_insight": "将相似对存入集合，逐词判断是否相同或在相似对中",
+    "approach": "1. 将相似对双向存入集合\n2. 判断两句长度是否相等\n3. 逐词判断是否相同或在相似集合中",
+    "time_complexity": "O(n+p)",
+    "space_complexity": "O(p)",
+    "tags": [
+      "Hash Table",
+      "String"
+    ],
+    "code_python3": "class Solution:\n    def areSentencesSimilar(self, s1, s2, pairs):\n        if len(s1) != len(s2): return False\n        sim = set()\n        for a, b in pairs: sim.add((a,b)); sim.add((b,a))\n        return all(a==b or (a,b) in sim for a,b in zip(s1,s2))"
+  },
+  {
+    "id": 735,
+    "title": "Asteroid Collision",
+    "slug": "asteroid-collision",
+    "category": "栈",
+    "subcategory": "栈模拟",
+    "real_difficulty": 4,
+    "official_difficulty": "Medium",
+    "key_insight": "用栈模拟碰撞过程，正数入栈，负数与栈顶正数比较大小",
+    "approach": "1. 遍历小行星，正数直接入栈\n2. 负数与栈顶正数比较\n3. 栈顶较小则弹出继续比较\n4. 相等则两者都消失\n5. 负数较大则入栈",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "Stack",
+      "Array",
+      "Simulation"
+    ],
+    "code_python3": "class Solution:\n    def asteroidCollision(self, asteroids):\n        stack = []\n        for a in asteroids:\n            while stack and a < 0 < stack[-1]:\n                if stack[-1] < -a:\n                    stack.pop(); continue\n                elif stack[-1] == -a:\n                    stack.pop()\n                break\n            else:\n                stack.append(a)\n        return stack"
+  },
+  {
+    "id": 736,
+    "title": "Parse Lisp Expression",
+    "slug": "parse-lisp-expression",
+    "category": "栈",
+    "subcategory": "递归解析",
+    "real_difficulty": 8,
+    "official_difficulty": "Hard",
+    "key_insight": "递归解析Lisp表达式，维护变量作用域栈处理let/add/mult",
+    "approach": "1. 递归解析表达式\n2. let依次绑定变量最后求值\n3. add/mult递归求值两个子表达式\n4. 用字典栈管理变量作用域",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "Stack",
+      "Recursion",
+      "String"
+    ],
+    "code_python3": "class Solution:\n    def evaluate(self, expression):\n        def parse(expr, scope):\n            if expr[0] != '(':\n                return int(expr) if expr.lstrip('-').isdigit() else scope[expr]\n            expr = expr[1:-1]\n            tokens = tokenize(expr)\n            if tokens[0] == 'let':\n                ns = dict(scope)\n                i = 1\n                while i < len(tokens)-1:\n                    ns[tokens[i]] = parse(tokens[i+1], ns); i += 2\n                return parse(tokens[-1], ns)\n            elif tokens[0] == 'add':\n                return parse(tokens[1], scope) + parse(tokens[2], scope)\n            else:\n                return parse(tokens[1], scope) * parse(tokens[2], scope)\n        def tokenize(expr):\n            tokens, i, n = [], 0, len(expr)\n            while i < n:\n                if expr[i] == ' ': i += 1\n                elif expr[i] == '(':\n                    d, j = 1, i+1\n                    while d > 0:\n                        if expr[j]=='(': d+=1\n                        elif expr[j]==')': d-=1\n                        j += 1\n                    tokens.append(expr[i:j]); i = j\n                else:\n                    j = i\n                    while j < n and expr[j] != ' ': j += 1\n                    tokens.append(expr[i:j]); i = j\n            return tokens\n        return parse(expression, {})"
+  },
+  {
+    "id": 737,
+    "title": "Sentence Similarity II",
+    "slug": "sentence-similarity-ii",
+    "category": "图",
+    "subcategory": "并查集",
+    "real_difficulty": 4,
+    "official_difficulty": "Medium",
+    "key_insight": "相似关系具有传递性，用并查集将传递闭包的词语合并",
+    "approach": "1. 用并查集将相似对中的词合并\n2. 判断两句长度是否相等\n3. 逐词判断是否在同一集合中",
+    "time_complexity": "O(n*α(n)+p)",
+    "space_complexity": "O(p)",
+    "tags": [
+      "Union Find",
+      "DFS",
+      "Hash Table"
+    ],
+    "code_python3": "class Solution:\n    def areSentencesSimilarTwo(self, s1, s2, pairs):\n        if len(s1) != len(s2): return False\n        parent = {}\n        def find(x):\n            parent.setdefault(x, x)\n            while parent[x] != x: parent[x] = parent[parent[x]]; x = parent[x]\n            return x\n        for a, b in pairs: parent[find(a)] = find(b)\n        return all(a==b or find(a)==find(b) for a,b in zip(s1,s2))"
+  },
+  {
+    "id": 738,
+    "title": "Monotone Increasing Digits",
+    "slug": "monotone-increasing-digits",
+    "category": "贪心",
+    "subcategory": "数位贪心",
+    "real_difficulty": 5,
+    "official_difficulty": "Medium",
+    "key_insight": "从高位到低位找第一个递减位置，该位减1后面全填9",
+    "approach": "1. 将数字转为字符数组\n2. 从右向左找最后一个s[i-1]>s[i]的位置\n3. s[i-1]减1\n4. i及之后全部填9",
+    "time_complexity": "O(d)",
+    "space_complexity": "O(d)",
+    "tags": [
+      "Greedy",
+      "Math"
+    ],
+    "code_python3": "class Solution:\n    def monotoneIncreasingDigits(self, n):\n        s = list(str(n))\n        mark = len(s)\n        for i in range(len(s)-1, 0, -1):\n            if s[i-1] > s[i]:\n                mark = i\n                s[i-1] = str(int(s[i-1])-1)\n        for i in range(mark, len(s)): s[i] = '9'\n        return int(''.join(s))"
+  },
+  {
+    "id": 739,
+    "title": "Daily Temperatures",
+    "slug": "daily-temperatures",
+    "category": "单调栈",
+    "subcategory": "下一个更大元素",
+    "real_difficulty": 4,
+    "official_difficulty": "Medium",
+    "key_insight": "单调递减栈存储下标，遇到更大温度时弹栈计算等待天数",
+    "approach": "1. 维护单调递减栈存储下标\n2. 当前温度大于栈顶时弹出\n3. 计算弹出元素到当前的距离\n4. 当前下标入栈",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "Stack",
+      "Monotonic Stack"
+    ],
+    "code_python3": "class Solution:\n    def dailyTemperatures(self, temperatures):\n        n = len(temperatures)\n        res = [0]*n\n        stack = []\n        for i, t in enumerate(temperatures):\n            while stack and temperatures[stack[-1]] < t:\n                j = stack.pop(); res[j] = i-j\n            stack.append(i)\n        return res"
+  },
+  {
+    "id": 740,
+    "title": "Delete and Earn",
+    "slug": "delete-and-earn",
+    "category": "动态规划",
+    "subcategory": "打家劫舍变形",
+    "real_difficulty": 4,
+    "official_difficulty": "Medium",
+    "key_insight": "转化为打家劫舍问题：选择数字x则x-1和x+1都不能选",
+    "approach": "1. 统计每个数字的总分\n2. 转化为值域上的打家劫舍\n3. dp[i]=max(dp[i-1], dp[i-2]+earn[i])",
+    "time_complexity": "O(n+m)",
+    "space_complexity": "O(m)",
+    "tags": [
+      "Dynamic Programming",
+      "Array"
+    ],
+    "code_python3": "class Solution:\n    def deleteAndEarn(self, nums):\n        mx = max(nums)\n        earn = [0]*(mx+1)\n        for x in nums: earn[x] += x\n        prev, curr = 0, 0\n        for i in range(1, mx+1):\n            prev, curr = curr, max(curr, prev+earn[i])\n        return curr"
+  },
+  {
+    "id": 741,
+    "title": "Cherry Pickup",
+    "slug": "cherry-pickup",
+    "category": "动态规划",
+    "subcategory": "三维DP",
+    "real_difficulty": 9,
+    "official_difficulty": "Hard",
+    "key_insight": "两条路径同时从左上走到右下等价于两人同时走避免重复计算",
+    "approach": "1. 转化为两人同时从(0,0)走到(n-1,n-1)\n2. dp[r1][c1][r2]表示两人状态\n3. c2=r1+c1-r2\n4. 枚举两人各自向下或向右组合",
+    "time_complexity": "O(n^3)",
+    "space_complexity": "O(n^3)",
+    "tags": [
+      "Dynamic Programming",
+      "Matrix"
+    ],
+    "code_python3": "class Solution:\n    def cherryPickup(self, grid):\n        n = len(grid)\n        from functools import lru_cache\n        @lru_cache(maxsize=None)\n        def dp(r1, c1, r2):\n            c2 = r1+c1-r2\n            if r1>=n or c1>=n or r2>=n or c2>=n: return -1\n            if grid[r1][c1]==-1 or grid[r2][c2]==-1: return -1\n            if r1==n-1 and c1==n-1: return grid[r1][c1]\n            val = grid[r1][c1] + (grid[r2][c2] if (r1,c1)!=(r2,c2) else 0)\n            best = max(dp(r1+1,c1,r2+1),dp(r1+1,c1,r2),dp(r1,c1+1,r2+1),dp(r1,c1+1,r2))\n            return -1 if best==-1 else val+best\n        return max(0, dp(0,0,0))"
+  },
+  {
+    "id": 742,
+    "title": "Closest Leaf in a Binary Tree",
+    "slug": "closest-leaf-in-a-binary-tree",
+    "category": "树",
+    "subcategory": "BFS",
+    "real_difficulty": 6,
+    "official_difficulty": "Medium",
+    "key_insight": "先建无向图再从目标节点BFS找最近叶子节点",
+    "approach": "1. DFS建立无向图\n2. 找到目标节点k\n3. 从k开始BFS\n4. 第一个到达的叶子节点即为答案",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "Tree",
+      "BFS",
+      "Graph"
+    ],
+    "code_python3": "class Solution:\n    def findClosestLeaf(self, root, k):\n        from collections import defaultdict, deque\n        graph = defaultdict(list)\n        leaves = set()\n        def build(node, par):\n            if not node: return\n            if not node.left and not node.right: leaves.add(node.val)\n            if par:\n                graph[node.val].append(par.val)\n                graph[par.val].append(node.val)\n            build(node.left, node); build(node.right, node)\n        build(root, None)\n        q, seen = deque([k]), {k}\n        while q:\n            cur = q.popleft()\n            if cur in leaves: return cur\n            for nb in graph[cur]:\n                if nb not in seen: seen.add(nb); q.append(nb)\n        return k"
+  },
+  {
+    "id": 743,
+    "title": "Network Delay Time",
+    "slug": "network-delay-time",
+    "category": "图",
+    "subcategory": "Dijkstra",
+    "real_difficulty": 5,
+    "official_difficulty": "Medium",
+    "key_insight": "从源节点出发求单源最短路径，答案为到达所有节点的最大时间",
+    "approach": "1. 建图\n2. 用Dijkstra从源节点计算最短路\n3. 返回所有节点中最大距离\n4. 若有不可达节点返回-1",
+    "time_complexity": "O(E*logV)",
+    "space_complexity": "O(V+E)",
+    "tags": [
+      "Graph",
+      "Dijkstra",
+      "Heap"
+    ],
+    "code_python3": "class Solution:\n    def networkDelayTime(self, times, n, k):\n        import heapq\n        from collections import defaultdict\n        graph = defaultdict(list)\n        for u,v,w in times: graph[u].append((v,w))\n        dist = {}\n        heap = [(0, k)]\n        while heap:\n            d, u = heapq.heappop(heap)\n            if u in dist: continue\n            dist[u] = d\n            for v, w in graph[u]:\n                if v not in dist: heapq.heappush(heap, (d+w, v))\n        return max(dist.values()) if len(dist)==n else -1"
+  },
+  {
+    "id": 744,
+    "title": "Find Smallest Letter Greater Than Target",
+    "slug": "find-smallest-letter-greater-than-target",
+    "category": "二分查找",
+    "subcategory": "二分查找基础",
+    "real_difficulty": 2,
+    "official_difficulty": "Easy",
+    "key_insight": "在有序字母数组中二分查找第一个大于target的字母",
+    "approach": "1. 二分查找第一个大于target的位置\n2. 若位置超出数组则返回首元素(循环)",
+    "time_complexity": "O(logn)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "Binary Search",
+      "Array"
+    ],
+    "code_python3": "class Solution:\n    def nextGreatestLetter(self, letters, target):\n        lo, hi = 0, len(letters)\n        while lo < hi:\n            mid = (lo+hi)//2\n            if letters[mid] <= target: lo = mid+1\n            else: hi = mid\n        return letters[lo % len(letters)]"
+  },
+  {
+    "id": 745,
+    "title": "Prefix and Suffix Search",
+    "slug": "prefix-and-suffix-search",
+    "category": "设计",
+    "subcategory": "Trie",
+    "real_difficulty": 7,
+    "official_difficulty": "Hard",
+    "key_insight": "将每个单词的所有后缀#前缀组合插入Trie中实现快速查询",
+    "approach": "1. 对每个单词生成所有suffix#word的形式\n2. 插入Trie中记录对应权重\n3. 查询时搜索suffix#prefix路径",
+    "time_complexity": "O(n*l^2)",
+    "space_complexity": "O(n*l^2)",
+    "tags": [
+      "Trie",
+      "Design",
+      "String"
+    ],
+    "code_python3": "class WordFilter:\n    def __init__(self, words):\n        self.trie = {}\n        for idx, word in enumerate(words):\n            w = word + '#'\n            for i in range(len(word)+1):\n                cur = self.trie\n                cur['$'] = idx\n                for ch in (w[i:] + word):\n                    cur = cur.setdefault(ch, {})\n                    cur['$'] = idx\n    def f(self, pref, suff):\n        cur = self.trie\n        for ch in (suff + '#' + pref):\n            if ch not in cur: return -1\n            cur = cur[ch]\n        return cur.get('$', -1)"
+  },
+  {
+    "id": 746,
+    "title": "Min Cost Climbing Stairs",
+    "slug": "min-cost-climbing-stairs",
+    "category": "动态规划",
+    "subcategory": "线性DP",
+    "real_difficulty": 2,
+    "official_difficulty": "Easy",
+    "key_insight": "每次可以跳1或2步，dp[i]为到达第i阶的最小花费",
+    "approach": "1. dp[i] = min(dp[i-1]+cost[i-1], dp[i-2]+cost[i-2])\n2. 可以从第0或第1阶开始\n3. 目标是到达顶部(第n阶)",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "Dynamic Programming",
+      "Array"
+    ],
+    "code_python3": "class Solution:\n    def minCostClimbingStairs(self, cost):\n        a, b = 0, 0\n        for i in range(2, len(cost)+1):\n            a, b = b, min(b+cost[i-1], a+cost[i-2])\n        return b"
+  },
+  {
+    "id": 747,
+    "title": "Largest Number At Least Twice of Others",
+    "slug": "largest-number-at-least-twice-of-others",
+    "category": "数组",
+    "subcategory": "线性扫描",
+    "real_difficulty": 1,
+    "official_difficulty": "Easy",
+    "key_insight": "找到最大值并判断是否至少是其他所有元素的两倍",
+    "approach": "1. 找到最大值及其下标\n2. 判断最大值是否>=第二大值*2",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "Array",
+      "Sorting"
+    ],
+    "code_python3": "class Solution:\n    def dominantIndex(self, nums):\n        mx = max(nums)\n        idx = nums.index(mx)\n        for x in nums:\n            if x != mx and mx < 2*x: return -1\n        return idx"
+  },
+  {
+    "id": 748,
+    "title": "Shortest Completing Word",
+    "slug": "shortest-completing-word",
+    "category": "哈希表",
+    "subcategory": "字符频次",
+    "real_difficulty": 2,
+    "official_difficulty": "Easy",
+    "key_insight": "统计licensePlate中的字母频次，找能覆盖这些频次的最短单词",
+    "approach": "1. 统计licensePlate中字母频次(忽略非字母)\n2. 遍历words找能覆盖该频次的最短单词",
+    "time_complexity": "O(n*m)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "Hash Table",
+      "String"
+    ],
+    "code_python3": "class Solution:\n    def shortestCompletingWord(self, licensePlate, words):\n        from collections import Counter\n        target = Counter(c.lower() for c in licensePlate if c.isalpha())\n        res = None\n        for w in words:\n            wc = Counter(w)\n            if all(wc[c] >= target[c] for c in target):\n                if res is None or len(w) < len(res): res = w\n        return res"
+  },
+  {
+    "id": 749,
+    "title": "Contain Virus",
+    "slug": "contain-virus",
+    "category": "图",
+    "subcategory": "BFS模拟",
+    "real_difficulty": 7,
+    "official_difficulty": "Hard",
+    "key_insight": "每轮找威胁最大的病毒区域建墙隔离，然后其余区域扩散，重复直到无扩散",
+    "approach": "1. 每轮BFS找所有病毒连通区域\n2. 找威胁最大的区域(可感染最多新cell)\n3. 建墙隔离该区域，累计墙数\n4. 其余区域扩散\n5. 重复直到无法扩散",
+    "time_complexity": "O((m*n)^2)",
+    "space_complexity": "O(m*n)",
+    "tags": [
+      "DFS",
+      "BFS",
+      "Matrix",
+      "Simulation"
+    ],
+    "code_python3": "class Solution:\n    def containVirus(self, isInfected):\n        R, C = len(isInfected), len(isInfected[0])\n        walls = 0\n        while True:\n            regions, fronts, perimeters = [], [], []\n            visited = [[False]*C for _ in range(R)]\n            for r in range(R):\n                for c in range(C):\n                    if isInfected[r][c]==1 and not visited[r][c]:\n                        region, front, peri = [], set(), 0\n                        q = [(r,c)]; visited[r][c] = True\n                        while q:\n                            x, y = q.pop()\n                            region.append((x,y))\n                            for dx,dy in [(0,1),(0,-1),(1,0),(-1,0)]:\n                                nx,ny = x+dx, y+dy\n                                if 0<=nx<R and 0<=ny<C:\n                                    if isInfected[nx][ny]==1 and not visited[nx][ny]:\n                                        visited[nx][ny]=True; q.append((nx,ny))\n                                    elif isInfected[nx][ny]==0:\n                                        front.add((nx,ny)); peri += 1\n                        regions.append(region); fronts.append(front); perimeters.append(peri)\n            if not regions: break\n            if all(len(f)==0 for f in fronts): break\n            idx = max(range(len(fronts)), key=lambda i: len(fronts[i]))\n            walls += perimeters[idx]\n            for x,y in regions[idx]: isInfected[x][y] = 2\n            for i in range(len(regions)):\n                if i != idx:\n                    for x,y in fronts[i]: isInfected[x][y] = 1\n        return walls"
+  },
+  {
+    "id": 750,
+    "title": "Number Of Corner Rectangles",
+    "slug": "number-of-corner-rectangles",
+    "category": "数组",
+    "subcategory": "组合计数",
+    "real_difficulty": 5,
+    "official_difficulty": "Medium",
+    "key_insight": "枚举两行，统计同一列都为1的列数c，答案累加C(c,2)",
+    "approach": "1. 枚举所有行对(i,j)\n2. 统计两行中同一列都为1的数量c\n3. 答案累加c*(c-1)/2",
+    "time_complexity": "O(R^2*C)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "Array",
+      "Math",
+      "Matrix"
+    ],
+    "code_python3": "class Solution:\n    def countCornerRectangles(self, grid):\n        res = 0\n        for i in range(len(grid)):\n            for j in range(i+1, len(grid)):\n                cnt = sum(1 for c in range(len(grid[0])) if grid[i][c] and grid[j][c])\n                res += cnt*(cnt-1)//2\n        return res"
+  },
+  {
+    "id": 751,
+    "title": "IP to CIDR",
+    "slug": "ip-to-cidr",
+    "category": "位运算",
+    "subcategory": "位操作",
+    "real_difficulty": 6,
+    "official_difficulty": "Medium",
+    "key_insight": "从起始IP开始贪心找能覆盖的最大CIDR块，直到覆盖n个地址",
+    "approach": "1. 将IP转为整数\n2. 每次找当前IP最低有效位确定最大块\n3. 块大小不超过剩余n\n4. 输出CIDR格式并移动到下一块",
+    "time_complexity": "O(logn)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "Bit Manipulation",
+      "String"
+    ],
+    "code_python3": "class Solution:\n    def ipToCIDR(self, ip, n):\n        def ip2int(ip):\n            parts = list(map(int, ip.split('.')))\n            return (parts[0]<<24)+(parts[1]<<16)+(parts[2]<<8)+parts[3]\n        def int2ip(x):\n            return f'{(x>>24)&255}.{(x>>16)&255}.{(x>>8)&255}.{x&255}'\n        start = ip2int(ip)\n        res = []\n        while n > 0:\n            lowbit = start & (-start) if start else (1<<32)\n            while lowbit > n: lowbit >>= 1\n            mask = 32 - lowbit.bit_length() + 1\n            res.append(f'{int2ip(start)}/{mask}')\n            start += lowbit; n -= lowbit\n        return res"
+  },
+  {
+    "id": 752,
+    "title": "Open the Lock",
+    "slug": "open-the-lock",
+    "category": "图",
+    "subcategory": "BFS",
+    "real_difficulty": 5,
+    "official_difficulty": "Medium",
+    "key_insight": "将锁的状态视为图节点，BFS从0000搜索到目标的最短路径",
+    "approach": "1. BFS从'0000'开始\n2. 每次对4个转盘各+1/-1生成邻居\n3. 跳过死锁状态\n4. 首次到达target时返回步数",
+    "time_complexity": "O(10^4)",
+    "space_complexity": "O(10^4)",
+    "tags": [
+      "BFS",
+      "Hash Table",
+      "String"
+    ],
+    "code_python3": "class Solution:\n    def openLock(self, deadends, target):\n        from collections import deque\n        dead = set(deadends)\n        if '0000' in dead: return -1\n        q = deque([('0000', 0)])\n        visited = {'0000'}\n        while q:\n            state, steps = q.popleft()\n            if state == target: return steps\n            for i in range(4):\n                d = int(state[i])\n                for nd in [(d+1)%10, (d-1)%10]:\n                    ns = state[:i]+str(nd)+state[i+1:]\n                    if ns not in visited and ns not in dead:\n                        visited.add(ns); q.append((ns, steps+1))\n        return -1"
+  },
+  {
+    "id": 753,
+    "title": "Cracking the Safe",
+    "slug": "cracking-the-safe",
+    "category": "图",
+    "subcategory": "欧拉回路",
+    "real_difficulty": 8,
+    "official_difficulty": "Hard",
+    "key_insight": "构造包含所有n位k进制密码的最短超串，等价于de Bruijn序列(欧拉回路)",
+    "approach": "1. 构建k^(n-1)个节点的有向图\n2. 每个节点有k条出边\n3. 用DFS找欧拉回路\n4. 回路对应de Bruijn序列",
+    "time_complexity": "O(k^n)",
+    "space_complexity": "O(k^n)",
+    "tags": [
+      "DFS",
+      "Graph",
+      "Euler Circuit"
+    ],
+    "code_python3": "class Solution:\n    def crackSafe(self, n, k):\n        seen = set()\n        res = []\n        def dfs(node):\n            for i in range(k):\n                nxt = node + str(i)\n                if nxt not in seen:\n                    seen.add(nxt)\n                    dfs(nxt[1:])\n                    res.append(str(i))\n        start = '0'*(n-1)\n        dfs(start)\n        return ''.join(res) + start"
+  },
+  {
+    "id": 754,
+    "title": "Reach a Number",
+    "slug": "reach-a-number",
+    "category": "数学",
+    "subcategory": "数学推导",
+    "real_difficulty": 5,
+    "official_difficulty": "Medium",
+    "key_insight": "连续加1+2+...+k直到sum>=target且(sum-target)为偶数",
+    "approach": "1. target取绝对值(对称性)\n2. 累加1+2+...+k直到sum>=target\n3. 若sum-target为奇数则继续加\n4. 差值为偶数时可通过翻转某步实现",
+    "time_complexity": "O(sqrt(target))",
+    "space_complexity": "O(1)",
+    "tags": [
+      "Math"
+    ],
+    "code_python3": "class Solution:\n    def reachNumber(self, target):\n        target = abs(target)\n        k, s = 0, 0\n        while s < target or (s-target) % 2:\n            k += 1; s += k\n        return k"
+  },
+  {
+    "id": 755,
+    "title": "Pour Water",
+    "slug": "pour-water",
+    "category": "数组",
+    "subcategory": "模拟",
+    "real_difficulty": 5,
+    "official_difficulty": "Medium",
+    "key_insight": "模拟水滴下落：先尝试左流，再尝试右流，否则停在原地",
+    "approach": "1. 每滴水先向左找最低点\n2. 若左边有更低点则水流过去\n3. 否则向右找最低点\n4. 若右边有更低则流过去\n5. 都没有则停在原位",
+    "time_complexity": "O(V*n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "Array",
+      "Simulation"
+    ],
+    "code_python3": "class Solution:\n    def pourWater(self, heights, volume, k):\n        for _ in range(volume):\n            idx = k\n            for d in [-1, 1]:\n                i = k\n                best = k\n                while 0 <= i+d < len(heights) and heights[i+d] <= heights[i]:\n                    i += d\n                    if heights[i] < heights[best]: best = i\n                if best != k:\n                    idx = best; break\n            heights[idx] += 1\n        return heights"
+  },
+  {
+    "id": 756,
+    "title": "Pyramid Transition Matrix",
+    "slug": "pyramid-transition-matrix",
+    "category": "回溯",
+    "subcategory": "DFS",
+    "real_difficulty": 5,
+    "official_difficulty": "Medium",
+    "key_insight": "自底向上逐层尝试放置字母，用DFS+剪枝检查是否能构建完整金字塔",
+    "approach": "1. 建立两字母到可选字母的映射\n2. DFS逐层构建\n3. 每层根据下层相邻对选择可行字母\n4. 直到顶层只有一个字母",
+    "time_complexity": "O(k^n)",
+    "space_complexity": "O(n^2)",
+    "tags": [
+      "DFS",
+      "Backtracking"
+    ],
+    "code_python3": "class Solution:\n    def pyramidTransition(self, bottom, allowed):\n        from collections import defaultdict\n        mp = defaultdict(list)\n        for s in allowed: mp[s[:2]].append(s[2])\n        def dfs(row, nxt, i):\n            if len(row) == 1: return True\n            if i == len(row)-1: return dfs(nxt, '', 0)\n            pair = row[i]+row[i+1]\n            for c in mp[pair]:\n                if dfs(row, nxt+c, i+1): return True\n            return False\n        return dfs(bottom, '', 0)"
+  },
+  {
+    "id": 757,
+    "title": "Set Intersection Size At Least Two",
+    "slug": "set-intersection-size-at-least-two",
+    "category": "贪心",
+    "subcategory": "区间贪心",
+    "real_difficulty": 7,
+    "official_difficulty": "Hard",
+    "key_insight": "贪心选点使每个区间至少包含2个选中的点，按右端点排序",
+    "approach": "1. 按右端点升序排序(相同右端点按左端点降序)\n2. 维护已选的最大两个点\n3. 若区间不包含任何已选点则选右端两点\n4. 若只包含一个则再选一个",
+    "time_complexity": "O(nlogn)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "Greedy",
+      "Sorting"
+    ],
+    "code_python3": "class Solution:\n    def intersectionSizeTwo(self, intervals):\n        intervals.sort(key=lambda x: (x[1], -x[0]))\n        res = []\n        for s, e in intervals:\n            if not res or res[-1] < s:\n                res += [e-1, e]\n            elif res[-2] < s:\n                if res[-1] == e:\n                    res.append(e-1)\n                    res.sort()\n                else:\n                    res.append(e)\n        # simpler approach:\n        pass\n        # re-implement\n        intervals.sort(key=lambda x: (x[1], -x[0]))\n        p1, p2 = -1, -1\n        ans = 0\n        for s, e in intervals:\n            if s > p2:\n                p1, p2 = e-1, e\n                ans += 2\n            elif s > p1:\n                p1 = p2\n                p2 = e\n                ans += 1\n        return ans"
+  },
+  {
+    "id": 758,
+    "title": "Bold Words in String",
+    "slug": "bold-words-in-string",
+    "category": "数组",
+    "subcategory": "区间合并",
+    "real_difficulty": 4,
+    "official_difficulty": "Medium",
+    "key_insight": "标记字符串中所有出现词典单词的位置为粗体，合并区间后添加标签",
+    "approach": "1. 对每个位置尝试匹配字典中的词\n2. 用布尔数组标记需要加粗的位置\n3. 合并连续的粗体区间\n4. 添加<b></b>标签",
+    "time_complexity": "O(n*m*l)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "String",
+      "Array"
+    ],
+    "code_python3": "class Solution:\n    def boldWords(self, words, s):\n        n = len(s)\n        bold = [False]*n\n        for w in words:\n            start = s.find(w)\n            while start != -1:\n                for i in range(start, start+len(w)): bold[i] = True\n                start = s.find(w, start+1)\n        res, i = [], 0\n        while i < n:\n            if not bold[i]: res.append(s[i]); i += 1\n            else:\n                j = i\n                while j < n and bold[j]: j += 1\n                res.append('<b>'+s[i:j]+'</b>')\n                i = j\n        return ''.join(res)"
+  },
+  {
+    "id": 759,
+    "title": "Employee Free Time",
+    "slug": "employee-free-time",
+    "category": "排序",
+    "subcategory": "区间合并",
+    "real_difficulty": 5,
+    "official_difficulty": "Hard",
+    "key_insight": "合并所有员工的工作时间区间，间隙即为共同空闲时间",
+    "approach": "1. 收集所有工作区间\n2. 按起始时间排序\n3. 合并重叠区间\n4. 相邻合并区间之间的间隙即为空闲时间",
+    "time_complexity": "O(nlogn)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "Sorting",
+      "Heap",
+      "Array"
+    ],
+    "code_python3": "class Solution:\n    def employeeFreeTime(self, schedule):\n        intervals = sorted([iv for emp in schedule for iv in emp], key=lambda x: x.start)\n        res, end = [], intervals[0].end\n        for iv in intervals[1:]:\n            if iv.start > end:\n                res.append(Interval(end, iv.start))\n            end = max(end, iv.end)\n        return res"
+  },
+  {
+    "id": 760,
+    "title": "Find Anagram Mappings",
+    "slug": "find-anagram-mappings",
+    "category": "哈希表",
+    "subcategory": "索引映射",
+    "real_difficulty": 1,
+    "official_difficulty": "Easy",
+    "key_insight": "建立B中值到下标的映射，对A中每个元素查找B中的对应位置",
+    "approach": "1. 建立B中值到下标的映射\n2. 对A中每个元素查表获取B中下标",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "Hash Table",
+      "Array"
+    ],
+    "code_python3": "class Solution:\n    def anagramMappings(self, nums1, nums2):\n        d = {}\n        for i, v in enumerate(nums2): d[v] = i\n        return [d[v] for v in nums1]"
+  },
+  {
+    "id": 761,
+    "title": "Special Binary String",
+    "slug": "special-binary-string",
+    "category": "回溯",
+    "subcategory": "递归分治",
+    "real_difficulty": 8,
+    "official_difficulty": "Hard",
+    "key_insight": "特殊二进制串类似合法括号序列，递归处理子串并按字典序降序排列",
+    "approach": "1. 找到所有顶层特殊子串\n2. 对每个子串递归处理内部\n3. 将所有顶层子串按字典序降序排列\n4. 拼接得到最大结果",
+    "time_complexity": "O(n^2)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "String",
+      "Recursion",
+      "Sorting"
+    ],
+    "code_python3": "class Solution:\n    def makeLargestSpecial(self, s):\n        cnt, i = 0, 0\n        subs = []\n        for j in range(len(s)):\n            cnt += 1 if s[j]=='1' else -1\n            if cnt == 0:\n                subs.append('1'+self.makeLargestSpecial(s[i+1:j])+'0')\n                i = j+1\n        subs.sort(reverse=True)\n        return ''.join(subs)"
+  },
+  {
+    "id": 762,
+    "title": "Prime Number of Set Bits in Binary Representation",
+    "slug": "prime-number-of-set-bits-in-binary-representation",
+    "category": "位运算",
+    "subcategory": "位计数",
+    "real_difficulty": 2,
+    "official_difficulty": "Easy",
+    "key_insight": "统计范围内每个数的二进制1的个数是否为素数",
+    "approach": "1. 预定义20以内的素数集合\n2. 遍历范围内每个数\n3. 计算popcount\n4. 判断是否在素数集合中",
+    "time_complexity": "O(n*logn)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "Bit Manipulation",
+      "Math"
+    ],
+    "code_python3": "class Solution:\n    def countPrimeSetBits(self, left, right):\n        primes = {2,3,5,7,11,13,17,19}\n        return sum(bin(i).count('1') in primes for i in range(left, right+1))"
+  },
+  {
+    "id": 763,
+    "title": "Partition Labels",
+    "slug": "partition-labels",
+    "category": "贪心",
+    "subcategory": "区间贪心",
+    "real_difficulty": 4,
+    "official_difficulty": "Medium",
+    "key_insight": "每个字母只能出现在一个分区内，记录每个字母最后出现位置贪心划分",
+    "approach": "1. 记录每个字母最后出现的位置\n2. 遍历字符串维护当前分区的最远边界\n3. 当遍历位置等于最远边界时划分",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "Greedy",
+      "Hash Table",
+      "String"
+    ],
+    "code_python3": "class Solution:\n    def partitionLabels(self, s):\n        last = {c: i for i, c in enumerate(s)}\n        res, start, end = [], 0, 0\n        for i, c in enumerate(s):\n            end = max(end, last[c])\n            if i == end:\n                res.append(end-start+1)\n                start = end+1\n        return res"
+  },
+  {
+    "id": 764,
+    "title": "Largest Plus Sign",
+    "slug": "largest-plus-sign",
+    "category": "动态规划",
+    "subcategory": "四方向预处理",
+    "real_difficulty": 5,
+    "official_difficulty": "Medium",
+    "key_insight": "预处理每个位置四个方向的连续1的长度，取最小值为该位置plus sign的阶",
+    "approach": "1. 预处理每个位置上下左右连续1的长度\n2. 每个位置的plus sign阶为四个方向的最小值\n3. 返回全局最大阶",
+    "time_complexity": "O(n^2)",
+    "space_complexity": "O(n^2)",
+    "tags": [
+      "Dynamic Programming",
+      "Matrix"
+    ],
+    "code_python3": "class Solution:\n    def orderOfLargestPlusSign(self, n, mines):\n        banned = set(map(tuple, mines))\n        dp = [[0]*n for _ in range(n)]\n        for r in range(n):\n            cnt = 0\n            for c in range(n):\n                cnt = 0 if (r,c) in banned else cnt+1\n                dp[r][c] = cnt\n            cnt = 0\n            for c in range(n-1,-1,-1):\n                cnt = 0 if (r,c) in banned else cnt+1\n                dp[r][c] = min(dp[r][c], cnt)\n        for c in range(n):\n            cnt = 0\n            for r in range(n):\n                cnt = 0 if (r,c) in banned else cnt+1\n                dp[r][c] = min(dp[r][c], cnt)\n            cnt = 0\n            for r in range(n-1,-1,-1):\n                cnt = 0 if (r,c) in banned else cnt+1\n                dp[r][c] = min(dp[r][c], cnt)\n        return max(dp[r][c] for r in range(n) for c in range(n)) if n else 0"
+  },
+  {
+    "id": 765,
+    "title": "Couples Holding Hands",
+    "slug": "couples-holding-hands",
+    "category": "贪心",
+    "subcategory": "贪心交换",
+    "real_difficulty": 6,
+    "official_difficulty": "Medium",
+    "key_insight": "遍历每对座位，若不是情侣则找到对应的人交换过来",
+    "approach": "1. 建立每个人当前位置的映射\n2. 遍历每对相邻座位\n3. 若不是情侣则找到配对的人交换\n4. 统计交换次数",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "Greedy",
+      "Union Find",
+      "Array"
+    ],
+    "code_python3": "class Solution:\n    def minSwapsCouples(self, row):\n        pos = {v: i for i, v in enumerate(row)}\n        swaps = 0\n        for i in range(0, len(row), 2):\n            partner = row[i]^1\n            if row[i+1] != partner:\n                j = pos[partner]\n                row[i+1], row[j] = row[j], row[i+1]\n                pos[row[j]] = j\n                pos[row[i+1]] = i+1\n                swaps += 1\n        return swaps"
+  },
+  {
+    "id": 766,
+    "title": "Toeplitz Matrix",
+    "slug": "toeplitz-matrix",
+    "category": "数组",
+    "subcategory": "矩阵遍历",
+    "real_difficulty": 2,
+    "official_difficulty": "Easy",
+    "key_insight": "检查矩阵每条对角线上的元素是否都相同",
+    "approach": "1. 遍历每个元素(i,j)\n2. 与左上方(i-1,j-1)比较\n3. 若不同则返回False",
+    "time_complexity": "O(m*n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "Array",
+      "Matrix"
+    ],
+    "code_python3": "class Solution:\n    def isToeplitzMatrix(self, matrix):\n        for i in range(1, len(matrix)):\n            for j in range(1, len(matrix[0])):\n                if matrix[i][j] != matrix[i-1][j-1]: return False\n        return True"
+  },
+  {
+    "id": 767,
+    "title": "Reorganize String",
+    "slug": "reorganize-string",
+    "category": "贪心",
+    "subcategory": "频次贪心",
+    "real_difficulty": 4,
+    "official_difficulty": "Medium",
+    "key_insight": "每次选频次最高的字符放置(不能与前一个相同)，用堆维护",
+    "approach": "1. 统计频次，最高频超过(n+1)/2则无解\n2. 用最大堆每次取频次最高的字符\n3. 若与前一个相同则取第二高的\n4. 交替放置直到完成",
+    "time_complexity": "O(nlogk)",
+    "space_complexity": "O(k)",
+    "tags": [
+      "Greedy",
+      "Heap",
+      "String",
+      "Hash Table"
+    ],
+    "code_python3": "class Solution:\n    def reorganizeString(self, s):\n        from collections import Counter\n        import heapq\n        cnt = Counter(s)\n        if max(cnt.values()) > (len(s)+1)//2: return ''\n        heap = [(-v, k) for k, v in cnt.items()]\n        heapq.heapify(heap)\n        res = []\n        while len(heap) >= 2:\n            c1, ch1 = heapq.heappop(heap)\n            c2, ch2 = heapq.heappop(heap)\n            res += [ch1, ch2]\n            if c1+1 < 0: heapq.heappush(heap, (c1+1, ch1))\n            if c2+1 < 0: heapq.heappush(heap, (c2+1, ch2))\n        if heap: res.append(heap[0][1])\n        return ''.join(res)"
+  },
+  {
+    "id": 768,
+    "title": "Max Chunks To Make Sorted II",
+    "slug": "max-chunks-to-make-sorted-ii",
+    "category": "单调栈",
+    "subcategory": "单调栈",
+    "real_difficulty": 6,
+    "official_difficulty": "Hard",
+    "key_insight": "维护单调递增栈存储每个chunk的最大值，当前元素小于栈顶时合并chunk",
+    "approach": "1. 维护栈存储每个chunk的最大值\n2. 新元素>=栈顶直接压入\n3. 新元素<栈顶时弹出合并直到栈顶<=新元素\n4. 保留最大值压入\n5. 栈的大小即为答案",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "Stack",
+      "Greedy",
+      "Monotonic Stack"
+    ],
+    "code_python3": "class Solution:\n    def maxChunksToSorted(self, arr):\n        stack = []\n        for x in arr:\n            mx = x\n            while stack and stack[-1] > x:\n                mx = max(mx, stack.pop())\n            stack.append(mx)\n        return len(stack)"
+  },
+  {
+    "id": 769,
+    "title": "Max Chunks To Make Sorted",
+    "slug": "max-chunks-to-make-sorted",
+    "category": "贪心",
+    "subcategory": "贪心",
+    "real_difficulty": 4,
+    "official_difficulty": "Medium",
+    "key_insight": "遍历数组维护前缀最大值，当前缀最大值等于当前下标时可以分割",
+    "approach": "1. 遍历数组维护前缀最大值mx\n2. 若mx==i说明前i+1个元素恰好是0~i的排列\n3. 可以在此处分割，计数+1",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "Array",
+      "Greedy"
+    ],
+    "code_python3": "class Solution:\n    def maxChunksToSorted(self, arr):\n        mx, res = 0, 0\n        for i, x in enumerate(arr):\n            mx = max(mx, x)\n            if mx == i: res += 1\n        return res"
+  },
+  {
+    "id": 770,
+    "title": "Basic Calculator IV",
+    "slug": "basic-calculator-iv",
+    "category": "栈",
+    "subcategory": "表达式解析",
+    "real_difficulty": 9,
+    "official_difficulty": "Hard",
+    "key_insight": "解析多项式表达式，将变量视为符号进行多项式加减乘运算",
+    "approach": "1. 解析表达式为多项式(项->系数的映射)\n2. 实现多项式加减乘\n3. 代入已知变量值\n4. 按规则排序输出",
+    "time_complexity": "O(n*2^v)",
+    "space_complexity": "O(2^v)",
+    "tags": [
+      "Stack",
+      "String",
+      "Math",
+      "Recursion"
+    ],
+    "code_python3": "class Solution:\n    def basicCalculatorIV(self, expression, evalvars, evalints):\n        from collections import Counter\n        env = dict(zip(evalvars, evalints))\n        def parse(expr):\n            # Simplified: use eval approach with polynomial class\n            pass  # Full implementation is very long\n        # Due to complexity, using a polynomial multiplication approach\n        class Poly:\n            def __init__(self, terms=None):\n                self.terms = terms or Counter()\n            def __add__(self, o):\n                r = Poly(Counter(self.terms)); \n                for k,v in o.terms.items(): r.terms[k]+=v\n                return r\n            def __sub__(self, o):\n                r = Poly(Counter(self.terms))\n                for k,v in o.terms.items(): r.terms[k]-=v\n                return r\n            def __mul__(self, o):\n                r = Poly()\n                for k1,v1 in self.terms.items():\n                    for k2,v2 in o.terms.items():\n                        key = tuple(sorted(k1+k2))\n                        r.terms[key] += v1*v2\n                return r\n        def to_poly(token):\n            if token in env: return Poly({(): env[token]})\n            if token.lstrip('-').isdigit(): return Poly({(): int(token)})\n            return Poly({(token,): 1})\n        # Simple recursive descent parser\n        tokens = []; i = 0\n        while i < len(expression):\n            if expression[i] == ' ': i+=1; continue\n            if expression[i] in '()+*-':\n                tokens.append(expression[i]); i+=1\n            else:\n                j=i\n                while j<len(expression) and expression[j] not in ' ()+*-': j+=1\n                tokens.append(expression[i:j]); i=j\n        pos = [0]\n        def expr():\n            result = term()\n            while pos[0]<len(tokens) and tokens[pos[0]] in '+-':\n                op=tokens[pos[0]]; pos[0]+=1\n                t=term()\n                result = result+t if op=='+' else result-t\n            return result\n        def term():\n            result = factor()\n            while pos[0]<len(tokens) and tokens[pos[0]]=='*':\n                pos[0]+=1; result=result*factor()\n            return result\n        def factor():\n            if tokens[pos[0]]=='(':\n                pos[0]+=1; r=expr(); pos[0]+=1; return r\n            t=tokens[pos[0]]; pos[0]+=1\n            return to_poly(t)\n        poly = expr()\n        res = []\n        for k in sorted(poly.terms.keys(), key=lambda x: (-len(x), x)):\n            v = poly.terms[k]\n            if v == 0: continue\n            term_str = str(v) + ('*'+'*'.join(k) if k else '')\n            res.append(term_str)\n        return res"
+  },
+  {
+    "id": 771,
+    "title": "Jewels and Stones",
+    "slug": "jewels-and-stones",
+    "category": "哈希表",
+    "subcategory": "集合查询",
+    "real_difficulty": 1,
+    "official_difficulty": "Easy",
+    "key_insight": "将宝石字符存入集合，遍历石头计数",
+    "approach": "1. 将jewels存入集合\n2. 遍历stones统计在集合中的数量",
+    "time_complexity": "O(m+n)",
+    "space_complexity": "O(m)",
+    "tags": [
+      "Hash Table",
+      "String"
+    ],
+    "code_python3": "class Solution:\n    def numJewelsInStones(self, jewels, stones):\n        j = set(jewels)\n        return sum(s in j for s in stones)"
+  },
+  {
+    "id": 772,
+    "title": "Basic Calculator III",
+    "slug": "basic-calculator-iii",
+    "category": "栈",
+    "subcategory": "表达式计算",
+    "real_difficulty": 7,
+    "official_difficulty": "Hard",
+    "key_insight": "支持+-*/和括号的表达式求值，递归下降或栈处理优先级",
+    "approach": "1. 递归下降解析\n2. expr处理加减\n3. term处理乘除\n4. factor处理数字和括号",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "Stack",
+      "Math",
+      "String",
+      "Recursion"
+    ],
+    "code_python3": "class Solution:\n    def calculate(self, s):\n        s = s.replace(' ', '')\n        pos = [0]\n        def expr():\n            result = term()\n            while pos[0] < len(s) and s[pos[0]] in '+-':\n                op = s[pos[0]]; pos[0] += 1\n                t = term()\n                result = result+t if op=='+' else result-t\n            return result\n        def term():\n            result = factor()\n            while pos[0] < len(s) and s[pos[0]] in '*/':\n                op = s[pos[0]]; pos[0] += 1\n                f = factor()\n                result = result*f if op=='*' else int(result/f)\n            return result\n        def factor():\n            if s[pos[0]] == '(':\n                pos[0] += 1; r = expr(); pos[0] += 1; return r\n            j = pos[0]\n            if s[j] in '+-': j += 1\n            while j < len(s) and s[j].isdigit(): j += 1\n            r = int(s[pos[0]:j]); pos[0] = j; return r\n        return expr()"
+  },
+  {
+    "id": 773,
+    "title": "Sliding Puzzle",
+    "slug": "sliding-puzzle",
+    "category": "图",
+    "subcategory": "BFS",
+    "real_difficulty": 6,
+    "official_difficulty": "Hard",
+    "key_insight": "将棋盘状态序列化为字符串，BFS搜索从初始状态到目标状态的最少步数",
+    "approach": "1. 将2x3棋盘展平为字符串\n2. BFS搜索，状态为字符串\n3. 每步将0与相邻位置交换\n4. 首次到达目标返回步数",
+    "time_complexity": "O(m*n)!",
+    "space_complexity": "O((m*n)!)",
+    "tags": [
+      "BFS",
+      "Matrix"
+    ],
+    "code_python3": "class Solution:\n    def slidingPuzzle(self, board):\n        from collections import deque\n        start = ''.join(str(x) for row in board for x in row)\n        target = '123450'\n        if start == target: return 0\n        neighbors = {0:[1,3],1:[0,2,4],2:[1,5],3:[0,4],4:[1,3,5],5:[2,4]}\n        q = deque([(start, 0)])\n        visited = {start}\n        while q:\n            state, steps = q.popleft()\n            zi = state.index('0')\n            for ni in neighbors[zi]:\n                ns = list(state)\n                ns[zi], ns[ni] = ns[ni], ns[zi]\n                ns = ''.join(ns)\n                if ns == target: return steps+1\n                if ns not in visited:\n                    visited.add(ns); q.append((ns, steps+1))\n        return -1"
+  },
+  {
+    "id": 774,
+    "title": "Minimize Max Distance to Gas Station",
+    "slug": "minimize-max-distance-to-gas-station",
+    "category": "二分查找",
+    "subcategory": "二分答案",
+    "real_difficulty": 7,
+    "official_difficulty": "Hard",
+    "key_insight": "二分答案(最大间距)，检查在该间距下是否能用k个站覆盖所有间隔",
+    "approach": "1. 二分搜索最大间距d\n2. 对每个相邻站间隔计算需要插入的站数\n3. 总插入数<=k则d可行\n4. 缩小搜索范围",
+    "time_complexity": "O(n*log(maxGap/eps))",
+    "space_complexity": "O(1)",
+    "tags": [
+      "Binary Search",
+      "Greedy"
+    ],
+    "code_python3": "class Solution:\n    def minmaxGasDist(self, stations, k):\n        lo, hi = 0, stations[-1]-stations[0]\n        while hi-lo > 1e-6:\n            mid = (lo+hi)/2\n            cnt = sum(int((stations[i+1]-stations[i])/mid) for i in range(len(stations)-1))\n            if cnt <= k: hi = mid\n            else: lo = mid\n        return hi"
+  },
+  {
+    "id": 775,
+    "title": "Global and Local Inversions",
+    "slug": "global-and-local-inversions",
+    "category": "数组",
+    "subcategory": "数学观察",
+    "real_difficulty": 5,
+    "official_difficulty": "Medium",
+    "key_insight": "全局逆序对>=局部逆序对，等价条件是不存在非相邻的逆序对即max(A[0..i-2])<=A[i]",
+    "approach": "1. 局部逆序是全局逆序的子集\n2. 相等条件：没有距离>1的逆序对\n3. 维护前i-2个元素的最大值\n4. 若max > A[i]则存在非局部逆序",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "Array",
+      "Math"
+    ],
+    "code_python3": "class Solution:\n    def isIdealPermutation(self, nums):\n        mx = 0\n        for i in range(2, len(nums)):\n            mx = max(mx, nums[i-2])\n            if mx > nums[i]: return False\n        return True"
+  },
+  {
+    "id": 776,
+    "title": "Split BST",
+    "slug": "split-bst",
+    "category": "树",
+    "subcategory": "BST递归",
+    "real_difficulty": 6,
+    "official_difficulty": "Medium",
+    "key_insight": "递归分割BST：若根值<=V则根和左子树属于小树，递归分割右子树",
+    "approach": "1. 若根值<=V，根和左子树归入小树\n2. 递归分割右子树\n3. 右子树分割结果的小部分接为根的右子树\n4. 反之类似处理",
+    "time_complexity": "O(h)",
+    "space_complexity": "O(h)",
+    "tags": [
+      "Tree",
+      "BST",
+      "Recursion"
+    ],
+    "code_python3": "class Solution:\n    def splitBST(self, root, target):\n        if not root: return [None, None]\n        if root.val <= target:\n            left, right = self.splitBST(root.right, target)\n            root.right = left\n            return [root, right]\n        else:\n            left, right = self.splitBST(root.left, target)\n            root.left = right\n            return [left, root]"
+  },
+  {
+    "id": 777,
+    "title": "Swap Adjacent in LR String",
+    "slug": "swap-adjacent-in-lr-string",
+    "category": "双指针",
+    "subcategory": "双指针",
+    "real_difficulty": 5,
+    "official_difficulty": "Medium",
+    "key_insight": "L只能左移R只能右移且不能穿过对方，检查去掉X后序列相同且位置合法",
+    "approach": "1. 去掉X后两字符串应相同\n2. L在start中的位置>=在end中的位置(只能左移)\n3. R在start中的位置<=在end中的位置(只能右移)",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "Two Pointers",
+      "String"
+    ],
+    "code_python3": "class Solution:\n    def canTransform(self, start, end):\n        if start.replace('X','') != end.replace('X',''): return False\n        i = j = 0\n        n = len(start)\n        while i < n and j < n:\n            while i < n and start[i] == 'X': i += 1\n            while j < n and end[j] == 'X': j += 1\n            if i == n or j == n: break\n            if start[i] != end[j]: return False\n            if start[i] == 'L' and i < j: return False\n            if start[i] == 'R' and i > j: return False\n            i += 1; j += 1\n        return True"
+  },
+  {
+    "id": 778,
+    "title": "Swim in Rising Water",
+    "slug": "swim-in-rising-water",
+    "category": "图",
+    "subcategory": "二分+BFS/并查集",
+    "real_difficulty": 6,
+    "official_difficulty": "Hard",
+    "key_insight": "二分答案t，检查在水位t时能否从左上到右下，或用Dijkstra求最小瓶颈路径",
+    "approach": "1. 用最小堆实现Dijkstra变体\n2. 每步选当前可达的最小高度格子\n3. 路径代价为路径上的最大值\n4. 到达右下角时返回代价",
+    "time_complexity": "O(n^2*logn)",
+    "space_complexity": "O(n^2)",
+    "tags": [
+      "Graph",
+      "Binary Search",
+      "BFS",
+      "Heap",
+      "Union Find"
+    ],
+    "code_python3": "class Solution:\n    def swimInWater(self, grid):\n        import heapq\n        n = len(grid)\n        heap = [(grid[0][0], 0, 0)]\n        visited = [[False]*n for _ in range(n)]\n        visited[0][0] = True\n        while heap:\n            t, r, c = heapq.heappop(heap)\n            if r == n-1 and c == n-1: return t\n            for dr, dc in [(0,1),(0,-1),(1,0),(-1,0)]:\n                nr, nc = r+dr, c+dc\n                if 0<=nr<n and 0<=nc<n and not visited[nr][nc]:\n                    visited[nr][nc] = True\n                    heapq.heappush(heap, (max(t, grid[nr][nc]), nr, nc))\n        return -1"
+  },
+  {
+    "id": 779,
+    "title": "K-th Symbol in Grammar",
+    "slug": "k-th-symbol-in-grammar",
+    "category": "数学",
+    "subcategory": "递归",
+    "real_difficulty": 4,
+    "official_difficulty": "Medium",
+    "key_insight": "第n行第k个字符由第n-1行第(k+1)/2个字符决定，奇数位相同偶数位取反",
+    "approach": "1. 递归：第n行第k个=第n-1行第(k+1)//2个\n2. 若k为奇数则与父节点相同\n3. 若k为偶数则与父节点相反\n4. 基础情况：第1行第1个为0",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "Math",
+      "Recursion",
+      "Bit Manipulation"
+    ],
+    "code_python3": "class Solution:\n    def kthGrammar(self, n, k):\n        if n == 1: return 0\n        parent = self.kthGrammar(n-1, (k+1)//2)\n        if k % 2 == 1: return parent\n        return 1 - parent"
+  },
+  {
+    "id": 780,
+    "title": "Reaching Points",
+    "slug": "reaching-points",
+    "category": "数学",
+    "subcategory": "逆向思维",
+    "real_difficulty": 7,
+    "official_difficulty": "Hard",
+    "key_insight": "从目标逆推回起点：(x,y)只能由(x-y,y)或(x,y-x)得来，用取模加速",
+    "approach": "1. 从(tx,ty)逆推回(sx,sy)\n2. 若tx>ty则tx可以减去ty的倍数\n3. 若ty>tx则ty可以减去tx的倍数\n4. 用取模加速跳过多步\n5. 最终检查是否到达(sx,sy)",
+    "time_complexity": "O(log(max(tx,ty)))",
+    "space_complexity": "O(1)",
+    "tags": [
+      "Math"
+    ],
+    "code_python3": "class Solution:\n    def reachingPoints(self, sx, sy, tx, ty):\n        while tx >= sx and ty >= sy:\n            if tx == ty: break\n            if tx > ty:\n                if ty == sy: return (tx-sx) % ty == 0\n                tx %= ty\n            else:\n                if tx == sx: return (ty-sy) % tx == 0\n                ty %= tx\n        return tx == sx and ty == sy"
+  }
+]

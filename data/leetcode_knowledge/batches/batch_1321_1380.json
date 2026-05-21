@@ -1,0 +1,1058 @@
+[
+  {
+    "id": 1321,
+    "title": "餐厅过滤器",
+    "slug": "restaurant-growth",
+    "category": "数据库",
+    "subcategory": "窗口函数",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "使用窗口函数计算移动平均值，筛选满足条件的记录",
+    "approach": "SQL窗口函数AVG() OVER配合日期范围",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库",
+      "窗口函数"
+    ],
+    "code_python3": "# SQL Solution\nSELECT visited_on,\n       amount,\n       ROUND(average_amount, 2) AS average_amount\nFROM (\n    SELECT visited_on,\n           SUM(amount) OVER (ORDER BY visited_on ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS amount,\n           AVG(amount) OVER (ORDER BY visited_on ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS average_amount,\n           ROW_NUMBER() OVER (ORDER BY visited_on) AS rn\n    FROM (SELECT visited_on, SUM(amount) AS amount FROM Customer GROUP BY visited_on) t\n) sub\nWHERE rn >= 7;"
+  },
+  {
+    "id": 1322,
+    "title": "广告效果",
+    "slug": "ads-performance",
+    "category": "数据库",
+    "subcategory": "聚合查询",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "计算点击率CTR，注意除零处理",
+    "approach": "GROUP BY + CASE WHEN计算比率",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "# SQL Solution\nSELECT ad_id,\n       IFNULL(ROUND(SUM(CASE WHEN action='Clicked' THEN 1 ELSE 0 END) /\n              NULLIF(SUM(CASE WHEN action IN ('Clicked','Viewed') THEN 1 ELSE 0 END), 0) * 100, 2), 0) AS ctr\nFROM Ads\nGROUP BY ad_id\nORDER BY ctr DESC, ad_id;"
+  },
+  {
+    "id": 1323,
+    "title": "6 和 9 组成的最大数字",
+    "slug": "maximum-69-number",
+    "category": "贪心",
+    "subcategory": "数字处理",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "将最高位的6改为9即可得到最大数",
+    "approach": "转字符串找第一个6替换为9",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "贪心",
+      "数学"
+    ],
+    "code_python3": "class Solution:\n    def maximum69Number(self, num: int) -> int:\n        return int(str(num).replace('6', '9', 1))"
+  },
+  {
+    "id": 1324,
+    "title": "竖直打印字符串",
+    "slug": "print-words-vertically",
+    "category": "数组",
+    "subcategory": "字符串处理",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "按列收集字符，去除尾部空格",
+    "approach": "找最长单词长度，逐列拼接字符并rstrip",
+    "time_complexity": "O(n*m)",
+    "space_complexity": "O(n*m)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def printVertically(self, s: str) -> List[str]:\n        words = s.split()\n        max_len = max(len(w) for w in words)\n        res = []\n        for i in range(max_len):\n            row = ''\n            for w in words:\n                row += w[i] if i < len(w) else ' '\n            res.append(row.rstrip())\n        return res"
+  },
+  {
+    "id": 1325,
+    "title": "删除给定值的叶子节点",
+    "slug": "delete-leaves-with-a-given-value",
+    "category": "树",
+    "subcategory": "后序遍历",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "后序遍历，先处理子树再判断当前节点是否为目标叶子",
+    "approach": "递归后序遍历，删除匹配的叶子节点",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(h)",
+    "tags": [
+      "树",
+      "递归"
+    ],
+    "code_python3": "class Solution:\n    def removeLeafNodes(self, root: Optional[TreeNode], target: int) -> Optional[TreeNode]:\n        if not root:\n            return None\n        root.left = self.removeLeafNodes(root.left, target)\n        root.right = self.removeLeafNodes(root.right, target)\n        if not root.left and not root.right and root.val == target:\n            return None\n        return root"
+  },
+  {
+    "id": 1326,
+    "title": "灌溉花园的最少水龙头数目",
+    "slug": "minimum-number-of-taps-to-open-to-water-a-garden",
+    "category": "贪心",
+    "subcategory": "区间覆盖",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "转化为跳跃游戏/区间覆盖问题，贪心选择最远覆盖",
+    "approach": "将每个水龙头转为区间，贪心选择能覆盖最远的区间",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "贪心",
+      "动态规划"
+    ],
+    "code_python3": "class Solution:\n    def minTaps(self, n: int, ranges: List[int]) -> int:\n        max_reach = [0] * (n + 1)\n        for i, r in enumerate(ranges):\n            left = max(0, i - r)\n            right = min(n, i + r)\n            max_reach[left] = max(max_reach[left], right)\n        taps = 0\n        cur_end = 0\n        far = 0\n        for i in range(n + 1):\n            if i > far:\n                return -1\n            far = max(far, max_reach[i])\n            if i == cur_end:\n                if cur_end >= n:\n                    break\n                taps += 1\n                cur_end = far\n        return taps"
+  },
+  {
+    "id": 1327,
+    "title": "列出指定时间段内所有的下单产品",
+    "slug": "list-the-products-ordered-in-a-period",
+    "category": "数据库",
+    "subcategory": "聚合查询",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "按产品分组统计指定月份的订单数量",
+    "approach": "JOIN + WHERE日期过滤 + GROUP BY + HAVING",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "# SQL Solution\nSELECT p.product_name, SUM(o.unit) AS unit\nFROM Products p\nJOIN Orders o ON p.product_id = o.product_id\nWHERE o.order_date BETWEEN '2020-02-01' AND '2020-02-29'\nGROUP BY p.product_name\nHAVING SUM(o.unit) >= 100;"
+  },
+  {
+    "id": 1328,
+    "title": "破坏回文串",
+    "slug": "break-a-palindrome",
+    "category": "贪心",
+    "subcategory": "字符串",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "贪心：前半部分找第一个非a字符改为a，否则最后一个改为b",
+    "approach": "遍历前半部分找非a字符替换，找不到则改末尾为b",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "贪心"
+    ],
+    "code_python3": "class Solution:\n    def breakPalindrome(self, palindrome: str) -> str:\n        n = len(palindrome)\n        if n == 1:\n            return \"\"\n        s = list(palindrome)\n        for i in range(n // 2):\n            if s[i] != 'a':\n                s[i] = 'a'\n                return ''.join(s)\n        s[-1] = 'b'\n        return ''.join(s)"
+  },
+  {
+    "id": 1329,
+    "title": "将矩阵按对角线排序",
+    "slug": "sort-the-matrix-diagonally",
+    "category": "排序",
+    "subcategory": "矩阵",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "按对角线分组排序后放回原位",
+    "approach": "用字典按(i-j)分组对角线元素，排序后填回",
+    "time_complexity": "O(m*n*log(min(m,n)))",
+    "space_complexity": "O(m*n)",
+    "tags": [
+      "排序",
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def diagonalSort(self, mat: List[List[int]]) -> List[List[int]]:\n        from collections import defaultdict\n        d = defaultdict(list)\n        m, n = len(mat), len(mat[0])\n        for i in range(m):\n            for j in range(n):\n                d[i - j].append(mat[i][j])\n        for k in d:\n            d[k].sort(reverse=True)\n        for i in range(m):\n            for j in range(n):\n                mat[i][j] = d[i - j].pop()\n        return mat"
+  },
+  {
+    "id": 1330,
+    "title": "翻转子数组得到最大的数组值",
+    "slug": "reverse-subarray-to-maximize-array-value",
+    "category": "数学",
+    "subcategory": "贪心",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "分析翻转区间对相邻差绝对值之和的影响，利用数学推导优化",
+    "approach": "枚举边界情况+数学分析中间段翻转的最大增益",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学",
+      "贪心"
+    ],
+    "code_python3": "class Solution:\n    def maxValueAfterReverse(self, nums: List[int]) -> int:\n        n = len(nums)\n        base = sum(abs(nums[i] - nums[i+1]) for i in range(n-1))\n        # Case 1: reverse starting from index 0 or ending at index n-1\n        gain = 0\n        for i in range(1, n-1):\n            gain = max(gain, abs(nums[0] - nums[i+1]) - abs(nums[i] - nums[i+1]))\n            gain = max(gain, abs(nums[-1] - nums[i-1]) - abs(nums[i] - nums[i-1]))\n        # Case 2: reverse middle segment\n        mx = float('-inf')\n        mn = float('inf')\n        for i in range(n-1):\n            a, b = nums[i], nums[i+1]\n            mx = max(mx, min(a, b))\n            mn = min(mn, max(a, b))\n        gain = max(gain, 2 * (mx - mn))\n        return base + gain"
+  },
+  {
+    "id": 1331,
+    "title": "数组序号转换",
+    "slug": "rank-transform-of-an-array",
+    "category": "排序",
+    "subcategory": "哈希表",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "排序去重后建立值到序号的映射",
+    "approach": "排序+哈希表映射序号",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "排序",
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def arrayRankTransform(self, arr: List[int]) -> List[int]:\n        rank = {}\n        for i, v in enumerate(sorted(set(arr))):\n            rank[v] = i + 1\n        return [rank[x] for x in arr]"
+  },
+  {
+    "id": 1332,
+    "title": "删除回文子序列",
+    "slug": "remove-palindromic-subsequences",
+    "category": "贪心",
+    "subcategory": "字符串",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "字符串只有a和b，最多2次：先删所有a再删所有b；若本身回文则1次",
+    "approach": "判断是否为空(0)、是否回文(1)、否则(2)",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "贪心"
+    ],
+    "code_python3": "class Solution:\n    def removePalindromeSub(self, s: str) -> int:\n        if not s:\n            return 0\n        return 1 if s == s[::-1] else 2"
+  },
+  {
+    "id": 1333,
+    "title": "餐厅过滤器",
+    "slug": "filter-restaurants-by-vegan-friendly-price-and-distance",
+    "category": "排序",
+    "subcategory": "数组过滤",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "按条件过滤后按rating和id降序排序",
+    "approach": "列表过滤+自定义排序",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "排序",
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def filterRestaurants(self, restaurants: List[List[int]], veganFriendly: int, maxPrice: int, maxDistance: int) -> List[int]:\n        filtered = [r for r in restaurants if (not veganFriendly or r[2]) and r[3] <= maxPrice and r[4] <= maxDistance]\n        filtered.sort(key=lambda x: (-x[1], -x[0]))\n        return [r[0] for r in filtered]"
+  },
+  {
+    "id": 1334,
+    "title": "阈值距离内邻居最少的城市",
+    "slug": "find-the-city-with-the-smallest-number-of-neighbors-at-a-threshold-distance",
+    "category": "图",
+    "subcategory": "最短路径",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Floyd-Warshall求所有点对最短路径，统计每个城市可达邻居数",
+    "approach": "Floyd算法求全源最短路，遍历统计",
+    "time_complexity": "O(n^3)",
+    "space_complexity": "O(n^2)",
+    "tags": [
+      "图"
+    ],
+    "code_python3": "class Solution:\n    def findTheCity(self, n: int, edges: List[List[int]], distanceThreshold: int) -> int:\n        dist = [[float('inf')] * n for _ in range(n)]\n        for i in range(n):\n            dist[i][i] = 0\n        for u, v, w in edges:\n            dist[u][v] = w\n            dist[v][u] = w\n        for k in range(n):\n            for i in range(n):\n                for j in range(n):\n                    dist[i][j] = min(dist[i][j], dist[i][k] + dist[k][j])\n        res, min_count = -1, float('inf')\n        for i in range(n):\n            count = sum(1 for j in range(n) if j != i and dist[i][j] <= distanceThreshold)\n            if count <= min_count:\n                min_count = count\n                res = i\n        return res"
+  },
+  {
+    "id": 1335,
+    "title": "工作计划的最低难度",
+    "slug": "minimum-difficulty-of-a-job-schedule",
+    "category": "动态规划",
+    "subcategory": "区间DP",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "dp[i][j]表示前i个工作分j天完成的最小难度",
+    "approach": "DP，枚举每天的工作划分点",
+    "time_complexity": "O(n^2 * d)",
+    "space_complexity": "O(n * d)",
+    "tags": [
+      "动态规划"
+    ],
+    "code_python3": "class Solution:\n    def minDifficulty(self, jobDifficulty: List[int], d: int) -> int:\n        n = len(jobDifficulty)\n        if n < d:\n            return -1\n        dp = [[float('inf')] * (d + 1) for _ in range(n + 1)]\n        dp[0][0] = 0\n        for i in range(1, n + 1):\n            for k in range(1, min(i, d) + 1):\n                mx = 0\n                for j in range(i, k - 1, -1):\n                    mx = max(mx, jobDifficulty[j - 1])\n                    dp[i][k] = min(dp[i][k], dp[j - 1][k - 1] + mx)\n        return dp[n][d]"
+  },
+  {
+    "id": 1336,
+    "title": "每次访问的交易次数",
+    "slug": "number-of-transactions-per-visit",
+    "category": "数据库",
+    "subcategory": "复杂聚合",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "生成连续数字序列，LEFT JOIN统计每个访问的交易次数分布",
+    "approach": "递归CTE生成序列 + 分组统计",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "# SQL Solution\nWITH RECURSIVE seq AS (\n    SELECT 0 AS transactions_count\n    UNION ALL\n    SELECT transactions_count + 1 FROM seq WHERE transactions_count < (SELECT MAX(cnt) FROM (SELECT COUNT(t.transaction_date) cnt FROM Visits v LEFT JOIN Transactions t ON v.user_id=t.user_id AND v.visit_date=t.transaction_date GROUP BY v.user_id, v.visit_date) tmp)\n),\nvisit_trans AS (\n    SELECT v.user_id, v.visit_date, COUNT(t.transaction_date) AS cnt\n    FROM Visits v LEFT JOIN Transactions t ON v.user_id=t.user_id AND v.visit_date=t.transaction_date\n    GROUP BY v.user_id, v.visit_date\n)\nSELECT s.transactions_count, IFNULL(SUM(CASE WHEN vt.cnt=s.transactions_count THEN 1 END), 0) AS visits_count\nFROM seq s LEFT JOIN visit_trans vt ON s.transactions_count = vt.cnt\nGROUP BY s.transactions_count;"
+  },
+  {
+    "id": 1337,
+    "title": "矩阵中战斗力最弱的 K 行",
+    "slug": "the-k-weakest-rows-in-a-matrix",
+    "category": "排序",
+    "subcategory": "二分查找",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "统计每行1的个数，按(count, index)排序取前k",
+    "approach": "计数+排序或堆",
+    "time_complexity": "O(m*n + m*log m)",
+    "space_complexity": "O(m)",
+    "tags": [
+      "排序",
+      "二分查找"
+    ],
+    "code_python3": "class Solution:\n    def kWeakestRows(self, mat: List[List[int]], k: int) -> List[int]:\n        counts = [(sum(row), i) for i, row in enumerate(mat)]\n        counts.sort()\n        return [i for _, i in counts[:k]]"
+  },
+  {
+    "id": 1338,
+    "title": "数组大小减半",
+    "slug": "reduce-array-size-to-the-half",
+    "category": "贪心",
+    "subcategory": "哈希表",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "贪心选频率最高的元素删除，直到数组大小减半",
+    "approach": "统计频率，按频率降序贪心选择",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "贪心",
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def minSetSize(self, arr: List[int]) -> int:\n        from collections import Counter\n        counts = sorted(Counter(arr).values(), reverse=True)\n        total = 0\n        for i, c in enumerate(counts):\n            total += c\n            if total >= len(arr) // 2:\n                return i + 1\n        return len(counts)"
+  },
+  {
+    "id": 1339,
+    "title": "分裂二叉树的最大乘积",
+    "slug": "maximum-product-of-splitted-binary-tree",
+    "category": "树",
+    "subcategory": "DFS",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "先求总和，再枚举每个子树和，乘积为subtree_sum * (total - subtree_sum)",
+    "approach": "两次DFS：第一次求总和，第二次枚举分割点",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(h)",
+    "tags": [
+      "树"
+    ],
+    "code_python3": "class Solution:\n    def maxProduct(self, root: Optional[TreeNode]) -> int:\n        MOD = 10**9 + 7\n        subtree_sums = []\n        def dfs(node):\n            if not node:\n                return 0\n            s = node.val + dfs(node.left) + dfs(node.right)\n            subtree_sums.append(s)\n            return s\n        total = dfs(root)\n        return max(s * (total - s) for s in subtree_sums) % MOD"
+  },
+  {
+    "id": 1340,
+    "title": "跳跃游戏 V",
+    "slug": "jump-game-v",
+    "category": "动态规划",
+    "subcategory": "记忆化搜索",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "从每个位置出发能跳到的最多格子数，用记忆化DFS或按高度排序DP",
+    "approach": "记忆化DFS，从每个位置向左右扩展不超过d步且高度严格递减",
+    "time_complexity": "O(n*d)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "动态规划"
+    ],
+    "code_python3": "class Solution:\n    def maxJumps(self, arr: List[int], d: int) -> int:\n        n = len(arr)\n        memo = [0] * n\n        def dfs(i):\n            if memo[i]:\n                return memo[i]\n            memo[i] = 1\n            for di in (-1, 1):\n                for j in range(1, d + 1):\n                    ni = i + di * j\n                    if ni < 0 or ni >= n or arr[ni] >= arr[i]:\n                        break\n                    memo[i] = max(memo[i], 1 + dfs(ni))\n            return memo[i]\n        return max(dfs(i) for i in range(n))"
+  },
+  {
+    "id": 1341,
+    "title": "电影评分",
+    "slug": "movie-rating",
+    "category": "数据库",
+    "subcategory": "UNION查询",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "分别查询评分最多的用户和2020年2月平均评分最高的电影",
+    "approach": "UNION两个子查询",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "# SQL Solution\n(SELECT u.name AS results\nFROM MovieRating mr JOIN Users u ON mr.user_id = u.user_id\nGROUP BY mr.user_id\nORDER BY COUNT(*) DESC, u.name\nLIMIT 1)\nUNION ALL\n(SELECT m.title AS results\nFROM MovieRating mr JOIN Movies m ON mr.movie_id = m.movie_id\nWHERE mr.created_at BETWEEN '2020-02-01' AND '2020-02-29'\nGROUP BY mr.movie_id\nORDER BY AVG(mr.rating) DESC, m.title\nLIMIT 1);"
+  },
+  {
+    "id": 1342,
+    "title": "将数字变成 0 的操作次数",
+    "slug": "number-of-steps-to-reduce-a-number-to-zero",
+    "category": "位运算",
+    "subcategory": "模拟",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "偶数除2，奇数减1，计数操作次数",
+    "approach": "模拟或位运算计算",
+    "time_complexity": "O(log n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "位运算",
+      "数学"
+    ],
+    "code_python3": "class Solution:\n    def numberOfSteps(self, num: int) -> int:\n        steps = 0\n        while num:\n            if num % 2 == 0:\n                num //= 2\n            else:\n                num -= 1\n            steps += 1\n        return steps"
+  },
+  {
+    "id": 1343,
+    "title": "大小为 K 且平均值大于等于阈值的子数组数目",
+    "slug": "number-of-sub-arrays-of-size-k-and-average-greater-than-or-equal-to-threshold",
+    "category": "滑动窗口",
+    "subcategory": "前缀和",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "固定大小滑动窗口，维护窗口和与阈值比较",
+    "approach": "滑动窗口维护区间和",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "滑动窗口",
+      "前缀和"
+    ],
+    "code_python3": "class Solution:\n    def numOfSubarrays(self, arr: List[int], k: int, threshold: int) -> int:\n        target = k * threshold\n        window_sum = sum(arr[:k])\n        count = 1 if window_sum >= target else 0\n        for i in range(k, len(arr)):\n            window_sum += arr[i] - arr[i - k]\n            if window_sum >= target:\n                count += 1\n        return count"
+  },
+  {
+    "id": 1344,
+    "title": "时钟指针的夹角",
+    "slug": "angle-between-hands-of-a-clock",
+    "category": "数学",
+    "subcategory": "几何",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "分别计算时针和分针的角度，取差值的较小角",
+    "approach": "时针每小时30度每分钟0.5度，分针每分钟6度",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学"
+    ],
+    "code_python3": "class Solution:\n    def angleClock(self, hour: int, minutes: int) -> float:\n        hour_angle = (hour % 12) * 30 + minutes * 0.5\n        min_angle = minutes * 6\n        diff = abs(hour_angle - min_angle)\n        return min(diff, 360 - diff)"
+  },
+  {
+    "id": 1345,
+    "title": "跳跃游戏 IV",
+    "slug": "jump-game-iv",
+    "category": "图",
+    "subcategory": "BFS",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "BFS层序遍历，相同值的索引之间可以跳转",
+    "approach": "BFS + 哈希表存储相同值索引，访问后清空避免重复",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "图",
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def minJumps(self, arr: List[int]) -> int:\n        from collections import defaultdict, deque\n        n = len(arr)\n        if n == 1:\n            return 0\n        graph = defaultdict(list)\n        for i, v in enumerate(arr):\n            graph[v].append(i)\n        visited = [False] * n\n        visited[0] = True\n        q = deque([0])\n        steps = 0\n        while q:\n            steps += 1\n            for _ in range(len(q)):\n                i = q.popleft()\n                for ni in [i-1, i+1] + graph[arr[i]]:\n                    if 0 <= ni < n and not visited[ni]:\n                        if ni == n - 1:\n                            return steps\n                        visited[ni] = True\n                        q.append(ni)\n                graph[arr[i]] = []\n        return -1"
+  },
+  {
+    "id": 1346,
+    "title": "检查整数及其两倍数是否存在",
+    "slug": "check-if-n-and-its-double-exist",
+    "category": "哈希表",
+    "subcategory": "查找",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "用集合存储已遍历元素，检查当前元素的2倍或一半是否在集合中",
+    "approach": "哈希集合一次遍历",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def checkIfExist(self, arr: List[int]) -> bool:\n        seen = set()\n        for x in arr:\n            if 2 * x in seen or (x % 2 == 0 and x // 2 in seen):\n                return True\n            seen.add(x)\n        return False"
+  },
+  {
+    "id": 1347,
+    "title": "制造字母异位词的最小步骤数",
+    "slug": "minimum-number-of-steps-to-make-two-strings-anagram",
+    "category": "哈希表",
+    "subcategory": "计数",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "统计两字符串字符频率差异，差异总和除2即为答案",
+    "approach": "Counter计数取差值",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def minSteps(self, s: str, t: str) -> int:\n        from collections import Counter\n        cs = Counter(s)\n        ct = Counter(t)\n        return sum((cs - ct).values())"
+  },
+  {
+    "id": 1348,
+    "title": "推文计数",
+    "slug": "tweet-counts-per-frequency",
+    "category": "设计",
+    "subcategory": "哈希表",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "按时间频率分桶统计推文数量",
+    "approach": "哈希表存储推文时间，查询时按频率分桶计数",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "设计",
+      "哈希表"
+    ],
+    "code_python3": "class TweetCounts:\n    def __init__(self):\n        from collections import defaultdict\n        self.tweets = defaultdict(list)\n\n    def recordTweet(self, tweetName: str, time: int) -> None:\n        self.tweets[tweetName].append(time)\n\n    def getTweetCountsPerFrequency(self, freq: str, tweetName: str, startTime: int, endTime: int) -> List[int]:\n        delta = {'minute': 60, 'hour': 3600, 'day': 86400}[freq]\n        buckets = [0] * ((endTime - startTime) // delta + 1)\n        for t in self.tweets[tweetName]:\n            if startTime <= t <= endTime:\n                buckets[(t - startTime) // delta] += 1\n        return buckets"
+  },
+  {
+    "id": 1349,
+    "title": "参加考试的最大学生数",
+    "slug": "maximum-students-taking-exam",
+    "category": "动态规划",
+    "subcategory": "状态压缩DP",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "状态压缩DP，每行的座位选择用位掩码表示，检查相邻约束",
+    "approach": "逐行枚举合法状态，检查与上一行的兼容性",
+    "time_complexity": "O(m * 4^n)",
+    "space_complexity": "O(m * 2^n)",
+    "tags": [
+      "动态规划",
+      "位运算"
+    ],
+    "code_python3": "class Solution:\n    def maxStudents(self, seats: List[List[str]]) -> int:\n        m, n = len(seats), len(seats[0])\n        valid = [0] * m\n        for i in range(m):\n            for j in range(n):\n                if seats[i][j] == '.':\n                    valid[i] |= 1 << j\n        dp = {0: 0}\n        for i in range(m):\n            new_dp = {}\n            for mask in range(1 << n):\n                if mask & valid[i] != mask:\n                    continue\n                if mask & (mask << 1):\n                    continue\n                cnt = bin(mask).count('1')\n                for prev, prev_cnt in dp.items():\n                    if (mask << 1) & prev:\n                        continue\n                    if (mask >> 1) & prev:\n                        continue\n                    key = mask\n                    new_dp[key] = max(new_dp.get(key, 0), prev_cnt + cnt)\n            dp = new_dp\n        return max(dp.values()) if dp else 0"
+  },
+  {
+    "id": 1350,
+    "title": "院系无效的学生",
+    "slug": "students-with-invalid-departments",
+    "category": "数据库",
+    "subcategory": "LEFT JOIN",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "LEFT JOIN找不到匹配的院系",
+    "approach": "LEFT JOIN + WHERE IS NULL过滤无效院系学生",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "SELECT s.id, s.name FROM Students s LEFT JOIN Departments d ON s.department_id = d.id WHERE d.id IS NULL"
+  },
+  {
+    "id": 1351,
+    "title": "统计有序矩阵中的负数",
+    "slug": "count-negative-numbers-in-a-sorted-matrix",
+    "category": "数组",
+    "subcategory": "矩阵搜索",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "利用矩阵行列有序性从右上角开始搜索",
+    "approach": "从右上角出发，遇到负数则该列下方都是负数，向左移动；否则向下移动",
+    "time_complexity": "O(m+n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组",
+      "二分查找"
+    ],
+    "code_python3": "class Solution:\n    def countNegatives(self, grid: List[List[int]]) -> int:\n        m, n = len(grid), len(grid[0])\n        count = 0\n        r, c = 0, n - 1\n        while r < m and c >= 0:\n            if grid[r][c] < 0:\n                count += m - r\n                c -= 1\n            else:\n                r += 1\n        return count"
+  },
+  {
+    "id": 1352,
+    "title": "最后 K 个数的乘积",
+    "slug": "product-of-the-last-k-numbers",
+    "category": "设计",
+    "subcategory": "前缀积",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "维护前缀积数组，遇到0时重置",
+    "approach": "用前缀积数组，add时若为0则重置数组；getProduct时若k超过数组长度返回0，否则用除法计算",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "设计",
+      "数组"
+    ],
+    "code_python3": "class ProductOfNumbers:\n    def __init__(self):\n        self.prefix = [1]\n    def add(self, num: int) -> None:\n        if num == 0:\n            self.prefix = [1]\n        else:\n            self.prefix.append(self.prefix[-1] * num)\n    def getProduct(self, k: int) -> int:\n        if k >= len(self.prefix):\n            return 0\n        return self.prefix[-1] // self.prefix[-1 - k]"
+  },
+  {
+    "id": 1353,
+    "title": "最多可以参加的会议数目",
+    "slug": "maximum-number-of-events-that-can-be-attended",
+    "category": "贪心",
+    "subcategory": "优先队列",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "按开始时间排序，每天从可参加的会议中选结束最早的",
+    "approach": "按开始时间排序，遍历每一天，将当天开始的会议加入最小堆（按结束时间），移除已过期的，参加堆顶会议",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "贪心",
+      "堆"
+    ],
+    "code_python3": "class Solution:\n    def maxEvents(self, events: List[List[int]]) -> int:\n        import heapq\n        events.sort()\n        heap = []\n        i, n = 0, len(events)\n        res = 0\n        day = 0\n        while i < n or heap:\n            if not heap:\n                day = events[i][0]\n            while i < n and events[i][0] <= day:\n                heapq.heappush(heap, events[i][1])\n                i += 1\n            while heap and heap[0] < day:\n                heapq.heappop(heap)\n            if heap:\n                heapq.heappop(heap)\n                res += 1\n            day += 1\n        return res"
+  },
+  {
+    "id": 1354,
+    "title": "多次求和构造目标数组",
+    "slug": "construct-target-array-with-multiple-sums",
+    "category": "数组",
+    "subcategory": "逆向模拟",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "逆向思考，最大值一定是最后一次操作的结果",
+    "approach": "用最大堆，每次取最大值逆推回去（减去其余元素之和），用取模优化大数",
+    "time_complexity": "O(n log n log max)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数组",
+      "堆"
+    ],
+    "code_python3": "class Solution:\n    def isPossible(self, target: List[int]) -> bool:\n        import heapq\n        total = sum(target)\n        heap = [-x for x in target]\n        heapq.heapify(heap)\n        while True:\n            mx = -heapq.heappop(heap)\n            if mx == 1:\n                return True\n            rest = total - mx\n            if rest == 0 or rest >= mx:\n                return False\n            if rest == 1:\n                return True\n            new_val = mx % rest\n            if new_val == 0:\n                return False\n            total = total - mx + new_val\n            heapq.heappush(heap, -new_val)"
+  },
+  {
+    "id": 1355,
+    "title": "活动参与者",
+    "slug": "activity-participants",
+    "category": "数据库",
+    "subcategory": "分组统计",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "找出参与人数既不是最多也不是最少的活动",
+    "approach": "GROUP BY活动统计人数，排除最大最小值",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "SELECT activity FROM Friends GROUP BY activity HAVING COUNT(*) > (SELECT COUNT(*) FROM Friends GROUP BY activity ORDER BY COUNT(*) LIMIT 1) AND COUNT(*) < (SELECT COUNT(*) FROM Friends GROUP BY activity ORDER BY COUNT(*) DESC LIMIT 1)"
+  },
+  {
+    "id": 1356,
+    "title": "根据数字二进制下 1 的数目排序",
+    "slug": "sort-integers-by-the-number-of-1-bits",
+    "category": "排序",
+    "subcategory": "自定义排序",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "按二进制1的个数排序，相同则按数值排序",
+    "approach": "自定义排序key为(bin(x).count('1'), x)",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "排序",
+      "位运算"
+    ],
+    "code_python3": "class Solution:\n    def sortByBits(self, arr: List[int]) -> List[int]:\n        return sorted(arr, key=lambda x: (bin(x).count('1'), x))"
+  },
+  {
+    "id": 1357,
+    "title": "每隔 n 个顾客打折",
+    "slug": "apply-discount-every-n-orders",
+    "category": "设计",
+    "subcategory": "模拟",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "计数器跟踪顾客数，每n个打折",
+    "approach": "维护计数器和价格字典，每第n个顾客计算折扣价",
+    "time_complexity": "O(m)",
+    "space_complexity": "O(p)",
+    "tags": [
+      "设计",
+      "哈希表"
+    ],
+    "code_python3": "class Cashier:\n    def __init__(self, n: int, discount: int, products: List[int], prices: List[int]):\n        self.n = n\n        self.discount = discount\n        self.price_map = dict(zip(products, prices))\n        self.count = 0\n    def getBill(self, product: List[int], amount: List[int]) -> float:\n        self.count += 1\n        total = sum(self.price_map[p] * a for p, a in zip(product, amount))\n        if self.count % self.n == 0:\n            total *= (1 - self.discount / 100)\n        return total"
+  },
+  {
+    "id": 1358,
+    "title": "包含所有三种字符的子字符串数目",
+    "slug": "number-of-substrings-containing-all-three-characters",
+    "category": "滑动窗口",
+    "subcategory": "双指针",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "记录每个字符最后出现位置，以当前位置为右端点计算合法子串数",
+    "approach": "维护abc最后出现的位置，对每个右端点i，左端点可以是0到min(last_a, last_b, last_c)，贡献min+1个子串",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "滑动窗口",
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def numberOfSubstrings(self, s: str) -> int:\n        last = [-1, -1, -1]\n        res = 0\n        for i, c in enumerate(s):\n            last[ord(c) - ord('a')] = i\n            res += min(last) + 1\n        return res"
+  },
+  {
+    "id": 1359,
+    "title": "有效的快递序列数目",
+    "slug": "count-all-valid-pickup-and-delivery-options",
+    "category": "动态规划",
+    "subcategory": "组合数学",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "第i个订单有(2i-1)*2i/2种插入方式（取货必须在送货前）",
+    "approach": "dp递推，f(n) = f(n-1) * (2n-1) * n，因为第n个取货送货对有(2n-1)*n种合法插入位置",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "动态规划",
+      "数学"
+    ],
+    "code_python3": "class Solution:\n    def countOrders(self, n: int) -> int:\n        MOD = 10**9 + 7\n        res = 1\n        for i in range(2, n + 1):\n            res = res * (2 * i - 1) * i % MOD\n        return res"
+  },
+  {
+    "id": 1360,
+    "title": "日期之间隔几天",
+    "slug": "number-of-days-between-two-dates",
+    "category": "数学",
+    "subcategory": "日期计算",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "利用Python datetime库计算日期差",
+    "approach": "解析日期字符串，计算两个日期的绝对差值天数",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学"
+    ],
+    "code_python3": "class Solution:\n    def daysBetweenDates(self, date1: str, date2: str) -> int:\n        from datetime import date\n        d1 = date(*map(int, date1.split('-')))\n        d2 = date(*map(int, date2.split('-')))\n        return abs((d2 - d1).days)"
+  },
+  {
+    "id": 1361,
+    "title": "验证二叉树",
+    "slug": "validate-binary-tree-nodes",
+    "category": "树",
+    "subcategory": "入度检查",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "合法二叉树：恰好一个根（入度0），其余入度1，且连通",
+    "approach": "统计入度找根节点，BFS验证连通性和节点数",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "树",
+      "图"
+    ],
+    "code_python3": "class Solution:\n    def validateBinaryTreeNodes(self, n: int, leftChild: List[int], rightChild: List[int]) -> bool:\n        indegree = [0] * n\n        for i in range(n):\n            if leftChild[i] != -1:\n                indegree[leftChild[i]] += 1\n            if rightChild[i] != -1:\n                indegree[rightChild[i]] += 1\n        roots = [i for i in range(n) if indegree[i] == 0]\n        if len(roots) != 1:\n            return False\n        from collections import deque\n        q = deque([roots[0]])\n        visited = set()\n        while q:\n            node = q.popleft()\n            if node in visited:\n                return False\n            visited.add(node)\n            if leftChild[node] != -1:\n                q.append(leftChild[node])\n            if rightChild[node] != -1:\n                q.append(rightChild[node])\n        return len(visited) == n"
+  },
+  {
+    "id": 1362,
+    "title": "最接近的因数",
+    "slug": "closest-divisors",
+    "category": "数学",
+    "subcategory": "因数分解",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "对num+1和num+2分别找最接近的因数对",
+    "approach": "从sqrt开始向下找因数，比较num+1和num+2哪个因数对差更小",
+    "time_complexity": "O(sqrt(n))",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学"
+    ],
+    "code_python3": "class Solution:\n    def closestDivisors(self, num: int) -> List[int]:\n        import math\n        def find(n):\n            for i in range(int(math.isqrt(n)), 0, -1):\n                if n % i == 0:\n                    return [i, n // i]\n        a = find(num + 1)\n        b = find(num + 2)\n        return a if abs(a[0] - a[1]) <= abs(b[0] - b[1]) else b"
+  },
+  {
+    "id": 1363,
+    "title": "形成三的最大倍数",
+    "slug": "largest-multiple-of-three",
+    "category": "贪心",
+    "subcategory": "数学",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "数字之和模3的余数决定需要删除哪些数字",
+    "approach": "统计所有数字，计算总和模3。若余1则删最小的余1的数或两个余2的数；余2类似。贪心选最大",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "贪心",
+      "数学",
+      "排序"
+    ],
+    "code_python3": "class Solution:\n    def largestMultipleOfThree(self, digits: List[int]) -> str:\n        digits.sort(reverse=True)\n        total = sum(digits)\n        rem = total % 3\n        if rem == 0:\n            pass\n        else:\n            # Try removing one digit with remainder == rem\n            found = False\n            for i in range(len(digits) - 1, -1, -1):\n                if digits[i] % 3 == rem:\n                    digits.pop(i)\n                    found = True\n                    break\n            if not found:\n                # Remove two digits with remainder == 3 - rem\n                target = 3 - rem\n                count = 0\n                for i in range(len(digits) - 1, -1, -1):\n                    if digits[i] % 3 == target:\n                        digits.pop(i)\n                        count += 1\n                        if count == 2:\n                            break\n        if not digits:\n            return ''\n        if digits[0] == 0:\n            return '0'\n        return ''.join(map(str, digits))"
+  },
+  {
+    "id": 1364,
+    "title": "顾客的可信联系人数量",
+    "slug": "number-of-trusted-contacts-of-a-customer",
+    "category": "数据库",
+    "subcategory": "多表JOIN",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "多表连接统计每个顾客的可信联系人",
+    "approach": "JOIN Customers, Contacts, Invoices表，统计联系人中也是顾客的数量",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "SELECT i.invoice_id, c.customer_name, i.price, COUNT(co.contact_name) AS contacts_cnt, COUNT(c2.customer_name) AS trusted_contacts_cnt FROM Invoices i JOIN Customers c ON i.user_id = c.customer_id LEFT JOIN Contacts co ON c.customer_id = co.user_id LEFT JOIN Customers c2 ON co.contact_email = c2.email GROUP BY i.invoice_id, c.customer_name, i.price ORDER BY i.invoice_id"
+  },
+  {
+    "id": 1365,
+    "title": "有多少小于当前数字的数字",
+    "slug": "how-many-numbers-are-smaller-than-the-current-number",
+    "category": "数组",
+    "subcategory": "计数排序",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "计数排序后用前缀和得到每个数前面有多少个更小的数",
+    "approach": "统计每个数出现次数，计算前缀和，对每个元素查询比它小的数的个数",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组",
+      "排序"
+    ],
+    "code_python3": "class Solution:\n    def smallerNumbersThanCurrent(self, nums: List[int]) -> List[int]:\n        count = [0] * 101\n        for x in nums:\n            count[x] += 1\n        prefix = [0] * 101\n        for i in range(1, 101):\n            prefix[i] = prefix[i-1] + count[i-1]\n        return [prefix[x] for x in nums]"
+  },
+  {
+    "id": 1366,
+    "title": "通过投票对团队排名",
+    "slug": "rank-teams-by-votes",
+    "category": "排序",
+    "subcategory": "自定义排序",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "按每个位置的得票数排序，相同则按字母序",
+    "approach": "统计每个队伍在每个位置的得票数，自定义排序规则",
+    "time_complexity": "O(n*m + m*m*log m)",
+    "space_complexity": "O(m*m)",
+    "tags": [
+      "排序",
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def rankTeams(self, votes: List[str]) -> str:\n        n = len(votes[0])\n        count = {c: [0] * n for c in votes[0]}\n        for vote in votes:\n            for i, c in enumerate(vote):\n                count[c][i] += 1\n        return ''.join(sorted(votes[0], key=lambda c: (count[c], -ord(c)), reverse=True))"
+  },
+  {
+    "id": 1367,
+    "title": "二叉树中的链表",
+    "slug": "linked-list-in-binary-tree",
+    "category": "树",
+    "subcategory": "DFS",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "对树的每个节点尝试匹配链表路径",
+    "approach": "DFS遍历树，对每个节点作为起点尝试匹配链表，匹配时递归检查左右子树",
+    "time_complexity": "O(n*m)",
+    "space_complexity": "O(n+m)",
+    "tags": [
+      "树",
+      "链表"
+    ],
+    "code_python3": "class Solution:\n    def isSubPath(self, head: Optional[ListNode], root: Optional[TreeNode]) -> bool:\n        def match(node, curr):\n            if not curr:\n                return True\n            if not node:\n                return False\n            if node.val != curr.val:\n                return False\n            return match(node.left, curr.next) or match(node.right, curr.next)\n        if not root:\n            return False\n        return match(root, head) or self.isSubPath(head, root.left) or self.isSubPath(head, root.right)"
+  },
+  {
+    "id": 1368,
+    "title": "使网格图至少有一条有效路径的最小代价",
+    "slug": "minimum-cost-to-make-at-least-one-valid-path-in-a-grid",
+    "category": "图",
+    "subcategory": "0-1 BFS",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "沿当前方向移动代价为0，改方向代价为1，用0-1 BFS",
+    "approach": "将网格视为图，沿箭头方向边权为0，其他方向边权为1，用双端队列BFS求最短路",
+    "time_complexity": "O(m*n)",
+    "space_complexity": "O(m*n)",
+    "tags": [
+      "图",
+      "双指针"
+    ],
+    "code_python3": "class Solution:\n    def minCost(self, grid: List[List[int]]) -> int:\n        from collections import deque\n        m, n = len(grid), len(grid[0])\n        dirs = [(0,1),(0,-1),(1,0),(-1,0)]  # 1:right,2:left,3:down,4:up\n        dist = [[float('inf')] * n for _ in range(m)]\n        dist[0][0] = 0\n        dq = deque([(0, 0, 0)])\n        while dq:\n            d, r, c = dq.popleft()\n            if d > dist[r][c]:\n                continue\n            for i, (dr, dc) in enumerate(dirs):\n                nr, nc = r + dr, c + dc\n                if 0 <= nr < m and 0 <= nc < n:\n                    cost = 0 if grid[r][c] == i + 1 else 1\n                    if d + cost < dist[nr][nc]:\n                        dist[nr][nc] = d + cost\n                        if cost == 0:\n                            dq.appendleft((d, nr, nc))\n                        else:\n                            dq.append((d + 1, nr, nc))\n        return dist[m-1][n-1]"
+  },
+  {
+    "id": 1369,
+    "title": "获取最近第二次的活动",
+    "slug": "get-the-second-most-recent-activity",
+    "category": "数据库",
+    "subcategory": "窗口函数",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "用ROW_NUMBER找第二近的活动，只有一条记录的返回该条",
+    "approach": "窗口函数按时间排序编号，取第二条；若只有一条则取第一条",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "WITH ranked AS (SELECT *, ROW_NUMBER() OVER(PARTITION BY username ORDER BY startDate DESC) rn, COUNT(*) OVER(PARTITION BY username) cnt FROM UserActivity) SELECT username, activity, startDate, endDate FROM ranked WHERE rn = 2 OR cnt = 1"
+  },
+  {
+    "id": 1370,
+    "title": "上升下降字符串",
+    "slug": "increasing-decreasing-string",
+    "category": "排序",
+    "subcategory": "桶排序",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "交替正序逆序取字符",
+    "approach": "统计字符频率，交替从小到大和从大到小取字符直到取完",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "排序",
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def sortString(self, s: str) -> str:\n        count = [0] * 26\n        for c in s:\n            count[ord(c) - ord('a')] += 1\n        res = []\n        while len(res) < len(s):\n            for i in range(26):\n                if count[i] > 0:\n                    res.append(chr(i + ord('a')))\n                    count[i] -= 1\n            for i in range(25, -1, -1):\n                if count[i] > 0:\n                    res.append(chr(i + ord('a')))\n                    count[i] -= 1\n        return ''.join(res)"
+  },
+  {
+    "id": 1371,
+    "title": "每个元音包含偶数次的最长子字符串",
+    "slug": "find-the-longest-substring-containing-vowels-in-even-counts",
+    "category": "前缀和",
+    "subcategory": "状态压缩",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "用5位bitmask表示元音奇偶状态，相同状态之间的子串满足条件",
+    "approach": "遍历字符串维护元音奇偶状态的bitmask，用哈希表记录每个状态首次出现位置",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "前缀和",
+      "位运算"
+    ],
+    "code_python3": "class Solution:\n    def findTheLongestSubstring(self, s: str) -> int:\n        vowels = {'a':0,'e':1,'i':2,'o':3,'u':4}\n        first = {0: -1}\n        state = 0\n        res = 0\n        for i, c in enumerate(s):\n            if c in vowels:\n                state ^= 1 << vowels[c]\n            if state in first:\n                res = max(res, i - first[state])\n            else:\n                first[state] = i\n        return res"
+  },
+  {
+    "id": 1372,
+    "title": "二叉树中的最长交错路径",
+    "slug": "longest-zigzag-path-in-a-binary-tree",
+    "category": "树",
+    "subcategory": "DFS",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "DFS时记录当前方向和长度，切换方向时长度+1",
+    "approach": "DFS传递当前节点向左/向右的最长交错长度，取全局最大值",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(h)",
+    "tags": [
+      "树",
+      "动态规划"
+    ],
+    "code_python3": "class Solution:\n    def longestZigZag(self, root: Optional[TreeNode]) -> int:\n        self.res = 0\n        def dfs(node, left_len, right_len):\n            if not node:\n                return\n            self.res = max(self.res, left_len, right_len)\n            if node.left:\n                dfs(node.left, right_len + 1, 0)\n            if node.right:\n                dfs(node.right, 0, left_len + 1)\n        dfs(root, 0, 0)\n        return self.res"
+  },
+  {
+    "id": 1373,
+    "title": "二叉搜索子树的最大键值和",
+    "slug": "maximum-sum-bst-in-binary-tree",
+    "category": "树",
+    "subcategory": "后序遍历",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "后序遍历返回子树是否BST及其范围和总和",
+    "approach": "后序遍历每个节点返回(is_bst, min_val, max_val, sum)，若当前子树是BST则更新最大和",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(h)",
+    "tags": [
+      "树",
+      "动态规划"
+    ],
+    "code_python3": "class Solution:\n    def maxSumBST(self, root: Optional[TreeNode]) -> int:\n        self.res = 0\n        def dfs(node):\n            if not node:\n                return True, float('inf'), float('-inf'), 0\n            l_bst, l_min, l_max, l_sum = dfs(node.left)\n            r_bst, r_min, r_max, r_sum = dfs(node.right)\n            if l_bst and r_bst and l_max < node.val < r_min:\n                s = l_sum + r_sum + node.val\n                self.res = max(self.res, s)\n                return True, min(l_min, node.val), max(r_max, node.val), s\n            return False, 0, 0, 0\n        dfs(root)\n        return self.res"
+  },
+  {
+    "id": 1374,
+    "title": "生成每种字符都是奇数个的字符串",
+    "slug": "generate-a-string-with-characters-that-have-odd-counts",
+    "category": "数学",
+    "subcategory": "构造",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "n为奇数全用a，n为偶数用n-1个a加1个b",
+    "approach": "简单构造：奇数长度全用同一字符，偶数长度用两种字符",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数学"
+    ],
+    "code_python3": "class Solution:\n    def generateTheString(self, n: int) -> str:\n        if n % 2 == 1:\n            return 'a' * n\n        return 'a' * (n - 1) + 'b'"
+  },
+  {
+    "id": 1375,
+    "title": "二进制字符串前缀一致的次数",
+    "slug": "number-of-times-binary-string-is-prefix-aligned",
+    "category": "数组",
+    "subcategory": "前缀最大值",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "当前缀最大值等于已翻转次数时，前缀一致",
+    "approach": "维护已翻转位的最大值，当最大值等于当前步数时计数+1",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def numTimesAllBlue(self, flips: List[int]) -> int:\n        max_val = 0\n        res = 0\n        for i, f in enumerate(flips):\n            max_val = max(max_val, f)\n            if max_val == i + 1:\n                res += 1\n        return res"
+  },
+  {
+    "id": 1376,
+    "title": "通知所有员工所需的时间",
+    "slug": "time-needed-to-inform-all-employees",
+    "category": "树",
+    "subcategory": "DFS/BFS",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "从根节点DFS/BFS计算到每个叶子的最长路径",
+    "approach": "建树后DFS，每个节点的通知时间是其informTime加上子节点中的最大通知时间",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "树",
+      "图"
+    ],
+    "code_python3": "class Solution:\n    def numOfMinutes(self, n: int, headID: int, manager: List[int], informTime: List[int]) -> int:\n        from collections import defaultdict\n        children = defaultdict(list)\n        for i, m in enumerate(manager):\n            if m != -1:\n                children[m].append(i)\n        def dfs(node):\n            return informTime[node] + max((dfs(c) for c in children[node]), default=0)\n        return dfs(headID)"
+  },
+  {
+    "id": 1377,
+    "title": "T 秒后青蛙的位置",
+    "slug": "frog-position-after-t-seconds",
+    "category": "树",
+    "subcategory": "BFS",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "BFS模拟青蛙跳跃，概率为1/子节点数",
+    "approach": "BFS遍历树，维护到达每个节点的概率，t秒后返回目标节点概率",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "树",
+      "图"
+    ],
+    "code_python3": "class Solution:\n    def frogPosition(self, n: int, edges: List[List[int]], t: int, target: int) -> float:\n        from collections import defaultdict, deque\n        graph = defaultdict(list)\n        for u, v in edges:\n            graph[u].append(v)\n            graph[v].append(u)\n        prob = [0.0] * (n + 1)\n        prob[1] = 1.0\n        visited = [False] * (n + 1)\n        visited[1] = True\n        q = deque([1])\n        for _ in range(t):\n            for _ in range(len(q)):\n                node = q.popleft()\n                children = [nb for nb in graph[node] if not visited[nb]]\n                if children:\n                    for c in children:\n                        visited[c] = True\n                        prob[c] = prob[node] / len(children)\n                        q.append(c)\n                    prob[node] = 0\n                else:\n                    q.append(node)\n        return prob[target]"
+  },
+  {
+    "id": 1378,
+    "title": "使用唯一标识码替换员工ID",
+    "slug": "replace-employee-id-with-the-unique-identifier",
+    "category": "数据库",
+    "subcategory": "LEFT JOIN",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "LEFT JOIN保留所有员工，匹配唯一标识码",
+    "approach": "Employees LEFT JOIN EmployeeUNI获取unique_id",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "SELECT eu.unique_id, e.name FROM Employees e LEFT JOIN EmployeeUNI eu ON e.id = eu.id"
+  },
+  {
+    "id": 1379,
+    "title": "找出克隆二叉树中的相同节点",
+    "slug": "find-a-corresponding-node-of-a-binary-tree-in-a-clone-of-that-tree",
+    "category": "树",
+    "subcategory": "DFS",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "同步遍历原树和克隆树，找到目标节点时返回克隆树对应节点",
+    "approach": "同时DFS原树和克隆树，当原树节点等于target时返回克隆树当前节点",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(h)",
+    "tags": [
+      "树"
+    ],
+    "code_python3": "class Solution:\n    def getTargetCopy(self, original: TreeNode, cloned: TreeNode, target: TreeNode) -> TreeNode:\n        if not original:\n            return None\n        if original is target:\n            return cloned\n        return self.getTargetCopy(original.left, cloned.left, target) or self.getTargetCopy(original.right, cloned.right, target)"
+  },
+  {
+    "id": 1380,
+    "title": "矩阵中的幸运数",
+    "slug": "lucky-numbers-in-a-matrix",
+    "category": "数组",
+    "subcategory": "矩阵",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "幸运数是行最小且列最大的数",
+    "approach": "找每行最小值和每列最大值，取交集",
+    "time_complexity": "O(m*n)",
+    "space_complexity": "O(m+n)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def luckyNumbers(self, matrix: List[List[int]]) -> List[int]:\n        row_mins = {min(row) for row in matrix}\n        col_maxs = {max(col) for col in zip(*matrix)}\n        return list(row_mins & col_maxs)"
+  }
+]

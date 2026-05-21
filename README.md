@@ -356,6 +356,56 @@ The preview is read-only and non-blocking — you continue editing in `hi` while
 
 ---
 
+## LeetCode Mode — `Ctrl+L`
+
+`hi` includes a built-in LeetCode practice environment with a retro phosphor-green terminal aesthetic. Press `Ctrl+L` from the editor to enter LeetCode mode.
+
+### Features
+
+- **Problem browser** — browse, filter by difficulty (1/2/3), and search problems. Pagination with `Ctrl+D`/`Ctrl+U`.
+- **Full Vim editing** — the code editor uses the same Vim mode system as the main editor: Normal, Insert, Visual, Command, and Search modes all work identically.
+- **Tree-sitter syntax highlighting** — code is highlighted using the same incremental Tree-sitter engine as the main editor. Supported languages: Rust, Python, Java, Go, JavaScript, TypeScript, Bash.
+- **Multi-language support** — press `Ctrl+L` in the coding view to switch between all available language templates for a problem.
+- **Auto-save & restore** — your solution is auto-saved every 5 seconds. When you reopen a problem, your code, cursor position, and language selection are restored exactly where you left off.
+- **Run & Submit** — press `Ctrl+R` to run against test cases, `Ctrl+S` to submit. Or use `:run` and `:submit` commands.
+- **Problem description** — toggle the description panel with `Ctrl+D`. Scroll with `j`/`k` when focused.
+- **AI chat panel** — toggle with `Ctrl+A` for AI-assisted problem solving.
+
+### Quick Reference (LeetCode)
+
+```
+Ctrl+L        enter LeetCode mode (from editor)
+j / k         navigate problem list
+Enter         open problem
+/ + query     search problems
+1 / 2 / 3     filter Easy / Medium / Hard
+0             clear filter
+i             enter Insert mode (in editor)
+Esc           return to Normal mode (not exit!)
+q             quit to problem list (Normal mode)
+:q            quit to problem list (Command mode)
+:w            save solution
+:run          run test cases
+:submit       submit solution
+Ctrl+R        run test cases
+Ctrl+S        submit solution
+Ctrl+L        switch language
+Ctrl+D        toggle description panel
+Ctrl+A        toggle AI panel
+```
+
+### Setup
+
+LeetCode mode requires authentication. On first launch, you'll be prompted to paste your `LEETCODE_SESSION` and `csrftoken` cookies from your browser. These are stored locally in `~/.hi/leetcode/`.
+
+To build `hi` with LeetCode support:
+
+```bash
+cargo install --path . --features leetcode
+```
+
+---
+
 ## Quick Reference
 
 | Key / Command | Action |
@@ -364,6 +414,7 @@ The preview is read-only and non-blocking — you continue editing in `hi` while
 | `Ctrl+F` | Global grep panel |
 | `Ctrl+\` | Toggle file tree |
 | `Ctrl+G` | Toggle AI Chat panel |
+| `Ctrl+L` | LeetCode mode (requires `--features leetcode`) |
 | `?` | AI prompt (Normal mode) |
 | `q{a-z}` / `q` | Start / stop macro recording |
 | `@{a-z}` | Play back macro |
@@ -391,6 +442,7 @@ The preview is read-only and non-blocking — you continue editing in `hi` while
 | Global grep | ✅ `Ctrl+F` / `:grep` | ⚠️ Plugin (fzf / telescope) | ✅ Built-in | ❌ None | ❌ None |
 | Macro recording | ✅ `q{reg}` / `@{reg}` | ✅ Full | ❌ None | ❌ None | ❌ None |
 | Markdown preview | ✅ `:preview` (browser) | ⚠️ Plugin | ❌ None | ❌ None | ❌ None |
+| LeetCode integration | ✅ Built-in (`Ctrl+L`) | ⚠️ Plugin (leetcode.vim) | ❌ None | ❌ None | ❌ None |
 | Theme live-switching | ✅ `:theme` with real-time preview | ⚠️ `:colorscheme` (no preview) | ✅ `:theme` | ⚠️ Config file | ❌ N/A |
 | Learning curve | Low (hint bar + AI) | Very high | Medium | Low | Very low |
 | Startup time | ~5ms | ~50ms (Neovim + plugins) | ~10ms | ~10ms | ~5ms |

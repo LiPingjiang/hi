@@ -1,0 +1,933 @@
+[
+  {
+    "id": 541,
+    "title": "Reverse String II",
+    "slug": "reverse-string-ii",
+    "category": "数组",
+    "subcategory": "分段处理",
+    "real_difficulty": 2,
+    "official_difficulty": "Easy",
+    "key_insight": "每2k个字符为一组反转前k个",
+    "approach": "1. 每2k步遍历\n2. 反转前k个字符",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "字符串"
+    ],
+    "code_python3": "class Solution:\n    def reverseStr(self, s: str, k: int) -> str:\n        s = list(s)\n        for i in range(0, len(s), 2*k):\n            s[i:i+k] = s[i:i+k][::-1]\n        return ''.join(s)"
+  },
+  {
+    "id": 544,
+    "title": "Output Contest Matches",
+    "slug": "output-contest-matches",
+    "category": "数学",
+    "subcategory": "模拟配对",
+    "real_difficulty": 3,
+    "official_difficulty": "Medium",
+    "key_insight": "每轮首尾配对递归",
+    "approach": "1. 初始化队伍\n2. 每轮首尾配对",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "模拟"
+    ],
+    "code_python3": "class Solution:\n    def findContestMatch(self, n: int) -> str:\n        t = [str(i) for i in range(1, n+1)]\n        while len(t) > 1:\n            t = [f'({t[i]},{t[~i]})' for i in range(len(t)//2)]\n        return t[0]"
+  },
+  {
+    "id": 545,
+    "title": "Boundary of Binary Tree",
+    "slug": "boundary-of-binary-tree",
+    "category": "树",
+    "subcategory": "边界遍历",
+    "real_difficulty": 5,
+    "official_difficulty": "Medium",
+    "key_insight": "分别收集左边界、叶节点、右边界逆序",
+    "approach": "1. 左边界不含叶\n2. 所有叶节点\n3. 右边界逆序",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "树",
+      "DFS"
+    ],
+    "code_python3": "class Solution:\n    def boundaryOfBinaryTree(self, root):\n        if not root: return []\n        res = [root.val]\n        def lb(n):\n            if not n or (not n.left and not n.right): return\n            res.append(n.val)\n            lb(n.left if n.left else n.right)\n        def lv(n):\n            if not n: return\n            if not n.left and not n.right: res.append(n.val); return\n            lv(n.left); lv(n.right)\n        def rb(n):\n            if not n or (not n.left and not n.right): return\n            rb(n.right if n.right else n.left)\n            res.append(n.val)\n        lb(root.left); lv(root.left); lv(root.right); rb(root.right)\n        return res"
+  },
+  {
+    "id": 546,
+    "title": "Remove Boxes",
+    "slug": "remove-boxes",
+    "category": "动态规划",
+    "subcategory": "三维区间DP",
+    "real_difficulty": 9,
+    "official_difficulty": "Hard",
+    "key_insight": "dp[l][r][k]表示移除[l,r]且右边有k个同色盒子的最大积分",
+    "approach": "1. 直接移除得(k+1)^2\n2. 合并中间同色位置",
+    "time_complexity": "O(n^4)",
+    "space_complexity": "O(n^3)",
+    "tags": [
+      "动态规划",
+      "区间DP"
+    ],
+    "code_python3": "class Solution:\n    def removeBoxes(self, boxes) -> int:\n        from functools import lru_cache\n        @lru_cache(None)\n        def dp(l, r, k):\n            if l > r: return 0\n            while r > l and boxes[r]==boxes[r-1]: r-=1; k+=1\n            res = dp(l,r-1,0)+(k+1)**2\n            for i in range(l,r):\n                if boxes[i]==boxes[r]: res=max(res,dp(l,i,k+1)+dp(i+1,r-1,0))\n            return res\n        return dp(0,len(boxes)-1,0)"
+  },
+  {
+    "id": 548,
+    "title": "Split Array with Equal Sum",
+    "slug": "split-array-with-equal-sum",
+    "category": "前缀和",
+    "subcategory": "枚举分割点",
+    "real_difficulty": 6,
+    "official_difficulty": "Hard",
+    "key_insight": "枚举中间分割点j，集合存左半等分和",
+    "approach": "1. 前缀和\n2. 枚举j\n3. 右边检查匹配",
+    "time_complexity": "O(n^2)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "前缀和",
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def splitArray(self, nums) -> bool:\n        n = len(nums)\n        if n < 7: return False\n        p = [0]*(n+1)\n        for i in range(n): p[i+1]=p[i]+nums[i]\n        for j in range(3,n-3):\n            s = set()\n            for i in range(1,j-1):\n                if p[i]==p[j]-p[i+1]: s.add(p[i])\n            for k in range(j+2,n-1):\n                if p[k]-p[j+1]==p[n]-p[k+1] and p[k]-p[j+1] in s: return True\n        return False"
+  },
+  {
+    "id": 549,
+    "title": "Binary Tree Longest Consecutive Sequence II",
+    "slug": "binary-tree-longest-consecutive-sequence-ii",
+    "category": "树",
+    "subcategory": "DFS递增递减",
+    "real_difficulty": 5,
+    "official_difficulty": "Medium",
+    "key_insight": "DFS返回递增和递减长度，路径可经过节点",
+    "approach": "1. DFS返回(inc,dec)\n2. 合并子树结果",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(h)",
+    "tags": [
+      "树",
+      "DFS"
+    ],
+    "code_python3": "class Solution:\n    def longestConsecutive(self, root) -> int:\n        self.ans = 0\n        def dfs(node):\n            if not node: return 0,0\n            inc=dec=1\n            for c in [node.left,node.right]:\n                if not c: continue\n                ci,cd = dfs(c)\n                if c.val==node.val+1: inc=max(inc,ci+1)\n                if c.val==node.val-1: dec=max(dec,cd+1)\n            self.ans=max(self.ans,inc+dec-1)\n            return inc,dec\n        dfs(root)\n        return self.ans"
+  },
+  {
+    "id": 550,
+    "title": "Game Play Analysis IV",
+    "slug": "game-play-analysis-iv",
+    "category": "数据库",
+    "subcategory": "日期计算",
+    "real_difficulty": 4,
+    "official_difficulty": "Medium",
+    "key_insight": "首日登录后次日也登录的玩家比例",
+    "approach": "1. 找首次登录\n2. 检查次日\n3. 计算比例",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "SQL"
+    ],
+    "code_python3": "# SELECT ROUND(COUNT(DISTINCT a.player_id)/(SELECT COUNT(DISTINCT player_id) FROM Activity),2) fraction FROM Activity a JOIN (SELECT player_id,MIN(event_date) f FROM Activity GROUP BY player_id) b ON a.player_id=b.player_id AND a.event_date=DATE_ADD(b.f,INTERVAL 1 DAY)"
+  },
+  {
+    "id": 551,
+    "title": "Student Attendance Record I",
+    "slug": "student-attendance-record-i",
+    "category": "数组",
+    "subcategory": "计数检查",
+    "real_difficulty": 1,
+    "official_difficulty": "Easy",
+    "key_insight": "A不超过1次且不含连续3个L",
+    "approach": "1. count A\n2. check LLL",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "字符串"
+    ],
+    "code_python3": "class Solution:\n    def checkRecord(self, s: str) -> bool:\n        return s.count('A')<=1 and 'LLL' not in s"
+  },
+  {
+    "id": 552,
+    "title": "Student Attendance Record II",
+    "slug": "student-attendance-record-ii",
+    "category": "动态规划",
+    "subcategory": "状态机DP",
+    "real_difficulty": 7,
+    "official_difficulty": "Hard",
+    "key_insight": "状态(A次数,末尾连续L数)的状态机",
+    "approach": "1. dp[a][l]\n2. 添加P/A/L转移",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "动态规划",
+      "状态机"
+    ],
+    "code_python3": "class Solution:\n    def checkRecord(self, n: int) -> int:\n        MOD=10**9+7\n        dp=[[0]*3 for _ in range(2)]\n        dp[0][0]=1\n        for _ in range(n):\n            nd=[[0]*3 for _ in range(2)]\n            for a in range(2):\n                for l in range(3):\n                    if not dp[a][l]: continue\n                    nd[a][0]=(nd[a][0]+dp[a][l])%MOD\n                    if a<1: nd[a+1][0]=(nd[a+1][0]+dp[a][l])%MOD\n                    if l<2: nd[a][l+1]=(nd[a][l+1]+dp[a][l])%MOD\n            dp=nd\n        return sum(dp[a][l] for a in range(2) for l in range(3))%MOD"
+  },
+  {
+    "id": 553,
+    "title": "Optimal Division",
+    "slug": "optimal-division",
+    "category": "数学",
+    "subcategory": "贪心构造",
+    "real_difficulty": 3,
+    "official_difficulty": "Medium",
+    "key_insight": "a/(b/c/d/...)使分母最小",
+    "approach": "1. <=2直接处理\n2. 否则a/(b/c/...)",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数学",
+      "贪心"
+    ],
+    "code_python3": "class Solution:\n    def optimalDivision(self, nums) -> str:\n        if len(nums)==1: return str(nums[0])\n        if len(nums)==2: return f'{nums[0]}/{nums[1]}'\n        mid='/'.join(map(str,nums[1:]))\n        return f'{nums[0]}/({mid})'"
+  },
+  {
+    "id": 554,
+    "title": "Brick Wall",
+    "slug": "brick-wall",
+    "category": "哈希表",
+    "subcategory": "缝隙计数",
+    "real_difficulty": 3,
+    "official_difficulty": "Medium",
+    "key_insight": "统计每个位置的缝隙数，穿过最少砖=行数-最多缝隙",
+    "approach": "1. 前缀和记录缝隙\n2. 找最大缝隙数",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def leastBricks(self, wall) -> int:\n        from collections import Counter\n        gaps = Counter()\n        for row in wall:\n            s = 0\n            for b in row[:-1]:\n                s += b\n                gaps[s] += 1\n        return len(wall) - (max(gaps.values()) if gaps else 0)"
+  },
+  {
+    "id": 555,
+    "title": "Split Concatenated Strings",
+    "slug": "split-concatenated-strings",
+    "category": "贪心",
+    "subcategory": "枚举分割",
+    "real_difficulty": 5,
+    "official_difficulty": "Medium",
+    "key_insight": "每段选正序或逆序中较大者，枚举分割点",
+    "approach": "1. 每段取max(s,rev)\n2. 枚举每段每位置分割",
+    "time_complexity": "O(n*m)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "贪心",
+      "字符串"
+    ],
+    "code_python3": "class Solution:\n    def splitLoopedString(self, strs) -> str:\n        arr = [max(s, s[::-1]) for s in strs]\n        res = ''\n        for i, s in enumerate(strs):\n            rest = ''.join(arr[i+1:]+arr[:i])\n            for cur in [s, s[::-1]]:\n                for j in range(len(cur)):\n                    cand = cur[j:]+rest+cur[:j]\n                    if cand > res: res = cand\n        return res"
+  },
+  {
+    "id": 557,
+    "title": "Reverse Words in a String III",
+    "slug": "reverse-words-in-a-string-iii",
+    "category": "数组",
+    "subcategory": "逐词反转",
+    "real_difficulty": 1,
+    "official_difficulty": "Easy",
+    "key_insight": "按空格分割后每个单词反转",
+    "approach": "1. split\n2. 每词reverse\n3. join",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "字符串"
+    ],
+    "code_python3": "class Solution:\n    def reverseWords(self, s: str) -> str:\n        return ' '.join(w[::-1] for w in s.split())"
+  },
+  {
+    "id": 558,
+    "title": "Logical OR of Two Binary Grids Represented as Quad-Trees",
+    "slug": "logical-or-of-two-binary-grids-represented-as-quad-trees",
+    "category": "树",
+    "subcategory": "四叉树合并",
+    "real_difficulty": 5,
+    "official_difficulty": "Medium",
+    "key_insight": "递归合并两棵四叉树，叶节点为1则直接返回",
+    "approach": "1. 叶节点直接合并\n2. 递归合并四个子树\n3. 四子全叶且同值则合并",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(log n)",
+    "tags": [
+      "树",
+      "递归"
+    ],
+    "code_python3": "class Solution:\n    def intersect(self, q1, q2):\n        if q1.isLeaf: return q1 if q1.val else q2\n        if q2.isLeaf: return q2 if q2.val else q1\n        tl=self.intersect(q1.topLeft,q2.topLeft)\n        tr=self.intersect(q1.topRight,q2.topRight)\n        bl=self.intersect(q1.bottomLeft,q2.bottomLeft)\n        br=self.intersect(q1.bottomRight,q2.bottomRight)\n        if all(c.isLeaf and c.val for c in [tl,tr,bl,br]):\n            return Node(True,True)\n        n=Node(False,False)\n        n.topLeft,n.topRight,n.bottomLeft,n.bottomRight=tl,tr,bl,br\n        return n"
+  },
+  {
+    "id": 559,
+    "title": "Maximum Depth of N-ary Tree",
+    "slug": "maximum-depth-of-n-ary-tree",
+    "category": "树",
+    "subcategory": "递归深度",
+    "real_difficulty": 1,
+    "official_difficulty": "Easy",
+    "key_insight": "递归求N叉树最大深度",
+    "approach": "1. 空返回0\n2. 1+max(子树深度)",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(h)",
+    "tags": [
+      "树",
+      "DFS"
+    ],
+    "code_python3": "class Solution:\n    def maxDepth(self, root) -> int:\n        if not root: return 0\n        if not root.children: return 1\n        return 1+max(self.maxDepth(c) for c in root.children)"
+  },
+  {
+    "id": 561,
+    "title": "Array Partition",
+    "slug": "array-partition",
+    "category": "排序",
+    "subcategory": "贪心配对",
+    "real_difficulty": 1,
+    "official_difficulty": "Easy",
+    "key_insight": "排序后相邻配对取min之和最大",
+    "approach": "1. 排序\n2. 取偶数下标之和",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "排序",
+      "贪心"
+    ],
+    "code_python3": "class Solution:\n    def arrayPairSum(self, nums) -> int:\n        nums.sort()\n        return sum(nums[::2])"
+  },
+  {
+    "id": 562,
+    "title": "Longest Line of Consecutive One in Matrix",
+    "slug": "longest-line-of-consecutive-one-in-matrix",
+    "category": "动态规划",
+    "subcategory": "四方向DP",
+    "real_difficulty": 4,
+    "official_difficulty": "Medium",
+    "key_insight": "四个方向分别DP记录连续1长度",
+    "approach": "1. dp[i][j][4方向]\n2. 取全局最大",
+    "time_complexity": "O(mn)",
+    "space_complexity": "O(mn)",
+    "tags": [
+      "动态规划",
+      "矩阵"
+    ],
+    "code_python3": "class Solution:\n    def longestLine(self, mat) -> int:\n        if not mat: return 0\n        m,n=len(mat),len(mat[0])\n        dp=[[[0]*4 for _ in range(n)] for _ in range(m)]\n        ans=0\n        for i in range(m):\n            for j in range(n):\n                if mat[i][j]==0: continue\n                dp[i][j]=[1]*4\n                if j>0: dp[i][j][0]=dp[i][j-1][0]+1\n                if i>0: dp[i][j][1]=dp[i-1][j][1]+1\n                if i>0 and j>0: dp[i][j][2]=dp[i-1][j-1][2]+1\n                if i>0 and j<n-1: dp[i][j][3]=dp[i-1][j+1][3]+1\n                ans=max(ans,max(dp[i][j]))\n        return ans"
+  },
+  {
+    "id": 563,
+    "title": "Binary Tree Tilt",
+    "slug": "binary-tree-tilt",
+    "category": "树",
+    "subcategory": "后序遍历",
+    "real_difficulty": 2,
+    "official_difficulty": "Easy",
+    "key_insight": "后序遍历计算每节点左右子树和之差",
+    "approach": "1. 后序返回子树和\n2. 累加|左和-右和|",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(h)",
+    "tags": [
+      "树",
+      "DFS"
+    ],
+    "code_python3": "class Solution:\n    def findTilt(self, root) -> int:\n        self.ans=0\n        def dfs(n):\n            if not n: return 0\n            l,r=dfs(n.left),dfs(n.right)\n            self.ans+=abs(l-r)\n            return n.val+l+r\n        dfs(root)\n        return self.ans"
+  },
+  {
+    "id": 564,
+    "title": "Find the Closest Palindrome",
+    "slug": "find-the-closest-palindrome",
+    "category": "数学",
+    "subcategory": "构造回文",
+    "real_difficulty": 7,
+    "official_difficulty": "Hard",
+    "key_insight": "取前半部分+1/不变/-1构造回文候选",
+    "approach": "1. 前半部分三种变化\n2. 加上边界候选\n3. 取最近",
+    "time_complexity": "O(log n)",
+    "space_complexity": "O(log n)",
+    "tags": [
+      "数学",
+      "字符串"
+    ],
+    "code_python3": "class Solution:\n    def nearestPalindromic(self, n: str) -> str:\n        l = len(n)\n        cands = set([10**l+1, 10**(l-1)-1])\n        prefix = int(n[:(l+1)//2])\n        for d in [-1,0,1]:\n            p = str(prefix+d)\n            if l%2: cand=p+p[:-1][::-1]\n            else: cand=p+p[::-1]\n            cands.add(int(cand))\n        cands.discard(int(n))\n        return str(min(cands, key=lambda x:(abs(x-int(n)),x)))"
+  },
+  {
+    "id": 565,
+    "title": "Array Nesting",
+    "slug": "array-nesting",
+    "category": "数组",
+    "subcategory": "环检测",
+    "real_difficulty": 3,
+    "official_difficulty": "Medium",
+    "key_insight": "找最长的索引环",
+    "approach": "1. 标记访问\n2. 跟踪环长度",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def arrayNesting(self, nums) -> int:\n        ans=0\n        for i in range(len(nums)):\n            if nums[i]<0: continue\n            cnt=0; j=i\n            while nums[j]>=0:\n                nj=nums[j]; nums[j]=-1; j=nj; cnt+=1\n            ans=max(ans,cnt)\n        return ans"
+  },
+  {
+    "id": 566,
+    "title": "Reshape the Matrix",
+    "slug": "reshape-the-matrix",
+    "category": "数组",
+    "subcategory": "矩阵变形",
+    "real_difficulty": 1,
+    "official_difficulty": "Easy",
+    "key_insight": "展平后按新维度重排",
+    "approach": "1. 检查元素总数\n2. 展平重排",
+    "time_complexity": "O(mn)",
+    "space_complexity": "O(mn)",
+    "tags": [
+      "数组",
+      "矩阵"
+    ],
+    "code_python3": "class Solution:\n    def matrixReshape(self, mat, r, c):\n        m,n=len(mat),len(mat[0])\n        if m*n!=r*c: return mat\n        flat=[mat[i][j] for i in range(m) for j in range(n)]\n        return [flat[i*c:(i+1)*c] for i in range(r)]"
+  },
+  {
+    "id": 568,
+    "title": "Maximum Vacation Days",
+    "slug": "maximum-vacation-days",
+    "category": "动态规划",
+    "subcategory": "分层DP",
+    "real_difficulty": 6,
+    "official_difficulty": "Hard",
+    "key_insight": "dp[w][c]表示第w周在城市c的最大假期",
+    "approach": "1. 逐周DP\n2. 检查航班可达性",
+    "time_complexity": "O(W*N^2)",
+    "space_complexity": "O(N)",
+    "tags": [
+      "动态规划"
+    ],
+    "code_python3": "class Solution:\n    def maxVacationDays(self, flights, days) -> int:\n        N,W=len(days),len(days[0])\n        dp=[-1]*N; dp[0]=0\n        for w in range(W):\n            nd=[-1]*N\n            for c in range(N):\n                for fr in range(N):\n                    if dp[fr]<0: continue\n                    if fr==c or flights[fr][c]:\n                        nd[c]=max(nd[c],dp[fr]+days[c][w])\n            dp=nd\n        return max(dp)"
+  },
+  {
+    "id": 569,
+    "title": "Median Employee Salary",
+    "slug": "median-employee-salary",
+    "category": "数据库",
+    "subcategory": "窗口函数",
+    "real_difficulty": 5,
+    "official_difficulty": "Hard",
+    "key_insight": "按公司分组用ROW_NUMBER找中位数",
+    "approach": "1. ROW_NUMBER排序\n2. 取中间行",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "SQL",
+      "窗口函数"
+    ],
+    "code_python3": "# SELECT id,company,salary FROM (SELECT *,ROW_NUMBER() OVER(PARTITION BY company ORDER BY salary,id) rn,COUNT(*) OVER(PARTITION BY company) cnt FROM Employee) t WHERE rn BETWEEN cnt/2.0 AND cnt/2.0+1"
+  },
+  {
+    "id": 570,
+    "title": "Managers with at Least 5 Direct Reports",
+    "slug": "managers-with-at-least-5-direct-reports",
+    "category": "数据库",
+    "subcategory": "分组计数",
+    "real_difficulty": 2,
+    "official_difficulty": "Medium",
+    "key_insight": "按managerId分组计数>=5",
+    "approach": "1. GROUP BY managerId\n2. HAVING COUNT>=5",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "SQL"
+    ],
+    "code_python3": "# SELECT e.name FROM Employee e JOIN (SELECT managerId FROM Employee GROUP BY managerId HAVING COUNT(*)>=5) m ON e.id=m.managerId"
+  },
+  {
+    "id": 571,
+    "title": "Find Median Given Frequency of Numbers",
+    "slug": "find-median-given-frequency-of-numbers",
+    "category": "数据库",
+    "subcategory": "累积频率",
+    "real_difficulty": 5,
+    "official_difficulty": "Hard",
+    "key_insight": "累积频率找中位数位置",
+    "approach": "1. 累积频率\n2. 找覆盖中间位置的数",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "SQL"
+    ],
+    "code_python3": "# SELECT AVG(n.num) median FROM Numbers n WHERE n.frequency>=(SELECT ABS(SUM(CASE WHEN n2.num<=n.num THEN frequency ELSE -frequency END) FROM Numbers n2))"
+  },
+  {
+    "id": 572,
+    "title": "Subtree of Another Tree",
+    "slug": "subtree-of-another-tree",
+    "category": "树",
+    "subcategory": "递归匹配",
+    "real_difficulty": 3,
+    "official_difficulty": "Easy",
+    "key_insight": "递归检查每个节点是否与子树相同",
+    "approach": "1. 递归遍历\n2. 逐节点比较",
+    "time_complexity": "O(mn)",
+    "space_complexity": "O(h)",
+    "tags": [
+      "树",
+      "DFS"
+    ],
+    "code_python3": "class Solution:\n    def isSubtree(self, root, subRoot) -> bool:\n        def same(a,b):\n            if not a and not b: return True\n            if not a or not b: return False\n            return a.val==b.val and same(a.left,b.left) and same(a.right,b.right)\n        if not root: return False\n        return same(root,subRoot) or self.isSubtree(root.left,subRoot) or self.isSubtree(root.right,subRoot)"
+  },
+  {
+    "id": 573,
+    "title": "Squirrel Simulation",
+    "slug": "squirrel-simulation",
+    "category": "数学",
+    "subcategory": "贪心选择",
+    "real_difficulty": 4,
+    "official_difficulty": "Medium",
+    "key_insight": "松鼠先去最优坚果(节省最多距离)再逐个收集",
+    "approach": "1. 总距离=所有坚果到树*2\n2. 减去最大节省",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学",
+      "贪心"
+    ],
+    "code_python3": "class Solution:\n    def minDistance(self, height, width, tree, squirrel, nuts) -> int:\n        total = sum(abs(n[0]-tree[0])+abs(n[1]-tree[1]) for n in nuts)*2\n        save = max(abs(n[0]-tree[0])+abs(n[1]-tree[1])-(abs(n[0]-squirrel[0])+abs(n[1]-squirrel[1])) for n in nuts)\n        return total-save"
+  },
+  {
+    "id": 574,
+    "title": "Winning Candidate",
+    "slug": "winning-candidate",
+    "category": "数据库",
+    "subcategory": "分组排序",
+    "real_difficulty": 2,
+    "official_difficulty": "Medium",
+    "key_insight": "按candidateId计数取最多票",
+    "approach": "1. GROUP BY\n2. ORDER BY COUNT DESC LIMIT 1",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "SQL"
+    ],
+    "code_python3": "# SELECT c.name FROM Candidate c JOIN Vote v ON c.id=v.candidateId GROUP BY c.id ORDER BY COUNT(*) DESC LIMIT 1"
+  },
+  {
+    "id": 575,
+    "title": "Distribute Candies",
+    "slug": "distribute-candies",
+    "category": "哈希表",
+    "subcategory": "去重计数",
+    "real_difficulty": 1,
+    "official_difficulty": "Easy",
+    "key_insight": "能吃n/2种，取min(种类数,n/2)",
+    "approach": "1. 去重计数\n2. min(种类,n//2)",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def distributeCandies(self, candyType) -> int:\n        return min(len(set(candyType)), len(candyType)//2)"
+  },
+  {
+    "id": 576,
+    "title": "Out of Boundary Paths",
+    "slug": "out-of-boundary-paths",
+    "category": "动态规划",
+    "subcategory": "BFS/DP",
+    "real_difficulty": 4,
+    "official_difficulty": "Medium",
+    "key_insight": "dp[步数][i][j]表示到达(i,j)的路径数",
+    "approach": "1. 逐步扩展\n2. 出界累加答案",
+    "time_complexity": "O(m*n*N)",
+    "space_complexity": "O(m*n)",
+    "tags": [
+      "动态规划",
+      "BFS"
+    ],
+    "code_python3": "class Solution:\n    def findPaths(self, m, n, maxMove, startRow, startColumn) -> int:\n        MOD=10**9+7\n        dp=[[0]*n for _ in range(m)]\n        dp[startRow][startColumn]=1\n        ans=0\n        for _ in range(maxMove):\n            nd=[[0]*n for _ in range(m)]\n            for i in range(m):\n                for j in range(n):\n                    if not dp[i][j]: continue\n                    for di,dj in [(0,1),(0,-1),(1,0),(-1,0)]:\n                        ni,nj=i+di,j+dj\n                        if 0<=ni<m and 0<=nj<n: nd[ni][nj]=(nd[ni][nj]+dp[i][j])%MOD\n                        else: ans=(ans+dp[i][j])%MOD\n            dp=nd\n        return ans"
+  },
+  {
+    "id": 577,
+    "title": "Employee Bonus",
+    "slug": "employee-bonus",
+    "category": "数据库",
+    "subcategory": "LEFT JOIN",
+    "real_difficulty": 1,
+    "official_difficulty": "Easy",
+    "key_insight": "LEFT JOIN找bonus<1000或无bonus的员工",
+    "approach": "1. LEFT JOIN\n2. WHERE bonus<1000 OR NULL",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "SQL"
+    ],
+    "code_python3": "# SELECT e.name,b.bonus FROM Employee e LEFT JOIN Bonus b ON e.empId=b.empId WHERE b.bonus<1000 OR b.bonus IS NULL"
+  },
+  {
+    "id": 578,
+    "title": "Get Highest Answer Rate Question",
+    "slug": "get-highest-answer-rate-question",
+    "category": "数据库",
+    "subcategory": "条件聚合",
+    "real_difficulty": 3,
+    "official_difficulty": "Medium",
+    "key_insight": "按question_id计算回答率",
+    "approach": "1. 条件聚合answer/show\n2. 排序取最高",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "SQL"
+    ],
+    "code_python3": "# SELECT question_id survey_log FROM SurveyLog GROUP BY question_id ORDER BY SUM(action='answer')/SUM(action='show') DESC LIMIT 1"
+  },
+  {
+    "id": 579,
+    "title": "Find Cumulative Salary of an Employee",
+    "slug": "find-cumulative-salary-of-an-employee",
+    "category": "数据库",
+    "subcategory": "窗口函数",
+    "real_difficulty": 6,
+    "official_difficulty": "Hard",
+    "key_insight": "每月累计前3个月工资(不含最近月)",
+    "approach": "1. 排除最大月\n2. 窗口SUM前3行",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "SQL",
+      "窗口函数"
+    ],
+    "code_python3": "# SELECT id,month,SUM(salary) OVER(PARTITION BY id ORDER BY month ROWS 2 PRECEDING) salary FROM Employee WHERE (id,month) NOT IN (SELECT id,MAX(month) FROM Employee GROUP BY id) ORDER BY id,month DESC"
+  },
+  {
+    "id": 580,
+    "title": "Count Student Number in Departments",
+    "slug": "count-student-number-in-departments",
+    "category": "数据库",
+    "subcategory": "LEFT JOIN计数",
+    "real_difficulty": 2,
+    "official_difficulty": "Medium",
+    "key_insight": "LEFT JOIN统计每个系的学生数",
+    "approach": "1. LEFT JOIN\n2. GROUP BY dept\n3. COUNT",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "SQL"
+    ],
+    "code_python3": "# SELECT d.dept_name,COUNT(s.student_id) student_number FROM Department d LEFT JOIN Student s ON d.dept_id=s.dept_id GROUP BY d.dept_id ORDER BY student_number DESC,d.dept_name"
+  },
+  {
+    "id": 582,
+    "title": "Kill Process",
+    "slug": "kill-process",
+    "category": "树",
+    "subcategory": "BFS子树",
+    "real_difficulty": 3,
+    "official_difficulty": "Medium",
+    "key_insight": "BFS从kill节点遍历所有子进程",
+    "approach": "1. 建立父子映射\n2. BFS收集子树",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "树",
+      "BFS"
+    ],
+    "code_python3": "class Solution:\n    def killProcess(self, pid, ppid, kill):\n        from collections import defaultdict, deque\n        ch = defaultdict(list)\n        for c,p in zip(pid,ppid): ch[p].append(c)\n        res,q = [],[kill]\n        while q:\n            n = q.pop()\n            res.append(n)\n            q.extend(ch[n])\n        return res"
+  },
+  {
+    "id": 583,
+    "title": "Delete Operation for Two Strings",
+    "slug": "delete-operation-for-two-strings",
+    "category": "动态规划",
+    "subcategory": "LCS变体",
+    "real_difficulty": 4,
+    "official_difficulty": "Medium",
+    "key_insight": "最少删除=两串长度和-2*LCS",
+    "approach": "1. 求LCS\n2. m+n-2*lcs",
+    "time_complexity": "O(mn)",
+    "space_complexity": "O(mn)",
+    "tags": [
+      "动态规划",
+      "LCS"
+    ],
+    "code_python3": "class Solution:\n    def minDistance(self, word1: str, word2: str) -> int:\n        m,n=len(word1),len(word2)\n        dp=[[0]*(n+1) for _ in range(m+1)]\n        for i in range(1,m+1):\n            for j in range(1,n+1):\n                if word1[i-1]==word2[j-1]: dp[i][j]=dp[i-1][j-1]+1\n                else: dp[i][j]=max(dp[i-1][j],dp[i][j-1])\n        return m+n-2*dp[m][n]"
+  },
+  {
+    "id": 584,
+    "title": "Find Customer Referee",
+    "slug": "find-customer-referee",
+    "category": "数据库",
+    "subcategory": "NULL处理",
+    "real_difficulty": 1,
+    "official_difficulty": "Easy",
+    "key_insight": "找referee_id不为2的客户(含NULL)",
+    "approach": "1. WHERE referee_id!=2 OR IS NULL",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "SQL"
+    ],
+    "code_python3": "# SELECT name FROM Customer WHERE referee_id!=2 OR referee_id IS NULL"
+  },
+  {
+    "id": 585,
+    "title": "Investments in 2016",
+    "slug": "investments-in-2016",
+    "category": "数据库",
+    "subcategory": "条件过滤",
+    "real_difficulty": 4,
+    "official_difficulty": "Medium",
+    "key_insight": "2015年投资额有重复但坐标唯一的记录",
+    "approach": "1. tiv_2015有重复\n2. (lat,lon)唯一",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "SQL"
+    ],
+    "code_python3": "# SELECT ROUND(SUM(tiv_2016),2) tiv_2016 FROM Insurance WHERE tiv_2015 IN (SELECT tiv_2015 FROM Insurance GROUP BY tiv_2015 HAVING COUNT(*)>1) AND (lat,lon) IN (SELECT lat,lon FROM Insurance GROUP BY lat,lon HAVING COUNT(*)=1)"
+  },
+  {
+    "id": 586,
+    "title": "Customer Placing the Largest Number of Orders",
+    "slug": "customer-placing-the-largest-number-of-orders",
+    "category": "数据库",
+    "subcategory": "分组排序",
+    "real_difficulty": 1,
+    "official_difficulty": "Easy",
+    "key_insight": "按customer_number计数取最多",
+    "approach": "1. GROUP BY\n2. ORDER BY COUNT DESC LIMIT 1",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "SQL"
+    ],
+    "code_python3": "# SELECT customer_number FROM Orders GROUP BY customer_number ORDER BY COUNT(*) DESC LIMIT 1"
+  },
+  {
+    "id": 587,
+    "title": "Erect the Fence",
+    "slug": "erect-the-fence",
+    "category": "数学",
+    "subcategory": "凸包算法",
+    "real_difficulty": 7,
+    "official_difficulty": "Hard",
+    "key_insight": "Andrew单调链凸包算法",
+    "approach": "1. 排序点\n2. 构建上下凸包",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数学",
+      "几何"
+    ],
+    "code_python3": "class Solution:\n    def outerTrees(self, trees):\n        def cross(O,A,B): return (A[0]-O[0])*(B[1]-O[1])-(A[1]-O[1])*(B[0]-O[0])\n        pts=sorted(map(tuple,trees))\n        if len(pts)<=2: return trees\n        lo=[]\n        for p in pts:\n            while len(lo)>=2 and cross(lo[-2],lo[-1],p)<0: lo.pop()\n            lo.append(p)\n        up=[]\n        for p in reversed(pts):\n            while len(up)>=2 and cross(up[-2],up[-1],p)<0: up.pop()\n            up.append(p)\n        return [list(p) for p in set(lo+up)]"
+  },
+  {
+    "id": 588,
+    "title": "Design In-Memory File System",
+    "slug": "design-in-memory-file-system",
+    "category": "设计",
+    "subcategory": "字典树文件系统",
+    "real_difficulty": 6,
+    "official_difficulty": "Hard",
+    "key_insight": "用嵌套字典模拟文件系统",
+    "approach": "1. Trie结构存目录\n2. 文件存内容",
+    "time_complexity": "O(path_len)",
+    "space_complexity": "O(total_content)",
+    "tags": [
+      "设计",
+      "字典树"
+    ],
+    "code_python3": "class FileSystem:\n    def __init__(self):\n        self.root={'dirs':{},'files':{}}\n    def _nav(self,path):\n        node=self.root\n        for p in path.split('/')[1:]:\n            if p: node=node['dirs'].setdefault(p,{'dirs':{},'files':{}})\n        return node\n    def ls(self,path):\n        parts=path.split('/')\n        node=self.root\n        for p in parts[1:]:\n            if p in node.get('files',{}): return [p]\n            node=node['dirs'][p]\n        return sorted(list(node['dirs'].keys())+list(node['files'].keys()))\n    def mkdir(self,path): self._nav(path)\n    def addContentToFile(self,path,content):\n        parts=path.split('/')\n        node=self._nav('/'.join(parts[:-1]))\n        node['files'][parts[-1]]=node['files'].get(parts[-1],'')+content\n    def readContentFromFile(self,path):\n        parts=path.split('/')\n        node=self._nav('/'.join(parts[:-1]))\n        return node['files'][parts[-1]]"
+  },
+  {
+    "id": 589,
+    "title": "N-ary Tree Preorder Traversal",
+    "slug": "n-ary-tree-preorder-traversal",
+    "category": "树",
+    "subcategory": "前序遍历",
+    "real_difficulty": 1,
+    "official_difficulty": "Easy",
+    "key_insight": "N叉树前序遍历",
+    "approach": "1. 访问根\n2. 递归子节点",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(h)",
+    "tags": [
+      "树",
+      "DFS"
+    ],
+    "code_python3": "class Solution:\n    def preorder(self, root):\n        if not root: return []\n        res=[root.val]\n        for c in root.children: res.extend(self.preorder(c))\n        return res"
+  },
+  {
+    "id": 590,
+    "title": "N-ary Tree Postorder Traversal",
+    "slug": "n-ary-tree-postorder-traversal",
+    "category": "树",
+    "subcategory": "后序遍历",
+    "real_difficulty": 1,
+    "official_difficulty": "Easy",
+    "key_insight": "N叉树后序遍历",
+    "approach": "1. 递归子节点\n2. 访问根",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(h)",
+    "tags": [
+      "树",
+      "DFS"
+    ],
+    "code_python3": "class Solution:\n    def postorder(self, root):\n        if not root: return []\n        res=[]\n        for c in root.children: res.extend(self.postorder(c))\n        res.append(root.val)\n        return res"
+  },
+  {
+    "id": 591,
+    "title": "Tag Validator",
+    "slug": "tag-validator",
+    "category": "栈",
+    "subcategory": "标签匹配",
+    "real_difficulty": 6,
+    "official_difficulty": "Hard",
+    "key_insight": "用栈匹配XML标签，处理CDATA",
+    "approach": "1. 栈匹配开闭标签\n2. 处理CDATA段\n3. 验证标签名规则",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "栈",
+      "字符串"
+    ],
+    "code_python3": "class Solution:\n    def isValid(self, code: str) -> bool:\n        import re\n        code = re.sub(r'<!\\[CDATA\\[.*?\\]\\]>', 'c', code)\n        prev = ''\n        while code != prev:\n            prev = code\n            code = re.sub(r'<([A-Z]{1,9})>[^<]*</\\1>', 't', code)\n        return code == 't'"
+  },
+  {
+    "id": 592,
+    "title": "Fraction Addition and Subtraction",
+    "slug": "fraction-addition-and-subtraction",
+    "category": "数学",
+    "subcategory": "分数运算",
+    "real_difficulty": 4,
+    "official_difficulty": "Medium",
+    "key_insight": "解析分数表达式逐个加减",
+    "approach": "1. 正则提取分数\n2. 通分计算\n3. 约分",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学",
+      "字符串"
+    ],
+    "code_python3": "class Solution:\n    def fractionAddition(self, expression: str) -> str:\n        import re\n        from math import gcd\n        nums = re.findall(r'[+-]?\\d+', expression)\n        A, B = 0, 1\n        for i in range(0, len(nums), 2):\n            a, b = int(nums[i]), int(nums[i+1])\n            A = A*b + a*B\n            B *= b\n            g = gcd(abs(A), B)\n            A //= g; B //= g\n        return f'{A}/{B}'"
+  },
+  {
+    "id": 593,
+    "title": "Valid Square",
+    "slug": "valid-square",
+    "category": "数学",
+    "subcategory": "距离判断",
+    "real_difficulty": 3,
+    "official_difficulty": "Medium",
+    "key_insight": "四点间6个距离应有4个相等边和2个相等对角线",
+    "approach": "1. 计算6个距离\n2. 排序验证",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学",
+      "几何"
+    ],
+    "code_python3": "class Solution:\n    def validSquare(self, p1, p2, p3, p4) -> bool:\n        def d(a,b): return (a[0]-b[0])**2+(a[1]-b[1])**2\n        ds = sorted([d(a,b) for i,a in enumerate([p1,p2,p3,p4]) for b in [p1,p2,p3,p4][i+1:]])\n        return ds[0]>0 and ds[0]==ds[1]==ds[2]==ds[3] and ds[4]==ds[5]"
+  },
+  {
+    "id": 594,
+    "title": "Longest Harmonious Subsequence",
+    "slug": "longest-harmonious-subsequence",
+    "category": "哈希表",
+    "subcategory": "计数配对",
+    "real_difficulty": 2,
+    "official_difficulty": "Easy",
+    "key_insight": "找max-min=1的最长子序列",
+    "approach": "1. Counter计数\n2. 相邻key求和取最大",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def findLHS(self, nums) -> int:\n        from collections import Counter\n        c = Counter(nums)\n        return max((c[k]+c[k+1] for k in c if k+1 in c), default=0)"
+  },
+  {
+    "id": 595,
+    "title": "Big Countries",
+    "slug": "big-countries",
+    "category": "数据库",
+    "subcategory": "简单过滤",
+    "real_difficulty": 1,
+    "official_difficulty": "Easy",
+    "key_insight": "面积>=300万或人口>=2500万",
+    "approach": "1. WHERE area>=3000000 OR population>=25000000",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "SQL"
+    ],
+    "code_python3": "# SELECT name,population,area FROM World WHERE area>=3000000 OR population>=25000000"
+  },
+  {
+    "id": 596,
+    "title": "Classes More Than 5 Students",
+    "slug": "classes-more-than-5-students",
+    "category": "数据库",
+    "subcategory": "分组过滤",
+    "real_difficulty": 1,
+    "official_difficulty": "Easy",
+    "key_insight": "按class分组计数>=5",
+    "approach": "1. GROUP BY class\n2. HAVING COUNT>=5",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "SQL"
+    ],
+    "code_python3": "# SELECT class FROM Courses GROUP BY class HAVING COUNT(DISTINCT student)>=5"
+  },
+  {
+    "id": 597,
+    "title": "Friend Requests I",
+    "slug": "friend-requests-i",
+    "category": "数据库",
+    "subcategory": "比率计算",
+    "real_difficulty": 3,
+    "official_difficulty": "Medium",
+    "key_insight": "接受率=接受数/请求数",
+    "approach": "1. COUNT DISTINCT接受\n2. COUNT DISTINCT请求\n3. 除法",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "SQL"
+    ],
+    "code_python3": "# SELECT ROUND(IFNULL(COUNT(DISTINCT requester_id,accepter_id)/(SELECT COUNT(DISTINCT sender_id,send_to_id) FROM FriendRequest),0),2) accept_rate FROM RequestAccepted"
+  },
+  {
+    "id": 598,
+    "title": "Range Addition II",
+    "slug": "range-addition-ii",
+    "category": "数组",
+    "subcategory": "交集最小",
+    "real_difficulty": 1,
+    "official_difficulty": "Easy",
+    "key_insight": "所有操作的交集即最小行列",
+    "approach": "1. min(ai)*min(bi)",
+    "time_complexity": "O(ops)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组",
+      "数学"
+    ],
+    "code_python3": "class Solution:\n    def maxCount(self, m, n, ops) -> int:\n        if not ops: return m*n\n        return min(o[0] for o in ops)*min(o[1] for o in ops)"
+  },
+  {
+    "id": 599,
+    "title": "Minimum Index Sum of Two Lists",
+    "slug": "minimum-index-sum-of-two-lists",
+    "category": "哈希表",
+    "subcategory": "索引和最小",
+    "real_difficulty": 2,
+    "official_difficulty": "Easy",
+    "key_insight": "两人共同喜欢且索引和最小的餐厅",
+    "approach": "1. 哈希存list1索引\n2. 遍历list2找最小索引和",
+    "time_complexity": "O(m+n)",
+    "space_complexity": "O(m)",
+    "tags": [
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def findRestaurant(self, list1, list2):\n        idx={v:i for i,v in enumerate(list1)}\n        mn=float('inf'); res=[]\n        for j,v in enumerate(list2):\n            if v in idx:\n                s=j+idx[v]\n                if s<mn: mn=s; res=[v]\n                elif s==mn: res.append(v)\n        return res"
+  },
+  {
+    "id": 600,
+    "title": "Non-negative Integers without Consecutive Ones",
+    "slug": "non-negative-integers-without-consecutive-ones",
+    "category": "动态规划",
+    "subcategory": "数位DP",
+    "real_difficulty": 6,
+    "official_difficulty": "Hard",
+    "key_insight": "数位DP统计不含连续1的二进制数",
+    "approach": "1. 预计算fib\n2. 从高位逐位判断",
+    "time_complexity": "O(log n)",
+    "space_complexity": "O(log n)",
+    "tags": [
+      "动态规划",
+      "位运算"
+    ],
+    "code_python3": "class Solution:\n    def findIntegers(self, n: int) -> int:\n        bits=bin(n)[2:]\n        k=len(bits)\n        fib=[0]*(k+2)\n        fib[0]=fib[1]=1\n        for i in range(2,k+2): fib[i]=fib[i-1]+fib[i-2]\n        ans=0; prev=0\n        for i in range(k):\n            if bits[i]=='1':\n                ans+=fib[k-i-1+1]\n                if prev: return ans\n                prev=1\n            else: prev=0\n        return ans+1"
+  }
+]

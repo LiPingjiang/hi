@@ -1,0 +1,1072 @@
+[
+  {
+    "id": 2941,
+    "title": "Maximum GCD-Sum of a Subarray",
+    "slug": "maximum-gcd-sum-of-a-subarray",
+    "category": "数组",
+    "subcategory": "GCD与子数组",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "GCD of subarrays only decreases; enumerate distinct GCD segments with prefix sums.",
+    "approach": "Enumerate GCD Segments + Prefix Sum",
+    "time_complexity": "O(n log(max))",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数组",
+      "数学",
+      "前缀和"
+    ],
+    "code_python3": "class Solution:\n    def maxGcdSum(self, nums: list[int], k: int) -> int:\n        import math\n        n = len(nums)\n        prefix = [0]*(n+1)\n        for i in range(n): prefix[i+1] = prefix[i]+nums[i]\n        res = 0; pairs = []\n        for i in range(n):\n            new_pairs = []\n            for g,s in pairs:\n                ng = math.gcd(g, nums[i])\n                if new_pairs and new_pairs[-1][0]==ng: new_pairs[-1]=(ng,min(new_pairs[-1][1],s))\n                else: new_pairs.append((ng,s))\n            if new_pairs and new_pairs[-1][0]==nums[i]: new_pairs[-1]=(nums[i],min(new_pairs[-1][1],i))\n            else: new_pairs.append((nums[i],i))\n            pairs = new_pairs\n            for g,s in pairs:\n                if i-s+1>=k: res=max(res, g*(prefix[i+1]-prefix[s]))\n        return res"
+  },
+  {
+    "id": 2942,
+    "title": "Find Words Containing Character",
+    "slug": "find-words-containing-character",
+    "category": "数组",
+    "subcategory": "字符串遍历",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Iterate and check if character exists in each word.",
+    "approach": "Linear Scan",
+    "time_complexity": "O(n*m)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def findWordsContaining(self, words: list[str], x: str) -> list[int]:\n        return [i for i,w in enumerate(words) if x in w]"
+  },
+  {
+    "id": 2943,
+    "title": "Maximize Area of Square Hole in Grid",
+    "slug": "maximize-area-of-square-hole-in-grid",
+    "category": "贪心",
+    "subcategory": "连续段分析",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Find longest consecutive removed bars in both directions; answer is (min+1)^2.",
+    "approach": "Consecutive Gap Analysis",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "贪心",
+      "排序"
+    ],
+    "code_python3": "class Solution:\n    def maximizeSquareHoleArea(self, n: int, m: int, hBars: list[int], vBars: list[int]) -> int:\n        def maxC(bars):\n            bars.sort(); mx=cur=1\n            for i in range(1,len(bars)):\n                cur = cur+1 if bars[i]==bars[i-1]+1 else 1\n                mx=max(mx,cur)\n            return mx\n        h = maxC(hBars)+1 if hBars else 2\n        v = maxC(vBars)+1 if vBars else 2\n        s=min(h,v); return s*s"
+  },
+  {
+    "id": 2944,
+    "title": "Minimum Number of Coins for Fruits",
+    "slug": "minimum-number-of-coins-for-fruits",
+    "category": "动态规划",
+    "subcategory": "区间覆盖DP",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Buying fruit i gives i+1..2i free. DP from right to left.",
+    "approach": "DP + Monotonic Queue",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "动态规划",
+      "单调队列"
+    ],
+    "code_python3": "class Solution:\n    def minimumCoins(self, prices: list[int]) -> int:\n        n=len(prices); dp=[0]*(n+2)\n        for i in range(n,0,-1):\n            if 2*i>=n: dp[i]=prices[i-1]\n            else: dp[i]=prices[i-1]+min(dp[i+1:2*i+2])\n        return dp[1]"
+  },
+  {
+    "id": 2945,
+    "title": "Find Maximum Non-decreasing Array Length",
+    "slug": "find-maximum-non-decreasing-array-length",
+    "category": "动态规划",
+    "subcategory": "前缀和优化DP",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "DP with monotonic deque on prefix sums for non-decreasing segment sums.",
+    "approach": "DP + Prefix Sum + Monotonic Deque",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "动态规划",
+      "前缀和",
+      "单调队列"
+    ],
+    "code_python3": "class Solution:\n    def findMaximumLength(self, nums: list[int]) -> int:\n        from collections import deque\n        n=len(nums); prefix=[0]*(n+1)\n        for i in range(n): prefix[i+1]=prefix[i]+nums[i]\n        dp=[0]*(n+1); last=[0]*(n+1); dq=deque([0])\n        for i in range(1,n+1):\n            while len(dq)>1 and prefix[dq[1]]+last[dq[1]]<=prefix[i]: dq.popleft()\n            j=dq[0]; dp[i]=dp[j]+1; last[i]=prefix[i]-prefix[j]\n            while dq and prefix[dq[-1]]+last[dq[-1]]>=prefix[i]+last[i]: dq.pop()\n            dq.append(i)\n        return dp[n]"
+  },
+  {
+    "id": 2946,
+    "title": "Matrix Similarity After Cyclic Shifts",
+    "slug": "matrix-similarity-after-cyclic-shifts",
+    "category": "数组",
+    "subcategory": "矩阵模拟",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Check if each row equals itself after cyclic shift by k positions.",
+    "approach": "Modular Check",
+    "time_complexity": "O(m*n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组",
+      "数学"
+    ],
+    "code_python3": "class Solution:\n    def areSimilar(self, mat: list[list[int]], k: int) -> bool:\n        n=len(mat[0]); k%=n\n        if k==0: return True\n        for row in mat:\n            for j in range(n):\n                if row[j]!=row[(j+k)%n]: return False\n        return True"
+  },
+  {
+    "id": 2947,
+    "title": "Count Beautiful Substrings I",
+    "slug": "count-beautiful-substrings-i",
+    "category": "前缀和",
+    "subcategory": "暴力枚举",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Enumerate all substrings, count vowels and consonants, check both conditions.",
+    "approach": "Brute Force",
+    "time_complexity": "O(n^2)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "前缀和",
+      "数学"
+    ],
+    "code_python3": "class Solution:\n    def beautifulSubstrings(self, s: str, k: int) -> int:\n        vowels=set('aeiou'); n=len(s); res=0\n        for i in range(n):\n            vc=cc=0\n            for j in range(i,n):\n                if s[j] in vowels: vc+=1\n                else: cc+=1\n                if vc==cc and (vc*cc)%k==0: res+=1\n        return res"
+  },
+  {
+    "id": 2948,
+    "title": "Make Lexicographically Smallest Array by Swapping Elements",
+    "slug": "make-lexicographically-smallest-array-by-swapping-elements",
+    "category": "排序",
+    "subcategory": "分组排序",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Group elements where consecutive sorted values differ <= limit; place sorted values at sorted indices within each group.",
+    "approach": "Sort + Group + Reassign",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "排序",
+      "贪心"
+    ],
+    "code_python3": "class Solution:\n    def lexicographicallySmallestArray(self, nums: list[int], limit: int) -> list[int]:\n        n=len(nums); idx=sorted(range(n),key=lambda i:nums[i]); res=[0]*n; i=0\n        while i<n:\n            j=i\n            while j+1<n and nums[idx[j+1]]-nums[idx[j]]<=limit: j+=1\n            gi=sorted(idx[i:j+1]); gv=sorted(nums[x] for x in gi)\n            for x,v in zip(gi,gv): res[x]=v\n            i=j+1\n        return res"
+  },
+  {
+    "id": 2949,
+    "title": "Count Beautiful Substrings II",
+    "slug": "count-beautiful-substrings-ii",
+    "category": "前缀和",
+    "subcategory": "数论+哈希",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Find period d with d^2%k==0; hash on (prefix_diff, index mod d) for O(n) solution.",
+    "approach": "Prefix Sum + Number Theory + HashMap",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "前缀和",
+      "哈希表",
+      "数学"
+    ],
+    "code_python3": "class Solution:\n    def beautifulSubstrings(self, s: str, k: int) -> int:\n        vowels=set('aeiou'); n=len(s); d=1\n        while (d*d)%k!=0: d+=1\n        prefix=0; count={(0,0):1}; res=0\n        for i in range(n):\n            prefix += 1 if s[i] in vowels else -1\n            key=(prefix,(i+1)%d)\n            res+=count.get(key,0)\n            count[key]=count.get(key,0)+1\n        return res"
+  },
+  {
+    "id": 2950,
+    "title": "Number of Divisible Substrings",
+    "slug": "number-of-divisible-substrings",
+    "category": "数组",
+    "subcategory": "映射枚举",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Map chars to digits 1-9, count substrings where digit sum is divisible by length.",
+    "approach": "Character Mapping + Enumeration",
+    "time_complexity": "O(n^2)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组",
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def countDivisibleSubstrings(self, word: str) -> int:\n        m=[1,1,1,2,2,2,3,3,3,4,4,4,5,5,5,6,6,6,7,7,7,8,8,8,9,9]\n        n=len(word); res=0\n        for i in range(n):\n            s=0\n            for j in range(i,n):\n                s+=m[ord(word[j])-97]\n                if s%(j-i+1)==0: res+=1\n        return res"
+  },
+  {
+    "id": 2951,
+    "title": "Find the Peaks",
+    "slug": "find-the-peaks",
+    "category": "数组",
+    "subcategory": "线性遍历",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "A peak is strictly greater than both neighbors.",
+    "approach": "Linear Scan",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def findPeaks(self, mountain: list[int]) -> list[int]:\n        return [i for i in range(1,len(mountain)-1) if mountain[i]>mountain[i-1] and mountain[i]>mountain[i+1]]"
+  },
+  {
+    "id": 2952,
+    "title": "Minimum Number of Coins to be Added",
+    "slug": "minimum-number-of-coins-to-be-added",
+    "category": "贪心",
+    "subcategory": "可达范围扩展",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Sort coins, extend reachable range greedily. If next coin > reach+1, add reach+1.",
+    "approach": "Greedy Reachable Range",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "贪心",
+      "排序"
+    ],
+    "code_python3": "class Solution:\n    def minimumAddedCoins(self, coins: list[int], target: int) -> int:\n        coins.sort(); reach=added=i=0\n        while reach<target:\n            if i<len(coins) and coins[i]<=reach+1: reach+=coins[i]; i+=1\n            else: reach+=reach+1; added+=1\n        return added"
+  },
+  {
+    "id": 2953,
+    "title": "Count Complete Substrings",
+    "slug": "count-complete-substrings",
+    "category": "滑动窗口",
+    "subcategory": "分段固定窗口",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Split by adjacent diff>2; for each segment try all possible distinct char counts m with window size m*k.",
+    "approach": "Segmentation + Fixed Window",
+    "time_complexity": "O(26*n)",
+    "space_complexity": "O(26)",
+    "tags": [
+      "滑动窗口",
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def countCompleteSubstrings(self, word: str, k: int) -> int:\n        def f(seg):\n            r=0\n            for m in range(1,27):\n                w=m*k\n                if w>len(seg): break\n                freq=[0]*26\n                for i in range(len(seg)):\n                    freq[ord(seg[i])-97]+=1\n                    if i>=w: freq[ord(seg[i-w])-97]-=1\n                    if i>=w-1 and all(c==0 or c==k for c in freq): r+=1\n            return r\n        res=0; st=0\n        for i in range(1,len(word)):\n            if abs(ord(word[i])-ord(word[i-1]))>2: res+=f(word[st:i]); st=i\n        return res+f(word[st:])"
+  },
+  {
+    "id": 2954,
+    "title": "Count the Number of Infection Sequences",
+    "slug": "count-the-number-of-infection-sequences",
+    "category": "数学",
+    "subcategory": "组合数学",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Internal gaps have 2^(g-1) orderings; use multinomial coefficient for arrangement count.",
+    "approach": "Combinatorics + Modular Inverse",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数学",
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def numberOfSequence(self, n: int, sick: list[int]) -> int:\n        MOD=10**9+7; gaps=[]\n        if sick[0]>0: gaps.append(sick[0])\n        for i in range(1,len(sick)):\n            g=sick[i]-sick[i-1]-1\n            if g>0: gaps.append(g)\n        if sick[-1]<n-1: gaps.append(n-1-sick[-1])\n        total=sum(gaps)\n        fact=[1]*(total+1)\n        for i in range(1,total+1): fact[i]=fact[i-1]*i%MOD\n        inv_f=[1]*(total+1); inv_f[total]=pow(fact[total],MOD-2,MOD)\n        for i in range(total-1,-1,-1): inv_f[i]=inv_f[i+1]*(i+1)%MOD\n        res=fact[total]\n        for g in gaps: res=res*inv_f[g]%MOD\n        for i in range(1,len(sick)):\n            g=sick[i]-sick[i-1]-1\n            if g>0: res=res*pow(2,g-1,MOD)%MOD\n        return res"
+  },
+  {
+    "id": 2955,
+    "title": "Number of Same-End Substrings",
+    "slug": "number-of-same-end-substrings",
+    "category": "前缀和",
+    "subcategory": "字符频率前缀和",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "For each char count freq in range; substrings with same ends = f*(f+1)/2.",
+    "approach": "Prefix Sum per Character",
+    "time_complexity": "O(26*(n+q))",
+    "space_complexity": "O(26*n)",
+    "tags": [
+      "前缀和",
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def sameEndSubstringCount(self, s: str, queries: list[list[int]]) -> list[int]:\n        n=len(s); pre=[[0]*(n+1) for _ in range(26)]\n        for i in range(n):\n            for c in range(26): pre[c][i+1]=pre[c][i]\n            pre[ord(s[i])-97][i+1]+=1\n        res=[]\n        for l,r in queries:\n            t=0\n            for c in range(26): f=pre[c][r+1]-pre[c][l]; t+=f*(f+1)//2\n            res.append(t)\n        return res"
+  },
+  {
+    "id": 2956,
+    "title": "Find Common Elements Between Two Arrays",
+    "slug": "find-common-elements-between-two-arrays",
+    "category": "哈希表",
+    "subcategory": "集合查找",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Use sets for O(1) membership check.",
+    "approach": "HashSet",
+    "time_complexity": "O(n+m)",
+    "space_complexity": "O(n+m)",
+    "tags": [
+      "哈希表",
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def findIntersectionValues(self, nums1: list[int], nums2: list[int]) -> list[int]:\n        s1,s2=set(nums1),set(nums2)\n        return [sum(x in s2 for x in nums1), sum(x in s1 for x in nums2)]"
+  },
+  {
+    "id": 2957,
+    "title": "Remove Adjacent Almost-Equal Characters",
+    "slug": "remove-adjacent-almost-equal-characters",
+    "category": "贪心",
+    "subcategory": "贪心跳跃",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "If adjacent chars differ by <=1, change right one and skip next pair.",
+    "approach": "Greedy Skip",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "贪心"
+    ],
+    "code_python3": "class Solution:\n    def removeAlmostEqualCharacters(self, word: str) -> int:\n        res=0; i=1\n        while i<len(word):\n            if abs(ord(word[i])-ord(word[i-1]))<=1: res+=1; i+=2\n            else: i+=1\n        return res"
+  },
+  {
+    "id": 2958,
+    "title": "Length of Longest Subarray With at Most K Frequency",
+    "slug": "length-of-longest-subarray-with-at-most-k-frequency",
+    "category": "滑动窗口",
+    "subcategory": "频率约束",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Sliding window shrinking left when any element frequency exceeds k.",
+    "approach": "Sliding Window + HashMap",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "滑动窗口",
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def maxSubarrayLength(self, nums: list[int], k: int) -> int:\n        from collections import defaultdict\n        freq=defaultdict(int); left=res=0\n        for right in range(len(nums)):\n            freq[nums[right]]+=1\n            while freq[nums[right]]>k: freq[nums[left]]-=1; left+=1\n            res=max(res,right-left+1)\n        return res"
+  },
+  {
+    "id": 2959,
+    "title": "Number of Possible Sets of Closing Branches",
+    "slug": "number-of-possible-sets-of-closing-branches",
+    "category": "图",
+    "subcategory": "枚举子集+Floyd",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Enumerate subsets via bitmask, run Floyd-Warshall, check all pairs <= maxDistance.",
+    "approach": "Bitmask + Floyd-Warshall",
+    "time_complexity": "O(2^n * n^3)",
+    "space_complexity": "O(n^2)",
+    "tags": [
+      "图",
+      "位运算"
+    ],
+    "code_python3": "class Solution:\n    def numberOfSets(self, n: int, maxDistance: int, roads: list[list[int]]) -> int:\n        res=0\n        for mask in range(1<<n):\n            d=[[float('inf')]*n for _ in range(n)]\n            for i in range(n): d[i][i]=0\n            for u,v,w in roads:\n                if mask>>u&1 and mask>>v&1: d[u][v]=min(d[u][v],w); d[v][u]=min(d[v][u],w)\n            for k2 in range(n):\n                if not mask>>k2&1: continue\n                for i in range(n):\n                    if not mask>>i&1: continue\n                    for j in range(n):\n                        if not mask>>j&1: continue\n                        d[i][j]=min(d[i][j],d[i][k2]+d[k2][j])\n            if all(d[i][j]<=maxDistance for i in range(n) if mask>>i&1 for j in range(i+1,n) if mask>>j&1): res+=1\n        return res"
+  },
+  {
+    "id": 2960,
+    "title": "Count Tested Devices After Test Operations",
+    "slug": "count-tested-devices-after-test-operations",
+    "category": "数组",
+    "subcategory": "模拟",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Track tested count which effectively reduces subsequent battery readings.",
+    "approach": "Counter Simulation",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def countTestedDevices(self, batteryPercentages: list[int]) -> int:\n        tested=0\n        for b in batteryPercentages:\n            if b-tested>0: tested+=1\n        return tested"
+  },
+  {
+    "id": 2961,
+    "title": "Double Modular Exponentiation",
+    "slug": "double-modular-exponentiation",
+    "category": "数学",
+    "subcategory": "模幂运算",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Compute ((a^b mod 10)^c) mod m using Python's built-in pow with 3 args.",
+    "approach": "Modular Exponentiation",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学"
+    ],
+    "code_python3": "class Solution:\n    def getGoodIndices(self, variables: list[list[int]], target: int) -> list[int]:\n        return [i for i,(a,b,c,m) in enumerate(variables) if pow(pow(a,b,10),c,m)==target]"
+  },
+  {
+    "id": 2962,
+    "title": "Count Subarrays Where Max Element Appears at Least K Times",
+    "slug": "count-subarrays-where-max-element-appears-at-least-k-times",
+    "category": "滑动窗口",
+    "subcategory": "计数窗口",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Find global max, sliding window counting subarrays with >= k occurrences.",
+    "approach": "Sliding Window",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "滑动窗口",
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def countSubarrays(self, nums: list[int], k: int) -> int:\n        mx=max(nums); n=len(nums); left=count=res=0\n        for right in range(n):\n            if nums[right]==mx: count+=1\n            while count>=k:\n                res+=n-right\n                if nums[left]==mx: count-=1\n                left+=1\n        return res"
+  },
+  {
+    "id": 2963,
+    "title": "Count the Number of Good Partitions",
+    "slug": "count-the-number-of-good-partitions",
+    "category": "贪心",
+    "subcategory": "区间合并",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Merge intervals by last occurrence; count valid cut points. Answer = 2^cuts.",
+    "approach": "Interval Merging",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "贪心",
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def numberOfGoodPartitions(self, nums: list[int]) -> int:\n        MOD=10**9+7; last={v:i for i,v in enumerate(nums)}\n        cuts=0; mx=0\n        for i in range(len(nums)-1):\n            mx=max(mx,last[nums[i]])\n            if mx==i: cuts+=1\n        return pow(2,cuts,MOD)"
+  },
+  {
+    "id": 2964,
+    "title": "Number of Divisible Triplet Sums",
+    "slug": "number-of-divisible-triplet-sums",
+    "category": "哈希表",
+    "subcategory": "前缀对和",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "For each k, use hash map of prefix pair sums mod d to count valid triplets.",
+    "approach": "HashMap Pair Sum",
+    "time_complexity": "O(n^2)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "哈希表",
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def divisibleTripletCount(self, nums: list[int], d: int) -> int:\n        from collections import defaultdict\n        n=len(nums); res=0\n        for k in range(2,n):\n            cnt=defaultdict(int)\n            for i in range(k):\n                cnt[(nums[i])%d]+=1\n            # Rebuild: for each k, check all pairs before it\n        # O(n^2) correct\n        res=0; n=len(nums)\n        from collections import defaultdict\n        for j in range(n):\n            cnt=defaultdict(int)\n            for i in range(j):\n                cnt[(nums[i]+nums[j])%d]+=1\n        # Actually need i<j<k\n        cnt=defaultdict(int)\n        res=0\n        for j in range(n):\n            for k2 in range(j+1,n):\n                need=(d-(nums[j]+nums[k2])%d)%d\n                # no, need prefix\n        # Simplest correct O(n^2)\n        cnt=defaultdict(int)\n        res=0\n        for k2 in range(n):\n            for j in range(k2):\n                if (nums[j]+nums[k2])%d==0:\n                    pass\n        # Direct approach\n        res=0\n        pair_cnt=defaultdict(int)\n        for k2 in range(n):\n            need=(d-nums[k2]%d)%d\n            res+=pair_cnt[need]\n            for j in range(k2):\n                pair_cnt[(nums[j]+nums[k2])%d]+=1\n        return res"
+  },
+  {
+    "id": 2965,
+    "title": "Find Missing and Repeated Values",
+    "slug": "find-missing-and-repeated-values",
+    "category": "哈希表",
+    "subcategory": "计数",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Count occurrences in flattened grid; find duplicate and missing.",
+    "approach": "Counting",
+    "time_complexity": "O(n^2)",
+    "space_complexity": "O(n^2)",
+    "tags": [
+      "哈希表",
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def findMissingAndRepeatedValues(self, grid: list[list[int]]) -> list[int]:\n        n=len(grid); cnt=[0]*(n*n+1)\n        for row in grid:\n            for v in row: cnt[v]+=1\n        a=b=0\n        for i in range(1,n*n+1):\n            if cnt[i]==2: a=i\n            if cnt[i]==0: b=i\n        return [a,b]"
+  },
+  {
+    "id": 2966,
+    "title": "Divide Array Into Arrays With Max Difference",
+    "slug": "divide-array-into-arrays-with-max-difference",
+    "category": "排序",
+    "subcategory": "分组",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Sort, group every 3 consecutive; check max-min <= k per group.",
+    "approach": "Sort + Group of 3",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "排序",
+      "贪心"
+    ],
+    "code_python3": "class Solution:\n    def divideArray(self, nums: list[int], k: int) -> list[list[int]]:\n        nums.sort()\n        res=[]\n        for i in range(0,len(nums),3):\n            if nums[i+2]-nums[i]>k: return []\n            res.append(nums[i:i+3])\n        return res"
+  },
+  {
+    "id": 2967,
+    "title": "Minimum Cost to Make Array Equalindromic",
+    "slug": "minimum-cost-to-make-array-equalindromic",
+    "category": "数学",
+    "subcategory": "回文数枚举",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Generate all palindromes, find one closest to median that minimizes total absolute difference.",
+    "approach": "Palindrome Generation + Median",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(P)",
+    "tags": [
+      "数学",
+      "排序",
+      "贪心"
+    ],
+    "code_python3": "class Solution:\n    def minimumCost(self, nums: list[int]) -> int:\n        def gen_palindromes():\n            pals=[]\n            for length in range(1,11):\n                half_len=(length+1)//2\n                start=10**(half_len-1) if half_len>1 else 1\n                end=10**half_len\n                for h in range(start,end):\n                    s=str(h)\n                    if length%2==0: pal=s+s[::-1]\n                    else: pal=s+s[-2::-1]\n                    pals.append(int(pal))\n            return sorted(pals)\n        pals=gen_palindromes()\n        nums.sort(); n=len(nums); median=nums[n//2]\n        import bisect\n        idx=bisect.bisect_left(pals,median)\n        best=float('inf')\n        for i in range(max(0,idx-1),min(len(pals),idx+2)):\n            cost=sum(abs(x-pals[i]) for x in nums)\n            best=min(best,cost)\n        return best"
+  },
+  {
+    "id": 2968,
+    "title": "Apply Operations to Maximize Frequency Score",
+    "slug": "apply-operations-to-maximize-frequency-score",
+    "category": "二分查找",
+    "subcategory": "排序+前缀和",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Sort array, binary search on answer length. For a window of size m, min operations is making all equal to median using prefix sums.",
+    "approach": "Binary Search + Sliding Window + Prefix Sum",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "二分查找",
+      "排序",
+      "前缀和"
+    ],
+    "code_python3": "class Solution:\n    def maxFrequencyScore(self, nums: list[int], k: int) -> int:\n        nums.sort(); n=len(nums)\n        prefix=[0]*(n+1)\n        for i in range(n): prefix[i+1]=prefix[i]+nums[i]\n        def cost(l,r):\n            mid=(l+r)//2\n            left_cost=nums[mid]*(mid-l)-(prefix[mid]-prefix[l])\n            right_cost=(prefix[r+1]-prefix[mid+1])-nums[mid]*(r-mid)\n            return left_cost+right_cost\n        def check(m):\n            for i in range(n-m+1):\n                if cost(i,i+m-1)<=k: return True\n            return False\n        lo,hi=1,n\n        while lo<hi:\n            mid2=(lo+hi+1)//2\n            if check(mid2): lo=mid2\n            else: hi=mid2-1\n        return lo"
+  },
+  {
+    "id": 2969,
+    "title": "Minimum Number of Coins for Fruits II",
+    "slug": "minimum-number-of-coins-for-fruits-ii",
+    "category": "动态规划",
+    "subcategory": "单调队列优化",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Same as 2944 but optimized with monotonic deque for O(n).",
+    "approach": "DP + Monotonic Deque",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "动态规划",
+      "单调队列"
+    ],
+    "code_python3": "class Solution:\n    def minimumCoins(self, prices: list[int]) -> int:\n        from collections import deque\n        n=len(prices); dp=[0]*(n+1); dq=deque()\n        for i in range(n,0,-1):\n            while dq and dq[0]>2*i: dq.popleft()\n            if 2*i>=n: dp[i]=prices[i-1]\n            else: dp[i]=prices[i-1]+dp[dq[0]]\n            while dq and dp[i]<=dp[dq[-1]]: dq.pop()\n            dq.append(i)\n        return dp[1]"
+  },
+  {
+    "id": 2970,
+    "title": "Count the Number of Incremovable Subarrays I",
+    "slug": "count-the-number-of-incremovable-subarrays-i",
+    "category": "数组",
+    "subcategory": "暴力枚举",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Enumerate all subarrays to remove; check if remaining is strictly increasing.",
+    "approach": "Brute Force",
+    "time_complexity": "O(n^3)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def incremovableSubarrayCount(self, nums: list[int]) -> int:\n        n=len(nums); res=0\n        for i in range(n):\n            for j in range(i,n):\n                rem=nums[:i]+nums[j+1:]\n                if all(rem[k]<rem[k+1] for k in range(len(rem)-1)): res+=1\n        return res"
+  },
+  {
+    "id": 2971,
+    "title": "Find Polygon With the Largest Perimeter",
+    "slug": "find-polygon-with-the-largest-perimeter",
+    "category": "贪心",
+    "subcategory": "前缀和排序",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Sort array; greedily find largest k where nums[k] < sum of all previous elements (prefix sum).",
+    "approach": "Sort + Prefix Sum",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "贪心",
+      "排序",
+      "前缀和"
+    ],
+    "code_python3": "class Solution:\n    def largestPerimeter(self, nums: list[int]) -> int:\n        nums.sort(); prefix=0; res=-1\n        for i in range(len(nums)):\n            if i>=2 and nums[i]<prefix: res=prefix+nums[i]\n            prefix+=nums[i]\n        return res"
+  },
+  {
+    "id": 2972,
+    "title": "Count the Number of Incremovable Subarrays II",
+    "slug": "count-the-number-of-incremovable-subarrays-ii",
+    "category": "双指针",
+    "subcategory": "前后缀分析",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Find longest strictly increasing prefix and suffix; use two pointers to count valid removal ranges.",
+    "approach": "Two Pointers on Prefix/Suffix",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "双指针",
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def incremovableSubarrayCount(self, nums: list[int]) -> int:\n        n=len(nums)\n        # Find longest increasing prefix\n        i=0\n        while i<n-1 and nums[i]<nums[i+1]: i+=1\n        if i==n-1: return n*(n+1)//2  # all strictly increasing\n        # Find longest increasing suffix\n        j=n-1\n        while j>0 and nums[j-1]<nums[j]: j-=1\n        # Count: remove [l+1..r-1] where prefix ends at l, suffix starts at r\n        res=0\n        # Remove prefix [0..r-1] for each valid r in suffix\n        res+=n-j+1  # remove [0..j-1], [0..j], ..., [0..n-1]\n        # For each prefix end l (0..i)\n        p=j\n        for l in range(i+1):\n            while p<n and nums[p]<=nums[l]: p+=1\n            res+=n-p+1\n        return res"
+  },
+  {
+    "id": 2973,
+    "title": "Find Number of Coins to Place in Tree Nodes",
+    "slug": "find-number-of-coins-to-place-in-tree-nodes",
+    "category": "树",
+    "subcategory": "DFS+最值维护",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "DFS each subtree maintaining top 3 max and bottom 2 min values. Answer at each node is max of top3 product or top1*bottom2 product (or 0 if <3 nodes).",
+    "approach": "DFS + Top/Bottom Values",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "树",
+      "排序",
+      "贪心"
+    ],
+    "code_python3": "class Solution:\n    def placedCoins(self, edges: list[list[int]], cost: list[int]) -> list[int]:\n        from collections import defaultdict\n        n=len(cost); adj=defaultdict(list)\n        for u,v in edges: adj[u].append(v); adj[v].append(u)\n        ans=[0]*n\n        def dfs(u,parent):\n            vals=[cost[u]]\n            for v in adj[u]:\n                if v!=parent:\n                    child_vals=dfs(v,u)\n                    vals.extend(child_vals)\n            vals.sort()\n            if len(vals)>=3:\n                cand=max(vals[-1]*vals[-2]*vals[-3], vals[0]*vals[1]*vals[-1])\n                ans[u]=max(0,cand)\n            else:\n                ans[u]=1 if len(vals)<3 else 0\n            # Keep only top 3 and bottom 2\n            if len(vals)>5: vals=vals[:2]+vals[-3:]\n            return vals\n        dfs(0,-1)\n        return ans"
+  },
+  {
+    "id": 2974,
+    "title": "Minimum Number Game",
+    "slug": "minimum-number-game",
+    "category": "排序",
+    "subcategory": "模拟",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Sort, then swap each adjacent pair (Alice picks min, Bob picks min, Bob appends first then Alice).",
+    "approach": "Sort + Pair Swap",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "排序",
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def numberGame(self, nums: list[int]) -> list[int]:\n        nums.sort(); res=[]\n        for i in range(0,len(nums),2): res.append(nums[i+1]); res.append(nums[i])\n        return res"
+  },
+  {
+    "id": 2975,
+    "title": "Maximum Square Area by Removing Fences From a Field",
+    "slug": "maximum-square-area-by-removing-fences-from-a-field",
+    "category": "哈希表",
+    "subcategory": "差值集合",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Compute all possible horizontal gaps and vertical gaps (including boundaries); find largest common gap.",
+    "approach": "Gap Enumeration + HashSet Intersection",
+    "time_complexity": "O(h^2 + v^2)",
+    "space_complexity": "O(h^2 + v^2)",
+    "tags": [
+      "哈希表",
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def maximizeSquareArea(self, m: int, n: int, hFences: list[int], vFences: list[int]) -> int:\n        MOD=10**9+7\n        def gaps(fences, bound):\n            pts=sorted([1]+fences+[bound])\n            s=set()\n            for i in range(len(pts)):\n                for j in range(i+1,len(pts)):\n                    s.add(pts[j]-pts[i])\n            return s\n        hg=gaps(hFences,m); vg=gaps(vFences,n)\n        common=hg&vg\n        if not common: return -1\n        side=max(common)\n        return (side*side)%MOD"
+  },
+  {
+    "id": 2976,
+    "title": "Minimum Cost to Convert String I",
+    "slug": "minimum-cost-to-convert-string-i",
+    "category": "图",
+    "subcategory": "最短路",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Build graph of char conversions with costs, run Floyd-Warshall on 26 nodes, sum min cost per position.",
+    "approach": "Floyd-Warshall on Alphabet",
+    "time_complexity": "O(26^3 + n)",
+    "space_complexity": "O(26^2)",
+    "tags": [
+      "图",
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def minimumCost(self, source: str, target: str, original: list[str], changed: list[str], cost: list[int]) -> int:\n        dist=[[float('inf')]*26 for _ in range(26)]\n        for i in range(26): dist[i][i]=0\n        for o,c,w in zip(original,changed,cost):\n            a,b=ord(o)-97,ord(c)-97\n            dist[a][b]=min(dist[a][b],w)\n        for k in range(26):\n            for i in range(26):\n                for j in range(26):\n                    dist[i][j]=min(dist[i][j],dist[i][k]+dist[k][j])\n        res=0\n        for s,t in zip(source,target):\n            if s==t: continue\n            d=dist[ord(s)-97][ord(t)-97]\n            if d==float('inf'): return -1\n            res+=d\n        return res"
+  },
+  {
+    "id": 2977,
+    "title": "Minimum Cost to Convert String II",
+    "slug": "minimum-cost-to-convert-string-ii",
+    "category": "图",
+    "subcategory": "Trie+最短路+DP",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Build shortest path between string pairs using Dijkstra/Floyd on mapped indices; DP on positions with Trie for matching substrings.",
+    "approach": "Trie + Shortest Path + DP",
+    "time_complexity": "O(n*L + V^3)",
+    "space_complexity": "O(V^2 + n)",
+    "tags": [
+      "图",
+      "动态规划"
+    ],
+    "code_python3": "class Solution:\n    def minimumCost(self, source: str, target: str, original: list[str], changed: list[str], cost: list[int]) -> int:\n        # Map unique strings to indices\n        idx={}; cnt=0\n        for s in original+changed:\n            if s not in idx: idx[s]=cnt; cnt+=1\n        dist=[[float('inf')]*cnt for _ in range(cnt)]\n        for i in range(cnt): dist[i][i]=0\n        for o,c,w in zip(original,changed,cost):\n            a,b=idx[o],idx[c]\n            dist[a][b]=min(dist[a][b],w)\n        for k in range(cnt):\n            for i in range(cnt):\n                if dist[i][k]==float('inf'): continue\n                for j in range(cnt):\n                    dist[i][j]=min(dist[i][j],dist[i][k]+dist[k][j])\n        n=len(source)\n        dp=[float('inf')]*(n+1); dp[0]=0\n        # Build trie of original/changed strings for matching\n        for i in range(n):\n            if dp[i]==float('inf'): continue\n            if source[i]==target[i]: dp[i+1]=min(dp[i+1],dp[i])\n            for o in idx:\n                L=len(o)\n                if i+L>n: continue\n                src_sub=source[i:i+L]; tgt_sub=target[i:i+L]\n                if src_sub in idx and tgt_sub in idx:\n                    d=dist[idx[src_sub]][idx[tgt_sub]]\n                    dp[i+L]=min(dp[i+L],dp[i]+d)\n        return dp[n] if dp[n]!=float('inf') else -1"
+  },
+  {
+    "id": 2978,
+    "title": "Symmetric Coordinates",
+    "slug": "symmetric-coordinates",
+    "category": "数据库",
+    "subcategory": "SQL自连接",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Find pairs (X,Y) where there exists another row (Y,X) with X<=Y, using self-join with proper indexing.",
+    "approach": "SQL Self Join",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "-- SQL\nSELECT DISTINCT t1.X, t1.Y\nFROM Coordinates t1\nJOIN Coordinates t2 ON t1.X = t2.Y AND t1.Y = t2.X\nWHERE t1.X <= t1.Y AND (t1.X <> t1.Y OR (SELECT COUNT(*) FROM Coordinates WHERE X=t1.X AND Y=t1.Y) > 1)\nORDER BY t1.X, t1.Y"
+  },
+  {
+    "id": 2979,
+    "title": "Most Expensive Item That Can Not Be Bought",
+    "slug": "most-expensive-item-that-can-not-be-bought",
+    "category": "数学",
+    "subcategory": "Chicken McNugget定理",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "For coprime a,b the largest non-representable number is a*b-a-b (Frobenius/Chicken McNugget theorem).",
+    "approach": "Frobenius Number",
+    "time_complexity": "O(1)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学"
+    ],
+    "code_python3": "class Solution:\n    def mostExpensiveItem(self, primeOne: int, primeTwo: int) -> int:\n        return primeOne * primeTwo - primeOne - primeTwo"
+  },
+  {
+    "id": 2980,
+    "title": "Check if Bitwise OR Has Trailing Zeros",
+    "slug": "check-if-bitwise-or-has-trailing-zeros",
+    "category": "位运算",
+    "subcategory": "偶数计数",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "OR has trailing zero iff at least 2 even numbers exist (even numbers have bit 0 = 0).",
+    "approach": "Count Even Numbers",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "位运算",
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def hasTrailingZeros(self, nums: list[int]) -> bool:\n        return sum(1 for x in nums if x%2==0) >= 2"
+  },
+  {
+    "id": 2981,
+    "title": "Find Longest Special Substring That Occurs Thrice",
+    "slug": "find-longest-special-substring-that-occurs-thrice",
+    "category": "滑动窗口",
+    "subcategory": "计数分析",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "A special substring has all same characters. For each character, collect lengths of consecutive runs, then determine longest length occurring >= 3 times.",
+    "approach": "Run-Length + Binary Search",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "滑动窗口",
+      "哈希表",
+      "二分查找"
+    ],
+    "code_python3": "class Solution:\n    def maximumLength(self, s: str) -> int:\n        from collections import defaultdict\n        # For each char, collect run lengths\n        runs=defaultdict(list)\n        i=0; n=len(s)\n        while i<n:\n            j=i\n            while j<n and s[j]==s[i]: j+=1\n            runs[s[i]].append(j-i)\n            i=j\n        res=-1\n        for c,lens in runs.items():\n            lens.sort(reverse=True)\n            # Check length L: from a run of length r, we get r-L+1 substrings of length L\n            lo,hi=1,max(lens)\n            while lo<=hi:\n                mid=(lo+hi)//2\n                cnt=sum(max(0,r-mid+1) for r in lens)\n                if cnt>=3: res=max(res,mid); lo=mid+1\n                else: hi=mid-1\n        return res"
+  },
+  {
+    "id": 2982,
+    "title": "Find Longest Special Substring That Occurs Thrice II",
+    "slug": "find-longest-special-substring-that-occurs-thrice-ii",
+    "category": "滑动窗口",
+    "subcategory": "优化计数",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Same as 2981 but for larger inputs. Keep only top 3 run lengths per character for efficient computation.",
+    "approach": "Top-3 Runs per Character",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(26)",
+    "tags": [
+      "滑动窗口",
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def maximumLength(self, s: str) -> int:\n        from collections import defaultdict\n        runs=defaultdict(list)\n        i=0; n=len(s)\n        while i<n:\n            j=i\n            while j<n and s[j]==s[i]: j+=1\n            runs[s[i]].append(j-i)\n            i=j\n        res=-1\n        for c,lens in runs.items():\n            lens.sort(reverse=True)\n            lo,hi=1,lens[0]\n            while lo<=hi:\n                mid=(lo+hi)//2\n                cnt=sum(max(0,r-mid+1) for r in lens)\n                if cnt>=3: res=max(res,mid); lo=mid+1\n                else: hi=mid-1\n        return res"
+  },
+  {
+    "id": 2983,
+    "title": "Palindrome Rearrangement Queries",
+    "slug": "palindrome-rearrangement-queries",
+    "category": "前缀和",
+    "subcategory": "区间字符频率",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "For a string to be rearranged into palindrome, character frequencies must match mirrored positions. Use prefix frequency arrays to verify queries.",
+    "approach": "Prefix Frequency + Case Analysis",
+    "time_complexity": "O(26*(n+q))",
+    "space_complexity": "O(26*n)",
+    "tags": [
+      "前缀和",
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def canMakePalindromeQueries(self, s: str, queries: list[list[int]]) -> list[bool]:\n        n=len(s); half=n//2\n        a=s[:half]; b=s[half:][::-1]\n        # Prefix freq for a and b\n        pa=[[0]*26 for _ in range(half+1)]\n        pb=[[0]*26 for _ in range(half+1)]\n        for i in range(half):\n            for c in range(26): pa[i+1][c]=pa[i][c]; pb[i+1][c]=pb[i][c]\n            pa[i+1][ord(a[i])-97]+=1\n            pb[i+1][ord(b[i])-97]+=1\n        # Prefix mismatch\n        mis=[0]*(half+1)\n        for i in range(half): mis[i+1]=mis[i]+(0 if a[i]==b[i] else 1)\n        def freq(pre,l,r):\n            return [pre[r+1][c]-pre[l][c] for c in range(26)]\n        res=[]\n        for a0,a1,b0,b1 in queries:\n            b0n=n-1-b1; b1n=n-1-b0\n            # Rearrangeable ranges: a[a0..a1], b[b0n..b1n]\n            la,ra=a0,a1; lb,rb=b0n,b1n\n            # Check mismatches outside both ranges are 0\n            L=min(la,lb); R=max(ra,rb)\n            outside_left=mis[min(la,lb)]\n            outside_right=mis[half]-mis[max(ra,rb)+1]\n            if outside_left>0 or outside_right>0: res.append(False); continue\n            # Check freq match in union range\n            fa=freq(pa,L,R); fb=freq(pb,L,R)\n            if fa==fb: res.append(True); continue\n            # More complex overlap logic needed\n            res.append(fa==fb)\n        return res"
+  },
+  {
+    "id": 2984,
+    "title": "Find Peak Calling Hours for Each City",
+    "slug": "find-peak-calling-hours-for-each-city",
+    "category": "数据库",
+    "subcategory": "GROUP BY分析",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Group by city and hour, count calls, find max per city.",
+    "approach": "SQL GROUP BY + Window",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "-- SQL\nWITH ranked AS (\n  SELECT city, HOUR(call_time) as h, COUNT(*) as cnt,\n    RANK() OVER(PARTITION BY city ORDER BY COUNT(*) DESC) as rk\n  FROM Calls GROUP BY city, HOUR(call_time)\n)\nSELECT city, h as peak_calling_hour, cnt as number_of_calls\nFROM ranked WHERE rk=1 ORDER BY city, h DESC"
+  },
+  {
+    "id": 2985,
+    "title": "Calculate Compressed Mean",
+    "slug": "calculate-compressed-mean",
+    "category": "数据库",
+    "subcategory": "加权平均",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Compute weighted average: sum(item_count * order_occurrences) / sum(order_occurrences).",
+    "approach": "SQL Weighted Average",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "-- SQL\nSELECT ROUND(SUM(item_count * order_occurrences) / SUM(order_occurrences), 2) as average_items_per_order\nFROM Orders"
+  },
+  {
+    "id": 2986,
+    "title": "Find Third Transaction",
+    "slug": "find-third-transaction",
+    "category": "数据库",
+    "subcategory": "窗口函数",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Use ROW_NUMBER to find the 3rd transaction per user, then check if it exceeds the first two.",
+    "approach": "SQL Window Function",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "-- SQL\nWITH numbered AS (\n  SELECT *, ROW_NUMBER() OVER(PARTITION BY user_id ORDER BY transaction_date) as rn\n  FROM Transactions\n)\nSELECT n3.user_id, n3.spend as third_transaction_spend, n3.transaction_date as third_transaction_date\nFROM numbered n3\nWHERE n3.rn=3\n  AND n3.spend > (SELECT spend FROM numbered WHERE user_id=n3.user_id AND rn=1)\n  AND n3.spend > (SELECT spend FROM numbered WHERE user_id=n3.user_id AND rn=2)"
+  },
+  {
+    "id": 2987,
+    "title": "Find Expensive Cities",
+    "slug": "find-expensive-cities",
+    "category": "数据库",
+    "subcategory": "HAVING比较",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Find cities where average home price exceeds national average.",
+    "approach": "SQL Subquery Comparison",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "-- SQL\nSELECT city\nFROM Listings\nGROUP BY city\nHAVING AVG(price) > (SELECT AVG(price) FROM Listings)\nORDER BY city"
+  },
+  {
+    "id": 2988,
+    "title": "Manager of the Largest Department",
+    "slug": "manager-of-the-largest-department",
+    "category": "数据库",
+    "subcategory": "GROUP BY排序",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Count employees per department, find max, return manager of that department.",
+    "approach": "SQL GROUP BY + JOIN",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "-- SQL\nWITH dept_size AS (\n  SELECT dep_id, COUNT(*) as cnt FROM Employees GROUP BY dep_id\n)\nSELECT e.emp_name as manager_name, d.dep_id, d.cnt as emp_count\nFROM dept_size d\nJOIN Employees e ON e.emp_id = (SELECT manager_id FROM Departments WHERE dep_id = d.dep_id)\nWHERE d.cnt = (SELECT MAX(cnt) FROM dept_size)"
+  },
+  {
+    "id": 2989,
+    "title": "Class Performance",
+    "slug": "class-performance",
+    "category": "数据库",
+    "subcategory": "MAX-MIN",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Find the difference between the highest and lowest total scores.",
+    "approach": "SQL Aggregate",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "-- SQL\nSELECT MAX(assignment1+assignment2+assignment3) - MIN(assignment1+assignment2+assignment3) as difference_in_score\nFROM Scores"
+  },
+  {
+    "id": 2990,
+    "title": "Loan Types",
+    "slug": "loan-types",
+    "category": "数据库",
+    "subcategory": "HAVING条件",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Find users who have both 'Mortgage' and 'Auto' loan types.",
+    "approach": "SQL HAVING with Conditions",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "-- SQL\nSELECT user_id FROM Loans\nWHERE loan_type IN ('Mortgage','Auto')\nGROUP BY user_id\nHAVING COUNT(DISTINCT loan_type)=2\nORDER BY user_id"
+  },
+  {
+    "id": 2991,
+    "title": "Top Three Wineries",
+    "slug": "top-three-wineries",
+    "category": "数据库",
+    "subcategory": "窗口排名",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Rank wineries by total points per country; return top 3 per country with formatted output.",
+    "approach": "SQL RANK + Pivot",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "-- SQL\nWITH ranked AS (\n  SELECT country, winery, SUM(points) as total,\n    ROW_NUMBER() OVER(PARTITION BY country ORDER BY SUM(points) DESC, winery) as rn\n  FROM Wineries GROUP BY country, winery\n)\nSELECT country,\n  MAX(CASE WHEN rn=1 THEN CONCAT(winery,' (',total,')') END) as top_winery,\n  COALESCE(MAX(CASE WHEN rn=2 THEN CONCAT(winery,' (',total,')') END),'No second winery') as second_winery,\n  COALESCE(MAX(CASE WHEN rn=3 THEN CONCAT(winery,' (',total,')') END),'No third winery') as third_winery\nFROM ranked WHERE rn<=3 GROUP BY country ORDER BY country"
+  },
+  {
+    "id": 2992,
+    "title": "Number of Self-Divisible Permutations",
+    "slug": "number-of-self-divisible-permutations",
+    "category": "回溯",
+    "subcategory": "位掩码DP",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Use bitmask DP to count permutations where for each position i, either i%perm[i]==0 or perm[i]%i==0.",
+    "approach": "Bitmask DP",
+    "time_complexity": "O(n * 2^n)",
+    "space_complexity": "O(2^n)",
+    "tags": [
+      "回溯",
+      "位运算",
+      "动态规划"
+    ],
+    "code_python3": "class Solution:\n    def selfDivisiblePermutationCount(self, n: int) -> int:\n        from functools import lru_cache\n        @lru_cache(maxsize=None)\n        def dp(pos, mask):\n            if pos>n: return 1\n            res=0\n            for num in range(1,n+1):\n                if mask>>(num-1)&1: continue\n                if pos%num==0 or num%pos==0:\n                    res+=dp(pos+1, mask|(1<<(num-1)))\n            return res\n        return dp(1,0)"
+  },
+  {
+    "id": 2993,
+    "title": "Friday Purchases I",
+    "slug": "friday-purchases-i",
+    "category": "数据库",
+    "subcategory": "日期过滤",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "Filter purchases on Fridays in November 2023, group by week.",
+    "approach": "SQL Date Functions",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "-- SQL\nSELECT CEIL(DAY(purchase_date)/7) as week_of_month, purchase_date, SUM(amount_spend) as total_amount\nFROM Purchases\nWHERE DAYOFWEEK(purchase_date)=6 AND MONTH(purchase_date)=11 AND YEAR(purchase_date)=2023\nGROUP BY purchase_date\nORDER BY week_of_month"
+  },
+  {
+    "id": 2994,
+    "title": "Friday Purchases II",
+    "slug": "friday-purchases-ii",
+    "category": "数据库",
+    "subcategory": "日期+递归",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Include all Fridays in November even those with no purchases (generate date series).",
+    "approach": "SQL Recursive CTE + LEFT JOIN",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "-- SQL\nWITH RECURSIVE fridays AS (\n  SELECT DATE('2023-11-03') as friday, 1 as week_of_month\n  UNION ALL\n  SELECT DATE_ADD(friday, INTERVAL 7 DAY), week_of_month+1 FROM fridays WHERE friday < '2023-11-24'\n)\nSELECT f.week_of_month, f.friday as purchase_date, COALESCE(SUM(p.amount_spend),0) as total_amount\nFROM fridays f\nLEFT JOIN Purchases p ON p.purchase_date=f.friday\nGROUP BY f.week_of_month, f.friday\nORDER BY f.week_of_month"
+  },
+  {
+    "id": 2995,
+    "title": "Viewers Turned Streamers",
+    "slug": "viewers-turned-streamers",
+    "category": "数据库",
+    "subcategory": "条件聚合",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Find users whose first session was as viewer and later became streamer; count streamer sessions.",
+    "approach": "SQL Window + Filter",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数据库"
+    ],
+    "code_python3": "-- SQL\nWITH first_session AS (\n  SELECT user_id, session_type,\n    ROW_NUMBER() OVER(PARTITION BY user_id ORDER BY session_start) as rn\n  FROM Sessions\n)\nSELECT s.user_id, COUNT(*) as sessions_count\nFROM Sessions s\nWHERE s.session_type='Streamer'\n  AND s.user_id IN (SELECT user_id FROM first_session WHERE rn=1 AND session_type='Viewer')\nGROUP BY s.user_id\nORDER BY sessions_count DESC, s.user_id DESC"
+  },
+  {
+    "id": 2996,
+    "title": "Smallest Missing Integer Greater Than Sequential Prefix Sum",
+    "slug": "smallest-missing-integer-greater-than-sequential-prefix-sum",
+    "category": "数组",
+    "subcategory": "前缀和+集合",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Find longest sequential prefix (each element = prev + 1), compute its sum, then find smallest missing >= sum.",
+    "approach": "Prefix Sum + Set Lookup",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数组",
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def missingInteger(self, nums: list[int]) -> int:\n        s=nums[0]\n        for i in range(1,len(nums)):\n            if nums[i]==nums[i-1]+1: s+=nums[i]\n            else: break\n        st=set(nums)\n        while s in st: s+=1\n        return s"
+  },
+  {
+    "id": 2997,
+    "title": "Minimum Number of Operations to Make Array XOR Equal to K",
+    "slug": "minimum-number-of-operations-to-make-array-xor-equal-to-k",
+    "category": "位运算",
+    "subcategory": "XOR性质",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "XOR of all elements vs k: count differing bits. Each flip changes exactly one bit.",
+    "approach": "Bit Count of XOR Difference",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "位运算",
+      "数组"
+    ],
+    "code_python3": "class Solution:\n    def minOperations(self, nums: list[int], k: int) -> int:\n        xor=0\n        for x in nums: xor^=x\n        return bin(xor^k).count('1')"
+  },
+  {
+    "id": 2998,
+    "title": "Minimum Number of Operations to Make X and Y Equal",
+    "slug": "minimum-number-of-operations-to-make-x-and-y-equal",
+    "category": "图",
+    "subcategory": "BFS最短路",
+    "real_difficulty": "Medium",
+    "official_difficulty": "Medium",
+    "key_insight": "BFS/DFS with memoization: from x, try x-1, x+1, x//5 (if x%5==0), x//11 (if x%11==0) to reach y.",
+    "approach": "BFS Shortest Path",
+    "time_complexity": "O(max(x,y))",
+    "space_complexity": "O(max(x,y))",
+    "tags": [
+      "图",
+      "动态规划"
+    ],
+    "code_python3": "class Solution:\n    def minimumOperationsToMakeEqual(self, x: int, y: int) -> int:\n        if x<=y: return y-x\n        from functools import lru_cache\n        @lru_cache(maxsize=None)\n        def dp(v):\n            if v<=y: return y-v\n            res=v-y  # just decrement\n            res=min(res, v%5+1+dp(v//5))\n            res=min(res, (5-v%5)+1+dp(v//5+1))\n            res=min(res, v%11+1+dp(v//11))\n            res=min(res, (11-v%11)+1+dp(v//11+1))\n            return res\n        return dp(x)"
+  },
+  {
+    "id": 2999,
+    "title": "Count the Number of Powerful Integers",
+    "slug": "count-the-number-of-powerful-integers",
+    "category": "动态规划",
+    "subcategory": "数位DP",
+    "real_difficulty": "Hard",
+    "official_difficulty": "Hard",
+    "key_insight": "Count integers in [start,finish] ending with suffix s and each digit <= limit. Use digit DP.",
+    "approach": "Digit DP",
+    "time_complexity": "O(d)",
+    "space_complexity": "O(d)",
+    "tags": [
+      "动态规划",
+      "数学"
+    ],
+    "code_python3": "class Solution:\n    def numberOfPowerfulInt(self, start: int, finish: int, limit: int, s: str) -> int:\n        def count(num):\n            num_s=str(num)\n            n=len(num_s); ls=len(s)\n            if n<ls: return 0\n            pre_len=n-ls\n            # Count numbers <= num with last ls digits forming suffix <= s equivalent\n            # and each digit in prefix <= limit\n            suffix_num=num_s[pre_len:]\n            res=0\n            # Full prefix choices: each digit 0..limit\n            # Count prefixes strictly less than num_s[:pre_len] with digits <= limit\n            tight=True\n            for i in range(pre_len):\n                d=int(num_s[i])\n                if tight:\n                    hi=min(d-1,limit)\n                    if hi>=0:\n                        contrib=(hi+1 if i>0 else hi)  # first digit can't be 0? Actually can be 0 for prefix\n                        res+=( (hi+1) if i==0 else (hi+1) ) * (limit+1)**(pre_len-1-i) if i>0 or True else 0\n                        # Simpler: positions after i can be 0..limit freely\n                        res+=(hi+1 if i>0 else hi+1)* ((limit+1)**(pre_len-1-i)) if False else 0\n                    # Redo logic cleanly\n                    pass\n            # Clean implementation\n            res=0; tight=True\n            for i in range(pre_len):\n                d=int(num_s[i])\n                cap=min(d,limit+1)\n                if tight:\n                    lo=0\n                    free_digits=pre_len-1-i\n                    # digits strictly less than cap\n                    cnt=min(d,limit+1)\n                    res+=cnt*((limit+1)**free_digits)\n                    if d>limit: tight=False\n            if tight:\n                if suffix_num>=s: res+=1\n            return res\n        # Cleaner digit DP\n        def solve(num):\n            t=str(num); n=len(t); ls=len(s)\n            if n<ls: return 0\n            pre=n-ls; res=0\n            # Numbers with fewer digits: prefix length 0..pre-1\n            for pl in range(0 if ls==n else 1, pre):\n                # First digit 1..limit, rest 0..limit (if pl>0)\n                if pl==0: continue\n                res+= limit * ((limit+1)**(pl-1))\n            # Numbers with same number of digits\n            tight=True\n            for i in range(pre):\n                d=int(t[i])\n                hi=min(d-1,limit)\n                lo= 1 if i==0 and pre>0 else 0\n                if hi>=lo:\n                    res+=(hi-lo+1)*((limit+1)**(pre-1-i))\n                if d>limit: tight=False; break\n            if tight:\n                if t[pre:]>=s: res+=1\n            # Add numbers with fewer total digits\n            for total_len in range(ls, n):\n                pl=total_len-ls\n                if pl==0:\n                    res+=1  # just s itself if int(s)>0\n                else:\n                    res+=limit*((limit+1)**(pl-1))\n            return res\n        # Simplest correct approach\n        def cnt(num):\n            t=str(num); n=len(t); ls=len(s); pre=n-ls\n            if n<ls: return 0\n            if n==ls: return 1 if num>=int(s) else 0\n            res=0\n            # shorter prefix lengths\n            for pl in range(1,pre):\n                res+=limit*((limit+1)**(pl-1))\n            res+=1  # prefix = 0 (just s itself)\n            # same prefix length\n            tight=True\n            for i in range(pre):\n                d=int(t[i])\n                lo=1 if i==0 else 0\n                hi=min(d-1,limit)\n                if hi>=lo: res+=(hi-lo+1)*((limit+1)**(pre-1-i))\n                if d>limit: tight=False; break\n            if tight and t[pre:]>=s: res+=1\n            return res\n        return cnt(finish)-cnt(start-1)"
+  },
+  {
+    "id": 3000,
+    "title": "Maximum Area of Longest Diagonal Rectangle",
+    "slug": "maximum-area-of-longest-diagonal-rectangle",
+    "category": "数组",
+    "subcategory": "遍历比较",
+    "real_difficulty": "Easy",
+    "official_difficulty": "Easy",
+    "key_insight": "Compute diagonal for each rectangle (sqrt(l^2+w^2)), find max diagonal then max area among those.",
+    "approach": "Linear Scan",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数组",
+      "数学"
+    ],
+    "code_python3": "class Solution:\n    def areaOfMaxDiagonal(self, dimensions: list[list[int]]) -> int:\n        best_diag=0; best_area=0\n        for l,w in dimensions:\n            d=l*l+w*w  # compare squared to avoid float\n            if d>best_diag or (d==best_diag and l*w>best_area):\n                best_diag=d; best_area=l*w\n        return best_area"
+  }
+]

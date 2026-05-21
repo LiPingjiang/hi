@@ -48,6 +48,33 @@ struct Cli {
 }
 
 fn main() -> Result<()> {
+    // Install panic hook that logs to file (useful in raw-mode TUI)
+    std::panic::set_hook(Box::new(|info| {
+        if let Some(mut home) = dirs::home_dir() {
+            home.push(".hi");
+            let _ = std::fs::create_dir_all(&home);
+            home.push("leetcode_debug.log");
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&home) {
+                use std::io::Write;
+                let _ = writeln!(f, "PANIC: {}", info);
+                if let Some(loc) = info.location() {
+                    let _ = writeln!(f, "  at {}:{}:{}", loc.file(), loc.line(), loc.column());
+                }
+                let bt = std::backtrace::Backtrace::force_capture();
+                let _ = writeln!(f, "  backtrace:\n{}", bt);
+            }
+        }
+        // Also try to restore terminal
+        let _ = crossterm::terminal::disable_raw_mode();
+        let _ = crossterm::execute!(
+            std::io::stdout(),
+            crossterm::event::DisableMouseCapture,
+            crossterm::terminal::LeaveAlternateScreen,
+            crossterm::cursor::Show
+        );
+        eprintln!("PANIC: {}", info);
+    }));
+
     let cli = Cli::parse();
 
     // ── --render mode: print a Markdown file to stdout and exit ──────────────

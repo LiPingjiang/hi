@@ -1,0 +1,337 @@
+[
+  {
+    "id": 6,
+    "title": "Zigzag Conversion",
+    "slug": "zigzag-conversion",
+    "category": "数组",
+    "subcategory": "模拟排列",
+    "real_difficulty": 3,
+    "official_difficulty": "Medium",
+    "key_insight": "按行分组模拟Z字形排列",
+    "approach": "1. 创建numRows行\n2. 按方向填充\n3. 拼接",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "字符串",
+      "模拟"
+    ],
+    "code_python3": "class Solution:\n    def convert(self, s: str, numRows: int) -> str:\n        if numRows==1: return s\n        rows=['']*numRows\n        r,d=0,1\n        for c in s:\n            rows[r]+=c\n            if r==0: d=1\n            elif r==numRows-1: d=-1\n            r+=d\n        return ''.join(rows)"
+  },
+  {
+    "id": 30,
+    "title": "Substring with Concatenation of All Words",
+    "slug": "substring-with-concatenation-of-all-words",
+    "category": "滑动窗口",
+    "subcategory": "固定长度窗口",
+    "real_difficulty": 6,
+    "official_difficulty": "Hard",
+    "key_insight": "滑动窗口+哈希表匹配所有单词的排列",
+    "approach": "1. 单词长度分组\n2. 滑动窗口匹配\n3. 计数比较",
+    "time_complexity": "O(n*m)",
+    "space_complexity": "O(m)",
+    "tags": [
+      "滑动窗口",
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def findSubstring(self, s, words):\n        from collections import Counter\n        if not words: return []\n        wl,n,m=len(words[0]),len(s),len(words)\n        need=Counter(words)\n        res=[]\n        for i in range(wl):\n            l=i; cur=Counter(); cnt=0\n            for r in range(i,n-wl+1,wl):\n                w=s[r:r+wl]\n                if w in need:\n                    cur[w]+=1; cnt+=1\n                    while cur[w]>need[w]:\n                        cur[s[l:l+wl]]-=1; l+=wl; cnt-=1\n                    if cnt==m: res.append(l)\n                else:\n                    cur.clear(); cnt=0; l=r+wl\n        return res"
+  },
+  {
+    "id": 60,
+    "title": "Permutation Sequence",
+    "slug": "permutation-sequence",
+    "category": "数学",
+    "subcategory": "阶乘定位",
+    "real_difficulty": 5,
+    "official_difficulty": "Hard",
+    "key_insight": "用阶乘逐位确定排列中的数字",
+    "approach": "1. 计算阶乘\n2. 逐位确定数字\n3. 从候选中移除",
+    "time_complexity": "O(n^2)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "数学"
+    ],
+    "code_python3": "class Solution:\n    def getPermutation(self, n: int, k: int) -> str:\n        from math import factorial\n        nums=list(range(1,n+1))\n        k-=1; res=''\n        for i in range(n,0,-1):\n            f=factorial(i-1)\n            idx=k//f\n            res+=str(nums[idx])\n            nums.pop(idx)\n            k%=f\n        return res"
+  },
+  {
+    "id": 65,
+    "title": "Valid Number",
+    "slug": "valid-number",
+    "category": "数组",
+    "subcategory": "状态机",
+    "real_difficulty": 4,
+    "official_difficulty": "Hard",
+    "key_insight": "有限状态机验证数字格式",
+    "approach": "1. 定义状态转移\n2. 逐字符转移\n3. 检查终态",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "字符串",
+      "状态机"
+    ],
+    "code_python3": "class Solution:\n    def isNumber(self, s: str) -> bool:\n        import re\n        return bool(re.match(r'^[+-]?(\\d+\\.?\\d*|\\.\\d+)([eE][+-]?\\d+)?$', s.strip()))"
+  },
+  {
+    "id": 68,
+    "title": "Text Justification",
+    "slug": "text-justification",
+    "category": "数组",
+    "subcategory": "模拟格式化",
+    "real_difficulty": 5,
+    "official_difficulty": "Hard",
+    "key_insight": "贪心填充单词后均匀分配空格",
+    "approach": "1. 贪心确定每行单词\n2. 均匀分配空格\n3. 最后一行左对齐",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "字符串",
+      "模拟"
+    ],
+    "code_python3": "class Solution:\n    def fullJustify(self, words, maxWidth):\n        res,line,length=[],[],0\n        for w in words:\n            if length+len(w)+len(line)>maxWidth:\n                for i in range(maxWidth-length):\n                    line[i%(len(line)-1 or 1)]+=' '\n                res.append(''.join(line))\n                line,length=[],0\n            line.append(w); length+=len(w)\n        res.append(' '.join(line).ljust(maxWidth))\n        return res"
+  },
+  {
+    "id": 89,
+    "title": "Gray Code",
+    "slug": "gray-code",
+    "category": "位运算",
+    "subcategory": "格雷码",
+    "real_difficulty": 3,
+    "official_difficulty": "Medium",
+    "key_insight": "i XOR (i>>1)生成格雷码",
+    "approach": "1. 公式: i^(i>>1)",
+    "time_complexity": "O(2^n)",
+    "space_complexity": "O(2^n)",
+    "tags": [
+      "位运算",
+      "数学"
+    ],
+    "code_python3": "class Solution:\n    def grayCode(self, n: int) -> list[int]:\n        return [i^(i>>1) for i in range(1<<n)]"
+  },
+  {
+    "id": 262,
+    "title": "Trips and Users",
+    "slug": "trips-and-users",
+    "category": "数据库",
+    "subcategory": "条件聚合",
+    "real_difficulty": 5,
+    "official_difficulty": "Hard",
+    "key_insight": "按日期统计取消率(排除被禁用户)",
+    "approach": "1. 过滤banned用户\n2. 按日期分组\n3. 计算取消比例",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "SQL"
+    ],
+    "code_python3": "# SELECT request_at Day,ROUND(SUM(status!='completed')/COUNT(*),2) 'Cancellation Rate' FROM Trips WHERE client_id NOT IN (SELECT users_id FROM Users WHERE banned='Yes') AND driver_id NOT IN (SELECT users_id FROM Users WHERE banned='Yes') AND request_at BETWEEN '2013-10-01' AND '2013-10-03' GROUP BY request_at"
+  },
+  {
+    "id": 612,
+    "title": "Shortest Distance in a Plane",
+    "slug": "shortest-distance-in-a-plane",
+    "category": "数据库",
+    "subcategory": "距离计算",
+    "real_difficulty": 3,
+    "official_difficulty": "Medium",
+    "key_insight": "计算平面上任意两点最短距离",
+    "approach": "1. 自连接\n2. 计算欧氏距离\n3. 取最小",
+    "time_complexity": "O(n^2)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "SQL"
+    ],
+    "code_python3": "# SELECT ROUND(MIN(SQRT(POW(p1.x-p2.x,2)+POW(p1.y-p2.y,2))),2) shortest FROM Point2D p1 JOIN Point2D p2 ON (p1.x,p1.y)!=(p2.x,p2.y)"
+  },
+  {
+    "id": 613,
+    "title": "Shortest Distance in a Line",
+    "slug": "shortest-distance-in-a-line",
+    "category": "数据库",
+    "subcategory": "自连接",
+    "real_difficulty": 1,
+    "official_difficulty": "Easy",
+    "key_insight": "一维点集最短距离",
+    "approach": "1. 自连接\n2. ABS差\n3. 取最小",
+    "time_complexity": "O(n^2)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "SQL"
+    ],
+    "code_python3": "# SELECT MIN(ABS(p1.x-p2.x)) shortest FROM Point p1 JOIN Point p2 ON p1.x!=p2.x"
+  },
+  {
+    "id": 614,
+    "title": "Second Degree Follower",
+    "slug": "second-degree-follower",
+    "category": "数据库",
+    "subcategory": "自连接计数",
+    "real_difficulty": 3,
+    "official_difficulty": "Medium",
+    "key_insight": "既是follower又是followee的用户",
+    "approach": "1. 自连接\n2. 分组计数",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "SQL"
+    ],
+    "code_python3": "# SELECT f1.followee follower,COUNT(DISTINCT f1.follower) num FROM Follow f1 JOIN Follow f2 ON f1.followee=f2.follower GROUP BY f1.followee ORDER BY f1.followee"
+  },
+  {
+    "id": 615,
+    "title": "Average Salary: Departments VS Company",
+    "slug": "average-salary-departments-vs-company",
+    "category": "数据库",
+    "subcategory": "窗口函数比较",
+    "real_difficulty": 5,
+    "official_difficulty": "Hard",
+    "key_insight": "每月部门平均薪资与公司平均比较",
+    "approach": "1. 计算公司月均\n2. 计算部门月均\n3. 比较",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "SQL",
+      "窗口函数"
+    ],
+    "code_python3": "# SELECT pay_month,department_id,CASE WHEN dept_avg>comp_avg THEN 'higher' WHEN dept_avg<comp_avg THEN 'lower' ELSE 'same' END comparison FROM (SELECT DATE_FORMAT(pay_date,'%Y-%m') pay_month,department_id,AVG(amount) dept_avg FROM Salary s JOIN Employee e ON s.employee_id=e.employee_id GROUP BY 1,2) d JOIN (SELECT DATE_FORMAT(pay_date,'%Y-%m') pay_month,AVG(amount) comp_avg FROM Salary GROUP BY 1) c USING(pay_month)"
+  },
+  {
+    "id": 618,
+    "title": "Students Report By Geography",
+    "slug": "students-report-by-geography",
+    "category": "数据库",
+    "subcategory": "行列转换",
+    "real_difficulty": 5,
+    "official_difficulty": "Hard",
+    "key_insight": "按洲分列展示学生名(PIVOT)",
+    "approach": "1. ROW_NUMBER分组\n2. 条件聚合转列",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "SQL"
+    ],
+    "code_python3": "# SELECT MAX(CASE WHEN continent='America' THEN name END) America,MAX(CASE WHEN continent='Asia' THEN name END) Asia,MAX(CASE WHEN continent='Europe' THEN name END) Europe FROM (SELECT *,ROW_NUMBER() OVER(PARTITION BY continent ORDER BY name) rn FROM Student) t GROUP BY rn"
+  },
+  {
+    "id": 666,
+    "title": "Path Sum IV",
+    "slug": "path-sum-iv",
+    "category": "树",
+    "subcategory": "编码解析",
+    "real_difficulty": 4,
+    "official_difficulty": "Medium",
+    "key_insight": "三位数编码(深度位置值)构建树求路径和",
+    "approach": "1. 解析编码\n2. 哈希存储\n3. DFS求路径和",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "树",
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def pathSum(self, nums) -> int:\n        d={n//10:n%10 for n in nums}\n        self.ans=0\n        def dfs(node,s):\n            depth,pos=node//10,node%10\n            s+=d[node]\n            l,r=(depth+1)*10+pos*2-1,(depth+1)*10+pos*2\n            if l not in d and r not in d:\n                self.ans+=s; return\n            if l in d: dfs(l,s)\n            if r in d: dfs(r,s)\n        dfs(11,0)\n        return self.ans"
+  },
+  {
+    "id": 675,
+    "title": "Cut Off Trees for Golf Event",
+    "slug": "cut-off-trees-for-golf-event",
+    "category": "图",
+    "subcategory": "BFS排序",
+    "real_difficulty": 7,
+    "official_difficulty": "Hard",
+    "key_insight": "按高度排序后BFS逐个到达",
+    "approach": "1. 收集树按高度排序\n2. BFS计算相邻距离\n3. 累加步数",
+    "time_complexity": "O(m^2*n^2)",
+    "space_complexity": "O(mn)",
+    "tags": [
+      "图",
+      "BFS"
+    ],
+    "code_python3": "class Solution:\n    def cutOffTree(self, forest):\n        from collections import deque\n        trees=sorted((h,i,j) for i,r in enumerate(forest) for j,h in enumerate(r) if h>1)\n        def bfs(sr,sc,tr,tc):\n            q=deque([(sr,sc,0)]); seen={(sr,sc)}\n            while q:\n                r,c,d=q.popleft()\n                if r==tr and c==tc: return d\n                for nr,nc in [(r+1,c),(r-1,c),(r,c+1),(r,c-1)]:\n                    if 0<=nr<len(forest) and 0<=nc<len(forest[0]) and (nr,nc) not in seen and forest[nr][nc]:\n                        seen.add((nr,nc)); q.append((nr,nc,d+1))\n            return -1\n        sr=sc=0; total=0\n        for _,tr,tc in trees:\n            d=bfs(sr,sc,tr,tc)\n            if d<0: return -1\n            total+=d; sr,sc=tr,tc\n        return total"
+  },
+  {
+    "id": 705,
+    "title": "Design HashSet",
+    "slug": "design-hashset",
+    "category": "设计",
+    "subcategory": "哈希实现",
+    "real_difficulty": 2,
+    "official_difficulty": "Easy",
+    "key_insight": "用桶数组+链表实现HashSet",
+    "approach": "1. 取模定位桶\n2. 链表处理冲突",
+    "time_complexity": "O(1)平均",
+    "space_complexity": "O(n)",
+    "tags": [
+      "设计",
+      "哈希表"
+    ],
+    "code_python3": "class MyHashSet:\n    def __init__(self): self.s=[False]*1000001\n    def add(self, key): self.s[key]=True\n    def remove(self, key): self.s[key]=False\n    def contains(self, key): return self.s[key]"
+  },
+  {
+    "id": 711,
+    "title": "Number of Distinct Islands II",
+    "slug": "number-of-distinct-islands-ii",
+    "category": "图",
+    "subcategory": "规范化形状",
+    "real_difficulty": 7,
+    "official_difficulty": "Hard",
+    "key_insight": "8种变换(旋转+翻转)取规范形式去重",
+    "approach": "1. BFS找岛\n2. 8种变换\n3. 排序取最小作为key",
+    "time_complexity": "O(mn*k*log k)",
+    "space_complexity": "O(mn)",
+    "tags": [
+      "图",
+      "哈希表"
+    ],
+    "code_python3": "class Solution:\n    def numDistinctIslands2(self, grid) -> int:\n        from collections import deque\n        m,n=len(grid),len(grid[0])\n        def bfs(i,j):\n            q=deque([(i,j)]); grid[i][j]=0; cells=[(i,j)]\n            while q:\n                r,c=q.popleft()\n                for nr,nc in [(r+1,c),(r-1,c),(r,c+1),(r,c-1)]:\n                    if 0<=nr<m and 0<=nc<n and grid[nr][nc]:\n                        grid[nr][nc]=0; q.append((nr,nc)); cells.append((nr,nc))\n            return cells\n        def normalize(cells):\n            shapes=[]\n            for fn in [lambda r,c:(r,c),lambda r,c:(r,-c),lambda r,c:(-r,c),lambda r,c:(-r,-c),lambda r,c:(c,r),lambda r,c:(c,-r),lambda r,c:(-c,r),lambda r,c:(-c,-r)]:\n                t=sorted(fn(r,c) for r,c in cells)\n                t=[(r-t[0][0],c-t[0][1]) for r,c in t]\n                shapes.append(tuple(t))\n            return min(shapes)\n        seen=set()\n        for i in range(m):\n            for j in range(n):\n                if grid[i][j]:\n                    cells=bfs(i,j)\n                    seen.add(normalize(cells))\n        return len(seen)"
+  },
+  {
+    "id": 972,
+    "title": "Equal Rational Numbers",
+    "slug": "equal-rational-numbers",
+    "category": "数学",
+    "subcategory": "分数化简",
+    "real_difficulty": 5,
+    "official_difficulty": "Hard",
+    "key_insight": "将循环小数转为分数比较",
+    "approach": "1. 解析整数/非循环/循环部分\n2. 转为分数\n3. 约分比较",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "tags": [
+      "数学",
+      "字符串"
+    ],
+    "code_python3": "class Solution:\n    def isRationalEqual(self, s: str, t: str) -> bool:\n        def val(s):\n            if '(' not in s: return float(s)\n            i=s.index('('); rep=s[i+1:-1]\n            return float(s[:i]+rep*20)\n        return abs(val(s)-val(t))<1e-9"
+  },
+  {
+    "id": 1045,
+    "title": "Customers Who Bought All Products",
+    "slug": "customers-who-bought-all-products",
+    "category": "数据库",
+    "subcategory": "分组全匹配",
+    "real_difficulty": 3,
+    "official_difficulty": "Medium",
+    "key_insight": "购买了所有产品的客户",
+    "approach": "1. GROUP BY customer\n2. HAVING COUNT(DISTINCT)=总产品数",
+    "time_complexity": "O(n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "SQL"
+    ],
+    "code_python3": "# SELECT customer_id FROM Customer GROUP BY customer_id HAVING COUNT(DISTINCT product_key)=(SELECT COUNT(*) FROM Product)"
+  },
+  {
+    "id": 1077,
+    "title": "Project Employees III",
+    "slug": "project-employees-iii",
+    "category": "数据库",
+    "subcategory": "窗口函数",
+    "real_difficulty": 3,
+    "official_difficulty": "Medium",
+    "key_insight": "每个项目中经验最丰富的员工",
+    "approach": "1. RANK按经验排序\n2. 取rank=1",
+    "time_complexity": "O(n log n)",
+    "space_complexity": "O(n)",
+    "tags": [
+      "SQL",
+      "窗口函数"
+    ],
+    "code_python3": "# SELECT project_id,employee_id FROM (SELECT p.project_id,p.employee_id,RANK() OVER(PARTITION BY project_id ORDER BY experience_years DESC) rk FROM Project p JOIN Employee e ON p.employee_id=e.employee_id) t WHERE rk=1"
+  }
+]

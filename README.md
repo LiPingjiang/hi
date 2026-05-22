@@ -1,12 +1,5 @@
 <p align="center">
-  <pre align="center">
-  ██╗  ██╗ ██╗
-  ██║  ██║ ██║
-  ███████║ ██║
-  ██╔══██║ ██║
-  ██║  ██║ ██║
-  ╚═╝  ╚═╝ ╚═╝
-  </pre>
+  <img src="assets/logo.png" alt="hi logo" width="200" />
 </p>
 
 <p align="center">

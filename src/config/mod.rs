@@ -42,6 +42,24 @@ pub struct AiConfig {
     pub yolo_mode: bool,
     pub context_lines: usize,
     pub debug: bool,
+    /// Fallback providers tried sequentially when the primary fails.
+    #[serde(default)]
+    pub fallback: Vec<FallbackProvider>,
+}
+
+/// A fallback LLM provider configuration.
+#[derive(Debug, Clone, Deserialize)]
+pub struct FallbackProvider {
+    pub api_base_url: String,
+    #[serde(default)]
+    pub api_key: String,
+    pub model: String,
+    #[serde(default = "default_fallback_timeout")]
+    pub timeout_secs: u64,
+}
+
+fn default_fallback_timeout() -> u64 {
+    30
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -118,6 +136,7 @@ impl Default for AiConfig {
             yolo_mode: false,
             context_lines: 10,
             debug: false,
+            fallback: Vec::new(),
         }
     }
 }

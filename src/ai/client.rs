@@ -4,6 +4,9 @@
 //!
 //! Local endpoints (Ollama, LM Studio, etc.) typically don't require an API
 //! key — leave `api_key` empty and the Authorization header is omitted.
+//!
+//! Supports fallback providers: if the primary endpoint fails, the client
+//! will try each configured fallback in order until one succeeds.
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -16,7 +19,7 @@ use crate::config::AiConfig;
 
 // ── Request / Response wire types ────────────────────────────────────────────
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct ChatRequest {
     model: String,
     messages: Vec<ChatMessage>,
@@ -25,7 +28,7 @@ struct ChatRequest {
     stream: bool,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 struct ChatMessage {
     role: String,
     content: String,
@@ -41,64 +44,110 @@ struct Choice {
     message: ChatMessage,
 }
 
-// ── Client ───────────────────────────────────────────────────────────────────
+// ── Provider endpoint descriptor ─────────────────────────────────────────────
 
-pub struct AiClient {
+struct ProviderEndpoint {
     base_url: String,
     api_key: String,
     model: String,
     timeout: Duration,
+    label: String,
+}
+
+// ── Client ───────────────────────────────────────────────────────────────────
+
+pub struct AiClient {
+    providers: Vec<ProviderEndpoint>,
 }
 
 impl AiClient {
     pub fn new(cfg: &AiConfig) -> Self {
-        Self {
+        let mut providers = Vec::new();
+
+        // Primary provider
+        providers.push(ProviderEndpoint {
             base_url: cfg.api_base_url.trim_end_matches('/').to_string(),
             api_key: cfg.api_key.clone(),
             model: cfg.model.clone(),
             timeout: Duration::from_secs(cfg.timeout_secs),
+            label: "primary".to_string(),
+        });
+
+        // Fallback providers
+        for (i, fb) in cfg.fallback.iter().enumerate() {
+            providers.push(ProviderEndpoint {
+                base_url: fb.api_base_url.trim_end_matches('/').to_string(),
+                api_key: fb.api_key.clone(),
+                model: fb.model.clone(),
+                timeout: Duration::from_secs(fb.timeout_secs),
+                label: format!("fallback[{}]", i),
+            });
         }
+
+        Self { providers }
     }
 
     /// Send a chat-completions request and return the assistant content.
+    /// Tries the primary provider first, then each fallback in order.
     /// This is a blocking call — wrap with `spawn_blocking` on async contexts.
-    ///
-    /// An empty `api_key` is allowed: local endpoints (Ollama, LM Studio, etc.)
-    /// don't require authentication, so we simply omit the Authorization header.
     pub fn chat(&self, messages: Vec<Message>) -> Result<String> {
         let chat_messages: Vec<ChatMessage> = messages
             .into_iter()
             .map(|m| ChatMessage { role: m.role, content: m.content })
             .collect();
 
-        let body = ChatRequest {
-            model: self.model.clone(),
-            messages: chat_messages,
-            temperature: 0.2,
-            max_tokens: 2048,
-            stream: false,
-        };
+        let mut last_error: Option<anyhow::Error> = None;
 
-        let url = format!("{}/chat/completions", self.base_url);
+        for provider in &self.providers {
+            let body = ChatRequest {
+                model: provider.model.clone(),
+                messages: chat_messages.clone(),
+                temperature: 0.2,
+                max_tokens: 2048,
+                stream: false,
+            };
 
-        // Debug: log request details
-        ai_log::log(&format!("→ POST {} (model={}, timeout={}s)", url, self.model, self.timeout.as_secs()));
-        ai_log::log(&format!("  auth: {}", if self.api_key.is_empty() { "none" } else { "bearer ***" }));
-        if let Ok(json) = serde_json::to_string_pretty(&body) {
+            match self.try_provider(provider, &body) {
+                Ok(content) => return Ok(content),
+                Err(e) => {
+                    ai_log::log(&format!(
+                        "⚠ Provider [{}] failed: {}, trying next...",
+                        provider.label, e
+                    ));
+                    last_error = Some(e);
+                }
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| anyhow::anyhow!("No providers configured")))
+    }
+
+    /// Attempt a single request against one provider endpoint.
+    fn try_provider(&self, provider: &ProviderEndpoint, body: &ChatRequest) -> Result<String> {
+        let url = format!("{}/chat/completions", provider.base_url);
+
+        ai_log::log(&format!(
+            "→ POST {} [{}] (model={}, timeout={}s)",
+            url, provider.label, provider.model, provider.timeout.as_secs()
+        ));
+        ai_log::log(&format!(
+            "  auth: {}",
+            if provider.api_key.is_empty() { "none" } else { "bearer ***" }
+        ));
+        if let Ok(json) = serde_json::to_string_pretty(body) {
             ai_log::log_block("Request Body", &json);
         }
 
         let client = reqwest::blocking::Client::builder()
-            .timeout(self.timeout)
+            .timeout(provider.timeout)
             .build()
             .context("Failed to build HTTP client")?;
 
-        // Only attach Authorization header when a key is provided.
-        let req = client.post(&url).json(&body);
-        let req = if self.api_key.is_empty() {
+        let req = client.post(&url).json(body);
+        let req = if provider.api_key.is_empty() {
             req
         } else {
-            req.bearer_auth(&self.api_key)
+            req.bearer_auth(&provider.api_key)
         };
 
         let resp = match req.send() {
@@ -113,7 +162,11 @@ impl AiClient {
         };
 
         let status = resp.status();
-        ai_log::log(&format!("← HTTP {} {}", status.as_u16(), status.canonical_reason().unwrap_or("")));
+        ai_log::log(&format!(
+            "← HTTP {} {}",
+            status.as_u16(),
+            status.canonical_reason().unwrap_or("")
+        ));
 
         if !status.is_success() {
             let text = resp.text().unwrap_or_default();
@@ -124,8 +177,8 @@ impl AiClient {
         let raw_text = resp.text().context("Failed to read response body")?;
         ai_log::log_block("Response Body", &raw_text);
 
-        let parsed: ChatResponse = serde_json::from_str(&raw_text)
-            .context("Failed to parse API response")?;
+        let parsed: ChatResponse =
+            serde_json::from_str(&raw_text).context("Failed to parse API response")?;
 
         let content = parsed
             .choices
@@ -134,7 +187,11 @@ impl AiClient {
             .map(|c| c.message.content)
             .context("API returned empty choices")?;
 
-        ai_log::log(&format!("✓ AI response: {} chars", content.len()));
+        ai_log::log(&format!(
+            "✓ AI response [{}]: {} chars",
+            provider.label,
+            content.len()
+        ));
         Ok(content)
     }
 }

@@ -121,12 +121,18 @@ Esc/q — return focus to editor
 ## Normal Mode Keybindings
 
 Movement:
-  h/j/k/l or arrow keys — left/down/up/right
-  w/b/e — word forward / back / end
-  0/^/$ — line start / first non-blank / line end
-  gg/G — file top / bottom
-  Ctrl+d/u — half page down / up
-  n/N — next / previous search match
+h/j/k/l or arrow keys — left/down/up/right
+w/b/e — word forward / back / end
+0/^/$ — line start / first non-blank / line end
+gg/G — file top / bottom
+Ctrl+d/u — half page down / up (scroll)
+n/N — next / previous search match
+
+Global shortcuts (work in any mode):
+  Ctrl+f — global search (opens grep panel; NOT page down!)
+  Ctrl+t — toggle file tree
+  Ctrl+l — toggle chat panel
+  Ctrl+w — cycle focus zone
 
 Editing:
   x — delete char at cursor
